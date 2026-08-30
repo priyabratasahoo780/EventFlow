@@ -54,6 +54,16 @@
       "expo-font",
       "expo-web-browser",
       "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
+          }
+        }
+      ],
       "./withPackagingOptions.js"
     ],
     "experiments": {
