@@ -301,4 +301,30 @@ EventFlow/
 
 ---
 
-Built with passion by [Priyabrata Sahoo](https://github.com/priyabratasahoo780)
+## Future Roadmap
+
+- [ ] Push Notifications for event reminders and task deadlines
+- [ ] Group Events and Collaborative task lists
+- [ ] Advanced AI scheduling using machine learning models
+- [ ] Offline mode with robust local-first sync
+- [ ] Dark Mode refined themes
+
+---
+
+## Contact & Support
+
+If you have any questions, suggestions, or just want to say hi, feel free to reach out!
+
+**Developer:** Priyabrata Sahoo  
+**GitHub:** [@priyabratasahoo780](https://github.com/priyabratasahoo780)  
+**Issues:** [Report a bug or request a feature](https://github.com/priyabratasahoo780/EventFlow/issues)
+
+---
+
+<div align="center">
+  <b>Built with passion and dedication.</b><br><br>
+  <img src="https://img.shields.io/badge/Made%20with-React%20Native-blue?style=for-the-badge&logo=react" alt="Made with React Native">
+  <img src="https://img.shields.io/badge/Powered%20by-Node.js-green?style=for-the-badge&logo=nodedotjs" alt="Powered by Node.js">
+  <br><br>
+  <p>© 2024 EventFlow. All rights reserved.</p>
+</div>
