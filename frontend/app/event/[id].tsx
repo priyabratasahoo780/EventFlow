@@ -14,8 +14,8 @@ import { ReminderConfig } from '../../models/Event';
 import { Theme } from '../../constants/theme';
 import { Colors } from '../../constants/Colors';
 import { priorityService } from '../../services/priorityService';
-import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
+import MapViewWrapper from '../../components/MapViewWrapper';
 
 const bgCol = Colors.light.background;
 const primaryCol = Colors.light.primary;
@@ -220,8 +220,8 @@ export default function EventDetailsScreen() {
             {event.locationDetails?.latitude && event.locationDetails?.longitude ? (
               showMap ? (
                 <View style={styles.mapContainer}>
-                  <MapView 
-                    style={styles.map} 
+                  <MapViewWrapper
+                    style={styles.map}
                     initialCamera={{
                       center: {
                         latitude: event.locationDetails.latitude,
@@ -233,15 +233,12 @@ export default function EventDetailsScreen() {
                       zoom: 18
                     }}
                     showsUserLocation={true}
-                  >
-                    <Marker 
-                      coordinate={{
-                        latitude: event.locationDetails.latitude,
-                        longitude: event.locationDetails.longitude,
-                      }}
-                      title={event.title}
-                    />
-                  </MapView>
+                    markerCoordinate={{
+                      latitude: event.locationDetails.latitude,
+                      longitude: event.locationDetails.longitude,
+                    }}
+                    markerTitle={event.title}
+                  />
                   <View style={styles.addressBox}>
                     <MapPin color={Colors.light.primary} size={20} strokeWidth={2.5} />
                     <Text style={styles.addressText}>{event.location}</Text>
