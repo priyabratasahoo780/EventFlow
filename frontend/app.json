@@ -4,7 +4,7 @@
     "slug": "FocusFlow",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icon_squared.png",
     "scheme": "focusflow",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -25,7 +25,8 @@
         "WAKE_LOCK",
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED"
-      ]
+      ],
+      "package": "com.priyabrata.focusflow"
     },
     "web": {
       "bundler": "metro",
@@ -45,16 +46,35 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+          "icon": "./assets/images/icon_squared.png",
           "color": "#6366F1"
         }
       ],
       "@react-native-community/datetimepicker",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "packagingOptions": {
+              "pickFirst": [
+                "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+              ]
+            }
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6e1d8280-cb77-4673-8219-1b36142d7a90"
+      }
     }
   }
 }
