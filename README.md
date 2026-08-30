@@ -16,25 +16,21 @@ Whether you are managing daily routines, organizing community events, or collabo
 
 ## 🛠 Tech Stack
 
-### Frontend (Mobile App)
-* **Framework:** React Native & Expo
-* **Language:** TypeScript
-* **Navigation:** Expo Router (File-based routing)
-* **Authentication:** Clerk (`@clerk/expo`)
-* **State Management:** Zustand
-* **API Client:** Axios
-* **Real-time:** Socket.io-client
-* **Maps & Location:** React Native Maps & Expo Location
-* **Styling:** Custom Brutalist UI components & Theming hooks
+### 📱 Frontend (Mobile App)
+![React Native](https://img.shields.io/badge/react_native-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)
+![Expo](https://img.shields.io/badge/expo-1C1E24?style=for-the-badge&logo=expo&logoColor=#D04A37)
+![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
+![React Router](https://img.shields.io/badge/Expo%20Router-CA4245.svg?style=for-the-badge&logo=react-router&logoColor=white)
+<br/>
+**Libraries:** Clerk Auth (`@clerk/expo`), Zustand, Axios, Socket.io-client, React Native Maps, Custom Brutalist UI
 
-### Backend (REST API)
-* **Runtime:** Node.js
-* **Framework:** Express.js
-* **Language:** JavaScript
-* **Database:** MongoDB & Mongoose
-* **Real-time:** Socket.io
-* **File Uploads:** Multer
-* **Security & Auth:** JWT (JSON Web Tokens), bcrypt, Express Rate Limit
+### ⚙️ Backend (REST API)
+![NodeJS](https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white)
+![Express.js](https://img.shields.io/badge/express.js-%23404d59.svg?style=for-the-badge&logo=express&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white)
+![JavaScript](https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E)
+<br/>
+**Features:** JWT Auth, bcrypt, Multer (Uploads), Socket.io (Real-time), Express Rate Limit
 
 ---
 
