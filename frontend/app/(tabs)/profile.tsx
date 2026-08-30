@@ -211,7 +211,7 @@ export default function ProfileScreen() {
   const handleLogout = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await logout();
-    router.replace('/(auth)/login');
+    router.replace('/(auth)/welcome');
   };
 
   return (
