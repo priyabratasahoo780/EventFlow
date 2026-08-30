@@ -135,7 +135,7 @@ export default function WelcomeScreen() {
             style={({ pressed }) => [styles.btnWrapper, pressed && { opacity: 0.9 }]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              router.push('/(auth)/register');
+              router.push('/(auth)/login');
             }}
           >
             <LinearGradient
@@ -144,7 +144,7 @@ export default function WelcomeScreen() {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <Text style={styles.primaryBtnText}>Sign Up</Text>
+              <Text style={styles.primaryBtnText}>Get Started</Text>
               <ArrowRight color={colors.card} size={20} strokeWidth={2.5} />
             </LinearGradient>
           </Pressable>
@@ -153,10 +153,10 @@ export default function WelcomeScreen() {
             style={({ pressed }) => [styles.secondaryBtn, pressed && { backgroundColor: colors.secondaryLight }]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/(auth)/login');
+              router.push('/(auth)/register');
             }}
           >
-            <Text style={styles.secondaryBtnText}>Login</Text>
+            <Text style={styles.secondaryBtnText}>Create Account</Text>
             <ArrowRight color={colors.secondary} size={20} strokeWidth={2.5} />
           </Pressable>
 
