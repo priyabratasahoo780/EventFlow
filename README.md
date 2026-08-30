@@ -17,7 +17,15 @@ Whether you are managing daily routines, organizing community events, or collabo
 ## App Preview
 
 <div align="center">
-  <img src="frontend/assets/images/image.png" alt="EventFlow App Preview" width="100%" />
+
+| Welcome | Login | Home | Calendar |
+|:-:|:-:|:-:|:-:|
+| <img src="frontend/assets/images/image1.png" width="180" alt="Welcome Page"/> | <img src="frontend/assets/images/image2.png" width="180" alt="Login Page"/> | <img src="frontend/assets/images/image3.png" width="180" alt="Home Page"/> | <img src="frontend/assets/images/image4.png" width="180" alt="Calendar Page"/> |
+
+| Statistics | Settings | Community | Friends |
+|:-:|:-:|:-:|:-:|
+| <img src="frontend/assets/images/image5.png" width="180" alt="Stats Page"/> | <img src="frontend/assets/images/image6.png" width="180" alt="Settings Page"/> | <img src="frontend/assets/images/image7.png" width="180" alt="Community Page"/> | <img src="frontend/assets/images/image8.png" width="180" alt="Friends Page"/> |
+
 </div>
 
 ---
