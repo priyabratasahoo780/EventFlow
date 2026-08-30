@@ -14,6 +14,14 @@ Whether you are managing daily routines, organizing community events, or collabo
 
 ---
 
+## 📸 Screenshots
+
+<div align="center">
+  <img src="frontend/assets/images/welcome-screen.png" alt="Welcome Screen" width="250" />
+</div>
+
+---
+
 ## 🛠 Tech Stack
 
 ### 📱 Frontend (Mobile App)
