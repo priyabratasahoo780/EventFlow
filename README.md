@@ -326,5 +326,5 @@ If you have any questions, suggestions, or just want to say hi, feel free to rea
   <img src="https://img.shields.io/badge/Made%20with-React%20Native-blue?style=for-the-badge&logo=react" alt="Made with React Native">
   <img src="https://img.shields.io/badge/Powered%20by-Node.js-green?style=for-the-badge&logo=nodedotjs" alt="Powered by Node.js">
   <br><br>
-  <p>© 2024 EventFlow. All rights reserved.</p>
+  <p>© 2026 EventFlow. All rights reserved.</p>
 </div>
