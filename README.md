@@ -201,21 +201,104 @@ The project is organized into a clean mono-repo structure containing both the fr
 
 ## Getting Started
 
-### Prerequisites
-* Node.js installed
-* Expo CLI installed (`npm install -g expo-cli`)
-* MongoDB instance (local or Atlas)
+Follow the steps below to run this project locally on your machine.
 
-### Running the Backend
+### Prerequisites
+
+Make sure you have the following installed:
+
+| Tool | Version | Download |
+|---|---|---|
+| Node.js | v18 or higher | [nodejs.org](https://nodejs.org) |
+| npm | v9 or higher | Comes with Node.js |
+| Expo CLI | Latest | `npm install -g expo-cli` |
+| MongoDB | Local or Atlas | [mongodb.com](https://www.mongodb.com) |
+| Expo Go App | Latest | Install on your phone from App Store / Play Store |
+
+---
+
+### Clone the Repository
+
 ```bash
+git clone https://github.com/priyabratasahoo780/EventFlow.git
+cd EventFlow
+```
+
+---
+
+### Backend Setup
+
+```bash
+# Navigate to the backend directory
 cd backend
+
+# Install dependencies
 npm install
+
+# Create a .env file and add your environment variables
+# Example .env:
+# PORT=5000
+# MONGO_URI=your_mongodb_connection_string
+# JWT_SECRET=your_jwt_secret
+
+# Start the development server
 npm run dev
 ```
 
-### Running the Frontend
+> The backend server will start on `http://localhost:5000`
+
+---
+
+### Frontend Setup
+
 ```bash
+# Navigate to the frontend directory
 cd frontend
+
+# Install dependencies
 npm install
+
+# Start the Expo development server
 npm run start
+
+# To run on specific platforms:
+npm run android    # Android emulator or device
+npm run ios        # iOS simulator (macOS only)
+npm run web        # Web browser
 ```
+
+> Scan the QR code shown in your terminal with the **Expo Go** app on your phone.
+
+---
+
+### Project Structure
+
+```
+EventFlow/
+├── backend/
+│   ├── src/
+│   │   ├── controllers/     # Route handler logic
+│   │   ├── middleware/      # Auth, rate limit, upload
+│   │   ├── models/          # Mongoose schemas
+│   │   ├── routes/          # API route definitions
+│   │   ├── services/        # Business logic layer
+│   │   ├── utils/           # Utility helpers
+│   │   └── validators/      # Input validation
+│   └── server.js            # Entry point
+│
+└── frontend/
+    ├── app/
+    │   ├── (auth)/          # Welcome, Login, Register
+    │   ├── (tabs)/          # Home, Calendar, Stats, Profile
+    │   ├── event/           # Event detail screen
+    │   └── friends/         # Friend management screens
+    ├── components/          # Reusable UI components
+    ├── constants/           # Colors, themes
+    ├── hooks/               # Custom React hooks
+    ├── services/            # API client, notifications
+    └── store/               # Zustand state management
+```
+
+---
+
+Built with passion by [Priyabrata Sahoo](https://github.com/priyabratasahoo780)
