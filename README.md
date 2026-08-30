@@ -14,13 +14,14 @@ Whether you are managing daily routines, organizing community events, or collabo
 
 ---
 
-## 📸 Screenshots
+## 🎨 App Preview
 
 <div align="center">
-  <img src="frontend/assets/images/welcome-screen.png" alt="Welcome Screen" width="250" />
+  <img src="frontend/assets/images/image.png" alt="EventFlow App Preview" width="100%" />
 </div>
 
 ---
+
 
 ## 🛠 Tech Stack
 
@@ -44,21 +45,43 @@ Whether you are managing daily routines, organizing community events, or collabo
 
 ## 🏗 Workflow Structure
 
-### 🏛 System Architecture
+### 🏛 Full Stack System Design
+
+The platform operates on a **4-tier mobile architecture** spanning the mobile client, authentication provider, API server, and MongoDB database cluster. Every component is purpose-built for high-performance event and task management at scale.
 
 ```mermaid
 graph TD
-    Client[📱 Mobile Client<br>Expo / React Native]
-    Auth[🔑 Clerk Auth<br>Authentication Provider]
-    API[⚙️ Backend API<br>Node.js & Express]
-    DB[(💾 MongoDB<br>Database)]
-    WebSockets[⚡ Socket.io<br>Real-time Events]
+    subgraph Client Tier — React Native & Expo
+        A[📱 Expo Router<br>File-based Navigation]
+        B[🎨 UI Components<br>Screens & Layouts]
+        C[🧠 Zustand Stores<br>useEventStore · useAuthStore · useThemeStore]
+        D[🔌 Axios + Socket.io-client<br>API calls · Real-time updates]
+    end
 
-    Client <-->|Token Auth| Auth
-    Client <-->|REST API Requests| API
-    Client <-->|Real-time Updates| WebSockets
-    API <-->|Mongoose queries| DB
-    API <-->|Push Events| WebSockets
+    subgraph Auth Tier — Clerk Provider
+        E[🔑 Clerk Auth<br>Sign In · Sign Up · JWT Tokens]
+        F[🔒 Secure Token Cache<br>tokenCache.ts]
+    end
+
+    subgraph API Tier — Node.js & Express
+        G[🛣️ Routes Layer<br>event · task · user · auth · analytics]
+        H[🧩 Controllers Layer<br>Request handling & response formatting]
+        I[⚙️ Services Layer<br>Priority Engine · Analytics · Notifications]
+        J[🛡️ Middleware<br>Auth · Rate Limit · Upload · Error Handler]
+    end
+
+    subgraph Data Tier — MongoDB
+        K[(💾 MongoDB Atlas<br>Users · Events · Tasks)]
+        L[(📦 Mongoose Models<br>Schema validation & relationships)]
+    end
+
+    A --> B --> C --> D
+    D -->|HTTPS REST API| G
+    D -->|WebSocket| G
+    B <-->|Token Auth| E
+    E --> F
+    G --> J --> H --> I
+    I --> L --> K
 ```
 
 The project is organized into a clean mono-repo structure containing both the frontend and backend applications, designed for independent scaling and development.
@@ -82,6 +105,90 @@ The project is organized into a clean mono-repo structure containing both the fr
 4. **Services:** Complex business logic (like analytics processing in `analytics.service.js` or task prioritization in `priority.service.js`) is abstracted into the `services/` layer.
 5. **Database Models:** Mongoose schemas in `models/` define the structure for Users, Events, Tasks, Reviews, and Friend Requests.
 6. **Middleware:** Custom middleware handles authentication (`auth.middleware.js`), error handling (`error.middleware.js`), and file uploads (`upload.middleware.js`).
+
+---
+
+## 🛰️ API Endpoints
+
+> All protected routes require a valid **JWT Bearer Token** in the `Authorization` header.
+
+### 🔐 Auth — `/api/auth`
+
+| Method | Endpoint | Auth | Description |
+|:---:|---|:---:|---|
+| `POST` | `/api/auth/register` | ❌ | Register a new user |
+| `POST` | `/api/auth/login` | ❌ | Login with email & password |
+| `POST` | `/api/auth/google` | ❌ | Login with Google OAuth |
+| `POST` | `/api/auth/sync` | ❌ | Sync Clerk user with database |
+| `POST` | `/api/auth/forgot-password` | ❌ | Send password reset email |
+| `GET` | `/api/auth/profile` | ✅ | Get logged-in user profile |
+
+### 👤 User — `/api/users`
+
+| Method | Endpoint | Auth | Description |
+|:---:|---|:---:|---|
+| `GET` | `/api/users/profile` | ✅ | Get current user's profile |
+| `PUT` | `/api/users/profile` | ✅ | Update user profile details |
+| `POST` | `/api/users/push-token` | ✅ | Register Expo push token |
+
+### 📅 Events — `/api/events`
+
+| Method | Endpoint | Auth | Description |
+|:---:|---|:---:|---|
+| `POST` | `/api/events` | ✅ | Create a new event |
+| `GET` | `/api/events` | ✅ | Get all events for current user |
+| `GET` | `/api/events/friends` | ✅ | Get events from friends |
+
+### ✅ Tasks — `/api/tasks`
+
+| Method | Endpoint | Auth | Description |
+|:---:|---|:---:|---|
+| `GET` | `/api/tasks` | ✅ | Get all tasks |
+| `GET` | `/api/tasks/recommendation` | ✅ | Get AI priority recommendations |
+| `POST` | `/api/tasks` | ✅ | Create a new task |
+| `GET` | `/api/tasks/:id` | ✅ | Get a specific task by ID |
+| `PUT` | `/api/tasks/:id` | ✅ | Update a task |
+| `PATCH` | `/api/tasks/:id/status` | ✅ | Update task completion status |
+| `DELETE` | `/api/tasks/:id` | ✅ | Delete a task |
+
+### 👥 Friends — `/api/friends`
+
+| Method | Endpoint | Auth | Description |
+|:---:|---|:---:|---|
+| `POST` | `/api/friends/search` | ✅ | Search for a user by name/email |
+| `POST` | `/api/friends/request` | ✅ | Send a friend request |
+| `GET` | `/api/friends/requests` | ✅ | View incoming friend requests |
+| `POST` | `/api/friends/accept` | ✅ | Accept a friend request |
+| `POST` | `/api/friends/reject` | ✅ | Reject a friend request |
+| `GET` | `/api/friends` | ✅ | Get full friends list |
+| `GET` | `/api/friends/events` | ✅ | Get friends' events |
+| `POST` | `/api/friends/message` | ✅ | Send a message to a friend |
+| `GET` | `/api/friends/messages/:friendId` | ✅ | Get messages with a friend |
+| `DELETE` | `/api/friends/remove` | ✅ | Remove a friend |
+
+### ⭐ Reviews — `/api/reviews`
+
+| Method | Endpoint | Auth | Description |
+|:---:|---|:---:|---|
+| `POST` | `/api/reviews` | ✅ | Create an event review |
+| `GET` | `/api/reviews` | ✅ | Get all community reviews |
+| `POST` | `/api/reviews/:id/like` | ✅ | Toggle like on a review |
+
+### 📊 Analytics — `/api/analytics`
+
+| Method | Endpoint | Auth | Description |
+|:---:|---|:---:|---|
+| `GET` | `/api/analytics/dashboard` | ✅ | Get dashboard summary statistics |
+| `GET` | `/api/analytics/weekly` | ✅ | Get weekly productivity data |
+| `GET` | `/api/analytics/categories` | ✅ | Get task category breakdown |
+
+### 📤 Uploads — `/api/upload`
+
+| Method | Endpoint | Auth | Description |
+|:---:|---|:---:|---|
+| `POST` | `/api/upload/image` | ✅ | Upload an image file |
+| `POST` | `/api/upload/video` | ✅ | Upload a video file |
+| `DELETE` | `/api/upload/:id` | ✅ | Delete an uploaded file |
 
 ---
 
