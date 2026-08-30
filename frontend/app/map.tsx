@@ -11,7 +11,9 @@ import { Colors } from '../constants/Colors';
 import { priorityService } from '../services/priorityService';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import MapView, { Marker, Circle } from 'react-native-maps';
+import MapView, { Marker, Circle } from '../components/maps';
+
+
 
 export default function MapScreen() {
   const { getColors } = useThemeStore();
