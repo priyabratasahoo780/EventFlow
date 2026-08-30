@@ -94,24 +94,49 @@ graph TD
 The project is organized into a clean mono-repo structure containing both the frontend and backend applications, designed for independent scaling and development.
 
 ### Frontend Workflow
-1. **Entry Point and Layouts:** The app uses Expo Router. The root `_layout.tsx` initializes the `ClerkProvider` and themes.
-2. **Authentication Flow:** Unauthenticated users are directed to `(auth)/welcome.tsx`, followed by `login.tsx` or `register.tsx` managed securely by Clerk.
-3. **Main Dashboard:** Once authenticated, users enter the `(tabs)` layout featuring:
-   * **Home (`index.tsx`):** A summary dashboard of upcoming tasks and priority recommendations.
-   * **Calendar (`calendar.tsx`):** A detailed view for event scheduling and time blocking.
-   * **Statistics (`statistics.tsx`):** Productivity analytics and charts.
-   * **Profile (`profile.tsx`):** User settings and friend connections.
-4. **Features and Services:**
-   * **State:** Global state (events, auth, theme) is managed via Zustand stores (`useEventStore`, `useAuthStore`).
-   * **Hardware Integrations:** Custom hooks handle camera (`useCamera`), location (`useLocation`), and notifications (`useNotifications`).
+
+```mermaid
+flowchart TD
+    A[Entry Point: _layout.tsx] -->|Initializes| B(ClerkProvider & Themes)
+    B --> C{Is User Authenticated?}
+    C -->|No| D[Auth Flow: welcome.tsx]
+    D --> E[login.tsx / register.tsx]
+    C -->|Yes| F[Main Dashboard: tabs]
+    
+    subgraph "Core Screens"
+    F --> G[Home: index.tsx]
+    F --> H[Calendar: calendar.tsx]
+    F --> I[Statistics: statistics.tsx]
+    F --> J[Profile: profile.tsx]
+    end
+    
+    subgraph "State & Services"
+    K[Zustand Stores: Events, Auth, Theme]
+    L[Custom Hooks: Camera, Location, Notifications]
+    end
+    
+    F -.-> K
+    F -.-> L
+```
 
 ### Backend Workflow
-1. **Entry Point:** The server starts at `server.js` (or `app.js`), initializing Express, connecting to MongoDB, and setting up Socket.io.
-2. **Routing:** Incoming API requests hit the `routes/` directory (e.g., `event.routes.js`, `taskRoutes.js`, `user.routes.js`).
-3. **Controllers:** Routes delegate logic to `controllers/`, which handle request validation and response formatting.
-4. **Services:** Complex business logic (like analytics processing in `analytics.service.js` or task prioritization in `priority.service.js`) is abstracted into the `services/` layer.
-5. **Database Models:** Mongoose schemas in `models/` define the structure for Users, Events, Tasks, Reviews, and Friend Requests.
-6. **Middleware:** Custom middleware handles authentication (`auth.middleware.js`), error handling (`error.middleware.js`), and file uploads (`upload.middleware.js`).
+
+```mermaid
+flowchart LR
+    A[Entry: server.js] -->|Initializes| B(Express & Socket.io)
+    
+    subgraph "Request Pipeline"
+    B -->|Matches| C[routes/]
+    C -->|Delegates| D[controllers/]
+    D -->|Business Logic| E[services/]
+    end
+    
+    subgraph "Data & Middleware"
+    D -.->|Validates| F[(models/)]
+    E -->|Reads/Writes| F
+    G[Middleware: Auth, Error, Upload] -.->|Intercepts| C
+    end
+```
 
 ---
 
