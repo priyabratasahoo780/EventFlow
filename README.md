@@ -40,6 +40,23 @@ Whether you are managing daily routines, organizing community events, or collabo
 
 ## 🏗 Workflow Structure
 
+### 🏛 System Architecture
+
+```mermaid
+graph TD
+    Client[📱 Mobile Client<br>Expo / React Native]
+    Auth[🔑 Clerk Auth<br>Authentication Provider]
+    API[⚙️ Backend API<br>Node.js & Express]
+    DB[(💾 MongoDB<br>Database)]
+    WebSockets[⚡ Socket.io<br>Real-time Events]
+
+    Client <-->|Token Auth| Auth
+    Client <-->|REST API Requests| API
+    Client <-->|Real-time Updates| WebSockets
+    API <-->|Mongoose queries| DB
+    API <-->|Push Events| WebSockets
+```
+
 The project is organized into a clean mono-repo structure containing both the frontend and backend applications, designed for independent scaling and development.
 
 ### 📱 Frontend Workflow
