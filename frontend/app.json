@@ -54,20 +54,7 @@
       "expo-font",
       "expo-web-browser",
       "expo-secure-store",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "packagingOptions": {
-              "pickFirsts": [
-                "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
-                "**/*.MF",
-                "META-INF/*"
-              ]
-            }
-          }
-        }
-      ]
+      "./withPackagingOptions.js"
     ],
     "experiments": {
       "typedRoutes": true
