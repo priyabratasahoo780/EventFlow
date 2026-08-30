@@ -59,7 +59,7 @@
         {
           "android": {
             "packagingOptions": {
-              "excludes": [
+              "pickFirsts": [
                 "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
                 "META-INF/MANIFEST.MF"
               ]
