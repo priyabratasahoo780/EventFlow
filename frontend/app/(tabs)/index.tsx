@@ -557,6 +557,20 @@ export default function HomeScreen() {
               <Zap color={colors.textSecondary} size={18} strokeWidth={2.5} />
               <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: colors.textSecondary }}>Estimated: {durationMins} mins</Text>
             </View>
+            {topTask.reminders && topTask.reminders.length > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Bell color={colors.secondary} size={18} strokeWidth={2.5} />
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: colors.secondary }}>
+                  {topTask.reminders.map(r => {
+                    if (r.type === 'exact') return `Reminder at ${r.time}`;
+                    if (r.type === 'before') return `Reminder: ${r.value} ${r.unit} before`;
+                    if (r.type === 'daily') return `Daily Reminder: ${r.time}`;
+                    if (r.type === 'weekly') return `Weekly Reminder: ${r.time}`;
+                    return `Reminder: ${r.time || r.type}`;
+                  }).join(' · ')}
+                </Text>
+              </View>
+            )}
           </View>
 
           <Pressable
@@ -659,6 +673,14 @@ export default function HomeScreen() {
                 <View style={s.durationTag}>
                   <Text style={s.durationText}>~{estDuration}m</Text>
                 </View>
+                {item.reminders && item.reminders.length > 0 && (
+                  <View style={[s.metaTag, { backgroundColor: colors.secondaryLight, borderColor: colors.secondary, borderWidth: 0.5 }]}>
+                    <Bell color={colors.secondary} size={11} strokeWidth={2.5} />
+                    <Text style={[s.metaTagText, { color: colors.secondary, fontFamily: 'Poppins_600SemiBold' }]}>
+                      {item.reminders[0].type === 'exact' ? item.reminders[0].time : item.reminders[0].type === 'before' ? `${item.reminders[0].value}${item.reminders[0].unit?.charAt(0)} bfr` : item.reminders[0].time || 'Reminder'}
+                    </Text>
+                  </View>
+                )}
                 {item.location ? (
                   <View style={[s.locTag, item.locationReminderEnabled && { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0', borderWidth: 1 }]}>
                     <MapPin color={item.locationReminderEnabled ? '#15803D' : colors.textSecondary} size={11} />

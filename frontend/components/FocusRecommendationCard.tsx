@@ -5,7 +5,7 @@ import { Event } from '../models/Event';
 import { priorityService } from '../services/priorityService';
 import {
   Clock, MapPin, Play, CheckCircle2, Sparkles,
-  Timer, ArrowRight, Target,
+  Timer, ArrowRight, Target, Bell,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -115,6 +115,15 @@ export default function FocusRecommendationCard({
         <View style={styles.categoryPill}>
           <Text style={styles.categoryPillText}>{task.category}</Text>
         </View>
+
+        {task.reminders && task.reminders.length > 0 && (
+          <View style={[styles.metaPill, { backgroundColor: '#FFF7ED', borderColor: '#FFEDD5' }]}>
+            <Bell color="#FF7A00" size={12} strokeWidth={2.3} />
+            <Text style={[styles.metaPillText, { color: '#C2410C' }]}>
+              {task.reminders[0].type === 'exact' ? `Remind ${task.reminders[0].time}` : task.reminders[0].type === 'before' ? `Remind ${task.reminders[0].value}${task.reminders[0].unit?.charAt(0)} bfr` : `Remind ${task.reminders[0].time || ''}`}
+            </Text>
+          </View>
+        )}
 
         {task.location ? (
           <View style={styles.locationPill}>
