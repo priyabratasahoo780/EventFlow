@@ -57,38 +57,38 @@ Whether you are managing daily routines, organizing community events, or collabo
 The platform operates on a **4-tier mobile architecture** spanning the mobile client, authentication provider, API server, and MongoDB database cluster. Every component is purpose-built for high-performance event and task management at scale.
 
 ```mermaid
-graph TD
-    subgraph "Client Tier - React Native and Expo"
-        A[Expo Router - File-based Navigation]
-        B[UI Components - Screens and Layouts]
-        C[Zustand Stores - useEventStore, useAuthStore, useThemeStore]
-        D[Axios and Socket.io-client - API calls and Real-time updates]
+flowchart TD
+    subgraph Client["Client Tier (React Native & Expo)"]
+        A["Expo Router (File-based Navigation)"]
+        B["UI Components (Screens & Layouts)"]
+        C["Zustand Stores (Events, Auth, Theme)"]
+        D["Axios & Socket.io-client (REST & Real-time)"]
+        A --> B --> C --> D
     end
 
-    subgraph "Auth Tier - Clerk Provider"
-        E[Clerk Auth - Sign In, Sign Up, JWT Tokens]
-        F[Secure Token Cache - tokenCache.ts]
+    subgraph Auth["Auth Tier (Clerk Provider)"]
+        E["Clerk Auth (Sign In, Sign Up, JWT)"]
+        F["Secure Token Cache (tokenCache.ts)"]
+        E --> F
     end
 
-    subgraph "API Tier - Node.js and Express"
-        G[Routes Layer - event, task, user, auth, analytics]
-        H[Controllers Layer - Request handling and response formatting]
-        I[Services Layer - Priority Engine, Analytics, Notifications]
-        J[Middleware - Auth, Rate Limit, Upload, Error Handler]
+    subgraph API["API Tier (Node.js & Express)"]
+        G["Routes Layer (event, task, user, auth)"]
+        J["Middleware (Auth, Rate Limit, Uploads)"]
+        H["Controllers Layer (Request Handling)"]
+        I["Services Layer (Priority Engine, Analytics)"]
+        G --> J --> H --> I
     end
 
-    subgraph "Data Tier - MongoDB"
-        K[(MongoDB Atlas - Users, Events, Tasks)]
-        L[(Mongoose Models - Schema validation and relationships)]
+    subgraph Database["Data Tier (MongoDB)"]
+        L[("Mongoose Models (Schema Validation)")]
+        K[("MongoDB Atlas (Database Cluster)")]
+        L --> K
     end
 
-    A --> B --> C --> D
-    D -->|HTTPS REST API| G
-    D -->|WebSocket| G
-    B <-->|Token Auth| E
-    E --> F
-    G --> J --> H --> I
-    I --> L --> K
+    D -->|"HTTPS REST API / WebSocket"| G
+    B -.->|"Token Auth"| E
+    I --> L
 ```
 
 The project is organized into a clean mono-repo structure containing both the frontend and backend applications, designed for independent scaling and development.
@@ -97,23 +97,28 @@ The project is organized into a clean mono-repo structure containing both the fr
 
 ```mermaid
 flowchart TD
-    A[Entry Point: _layout.tsx] -->|Initializes| B(ClerkProvider & Themes)
-    B --> C{Is User Authenticated?}
-    C -->|No| D[Auth Flow: welcome.tsx]
-    D --> E[login.tsx / register.tsx]
-    C -->|Yes| F[Main Dashboard: tabs]
+    A["Entry Point: _layout.tsx"] -->|"Initializes"| B["ClerkProvider & Themes"]
+    B --> C{"Is User Authenticated?"}
+    C -->|"No"| D["Auth Flow (welcome.tsx)"]
+    D --> E["Login / Register (login.tsx)"]
+    C -->|"Yes"| F["Main Dashboard (tabs)"]
     
-    subgraph "Core Screens"
-    F --> G[Home: index.tsx]
-    F --> H[Calendar: calendar.tsx]
-    F --> I[Statistics: statistics.tsx]
-    F --> J[Profile: profile.tsx]
+    subgraph CoreScreens["Core Screens"]
+        G["Home (index.tsx)"]
+        H["Calendar (calendar.tsx)"]
+        I["Statistics (statistics.tsx)"]
+        J["Profile (profile.tsx)"]
     end
     
-    subgraph "State & Services"
-    K[Zustand Stores: Events, Auth, Theme]
-    L[Custom Hooks: Camera, Location, Notifications]
+    subgraph StateServices["State & Services"]
+        K["Zustand Stores (Events, Auth, Theme)"]
+        L["Custom Hooks (Location, Notifications)"]
     end
+
+    F --> G
+    F --> H
+    F --> I
+    F --> J
     
     F -.-> K
     F -.-> L
@@ -123,19 +128,25 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    A[Entry: server.js] -->|Initializes| B(Express & Socket.io)
+    A["Entry (server.js)"] -->|"Initializes"| B["Express & Socket.io"]
     
-    subgraph "Request Pipeline"
-    B -->|Matches| C[routes/]
-    C -->|Delegates| D[controllers/]
-    D -->|Business Logic| E[services/]
+    subgraph Pipeline["Request Pipeline"]
+        C["routes/"]
+        D["controllers/"]
+        E["services/"]
+        C -->|"Delegates"| D
+        D -->|"Business Logic"| E
     end
     
-    subgraph "Data & Middleware"
-    D -.->|Validates| F[(models/)]
-    E -->|Reads/Writes| F
-    G[Middleware: Auth, Error, Upload] -.->|Intercepts| C
+    subgraph Storage["Data & Middleware"]
+        F[("MongoDB Models")]
+        G["Middleware (Auth, Error, Upload)"]
     end
+
+    B -->|"Matches Route"| C
+    G -.->|"Intercepts"| C
+    D -.->|"Validates"| F
+    E -->|"Reads / Writes"| F
 ```
 
 ---
