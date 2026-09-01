@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Event, EventFilters, TaskStatus } from '../models/Event';
+import { Event, EventFilters, TaskStatus, ReminderConfig } from '../models/Event';
 import { storageService } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
 import { priorityService } from '../services/priorityService';
@@ -66,13 +66,13 @@ export const useEventStore = create<EventState>((set, get) => ({
           }
         } else {
           // Reschedule updated alarms and reminders
-          const reminders = (updatedEvent.reminders && updatedEvent.reminders.length > 0)
+          const reminders: ReminderConfig[] = (updatedEvent.reminders && updatedEvent.reminders.length > 0)
             ? updatedEvent.reminders
             : [{ id: 'rem_' + Date.now(), type: 'exact', time: updatedEvent.time, date: updatedEvent.date.split('T')[0] }];
           
           await notificationService.scheduleEventNotifications({
             ...updatedEvent,
-            title: `👥 ${updatedEvent.ownerId?.name ? updatedEvent.ownerId.name + ': ' : ''}${updatedEvent.title}`
+            title: `👥 ${typeof updatedEvent.ownerId === 'object' && updatedEvent.ownerId?.name ? updatedEvent.ownerId.name + ': ' : ''}${updatedEvent.title}`
           }, reminders);
         }
       } catch (scheduleErr) {
@@ -88,13 +88,13 @@ export const useEventStore = create<EventState>((set, get) => ({
 
       // Schedule alarms and reminders on this friend's phone
       try {
-        const reminders = (newEvent.reminders && newEvent.reminders.length > 0)
+        const reminders: ReminderConfig[] = (newEvent.reminders && newEvent.reminders.length > 0)
           ? newEvent.reminders
           : [{ id: 'rem_' + Date.now(), type: 'exact', time: newEvent.time, date: newEvent.date.split('T')[0] }];
         
         await notificationService.scheduleEventNotifications({
           ...newEvent,
-          title: `👥 ${newEvent.ownerId?.name ? newEvent.ownerId.name + ': ' : ''}${newEvent.title}`
+          title: `👥 ${typeof newEvent.ownerId === 'object' && newEvent.ownerId?.name ? newEvent.ownerId.name + ': ' : ''}${newEvent.title}`
         }, reminders);
       } catch (scheduleErr) {
         console.warn('Error scheduling friend shared event alarm:', scheduleErr);
@@ -124,13 +124,13 @@ export const useEventStore = create<EventState>((set, get) => ({
         const key = `${fe.id || fe._id}_${fe.updatedAt || fe.createdAt || 'v1'}`;
         if (!scheduledMap[key]) {
           if (!isMuted) {
-            const reminders = (fe.reminders && fe.reminders.length > 0) 
+            const reminders: ReminderConfig[] = (fe.reminders && fe.reminders.length > 0) 
               ? fe.reminders 
               : [{ id: 'auto_rem_' + Date.now(), type: 'exact', time: fe.time, date: fe.date.split('T')[0] }];
             
             await notificationService.scheduleEventNotifications({
               ...fe,
-              title: `👥 ${fe.ownerId?.name ? fe.ownerId.name + ': ' : ''}${fe.title}`
+              title: `👥 ${typeof fe.ownerId === 'object' && fe.ownerId?.name ? fe.ownerId.name + ': ' : ''}${fe.title}`
             }, reminders);
           }
 

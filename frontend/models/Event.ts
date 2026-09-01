@@ -45,8 +45,17 @@ export interface ReminderConfig {
   notificationIds?: string[];
 }
 
+export interface EventOwner {
+  _id?: string;
+  name?: string;
+  username?: string;
+  profilePhoto?: string;
+  uniqueId?: string;
+}
+
 export interface Event {
   id: string;
+  _id?: string;
   title: string;
   description: string;
   category: string;
@@ -82,7 +91,7 @@ export interface Event {
   updatedAt: string;
 
   // Backend sync properties
-  ownerId?: string;
+  ownerId?: string | EventOwner;
   visibility?: 'onlyMe' | 'friends' | 'selectedFriends';
   sharedWith?: string[]; // Array of user IDs
 }
