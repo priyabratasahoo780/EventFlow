@@ -3,7 +3,7 @@ import { ColorTheme } from '../constants/theme';
 import React, { useState, useMemo } from 'react';
 import { 
   StyleSheet, ScrollView, View, Text, Pressable, Platform, 
-  TextInput, KeyboardAvoidingView, ToastAndroid, Modal, Switch, Animated
+  TextInput, KeyboardAvoidingView, ToastAndroid, Modal, Switch, Animated, Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -18,7 +18,7 @@ import { Colors } from '../constants/Colors';
 import BrutalCard from '../components/BrutalCard';
 import BrutalButton from '../components/BrutalButton';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { format } from 'date-fns';
+import { format, subMinutes, subHours, subDays, subWeeks } from 'date-fns';
 import { 
   Calendar as CalendarIcon, Clock, Tag, Flag, 
   AlignLeft, Bell, ChevronLeft, Type,
@@ -208,6 +208,43 @@ export default function AddEventScreen() {
   };
 
   const saveCustomReminder = () => {
+    const now = new Date();
+    const [eventHours, eventMinutes] = format(time, 'HH:mm').split(':').map(Number);
+    const eventTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate(), eventHours, eventMinutes, 0, 0);
+
+    if (modalType === 'exact') {
+      const [remHours, remMinutes] = format(modalTime, 'HH:mm').split(':').map(Number);
+      const reminderTarget = new Date(modalDate.getFullYear(), modalDate.getMonth(), modalDate.getDate(), remHours, remMinutes, 0, 0);
+
+      if (reminderTarget.getTime() <= now.getTime()) {
+        Alert.alert('Invalid Reminder Time', 'You cannot set a reminder for a time that has already passed.');
+        return;
+      }
+
+      if (reminderTarget.getTime() > eventTarget.getTime()) {
+        Alert.alert(
+          'Invalid Reminder Time',
+          `Reminder time (${format(reminderTarget, 'hh:mm a')}) cannot be set AFTER the event time (${format(eventTarget, 'hh:mm a')}). Please select a time before or at the event start.`
+        );
+        return;
+      }
+    } else if (modalType === 'before') {
+      const val = parseInt(modalValue, 10) || 1;
+      let triggerDate = new Date(eventTarget);
+      if (modalUnit === 'minutes') triggerDate = subMinutes(eventTarget, val);
+      else if (modalUnit === 'hours') triggerDate = subHours(eventTarget, val);
+      else if (modalUnit === 'days') triggerDate = subDays(eventTarget, val);
+      else if (modalUnit === 'weeks') triggerDate = subWeeks(eventTarget, val);
+
+      if (triggerDate.getTime() <= now.getTime()) {
+        Alert.alert(
+          'Reminder In Past',
+          `Setting a reminder ${val} ${modalUnit} before this event falls in the past. Please choose a shorter reminder interval or adjust event time.`
+        );
+        return;
+      }
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const newReminder: Partial<ReminderConfig> = { 
       id: editingReminderId || generateId(), 
@@ -618,6 +655,21 @@ export default function AddEventScreen() {
                         key={idx}
                         style={styles.presetChip}
                         onPress={() => {
+                          const now = new Date();
+                          const [eventHours, eventMinutes] = format(time, 'HH:mm').split(':').map(Number);
+                          const eventTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate(), eventHours, eventMinutes, 0, 0);
+                          
+                          let triggerDate = new Date(eventTarget);
+                          const val = Number(preset.val);
+                          if (preset.u === 'minutes') triggerDate = subMinutes(eventTarget, val);
+                          else if (preset.u === 'hours') triggerDate = subHours(eventTarget, val);
+                          else if (preset.u === 'days') triggerDate = subDays(eventTarget, val);
+
+                          if (triggerDate.getTime() <= now.getTime()) {
+                            Alert.alert('Cannot Add Reminder', `A reminder "${preset.label}" falls in the past for this event time.`);
+                            return;
+                          }
+
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                           const newRem: ReminderConfig = {
                             id: Date.now().toString() + idx,
@@ -641,6 +693,8 @@ export default function AddEventScreen() {
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setEditingReminderId(null);
+                    setModalDate(date);
+                    setModalTime(time);
                     setShowReminderModal(true);
                   }}
                 >
