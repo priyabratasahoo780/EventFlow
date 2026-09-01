@@ -1,55 +1,118 @@
-import { useThemeStore } from '../../store/useThemeStore';
-import { ColorTheme } from '../../constants/theme';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, Text, TextInput, StyleSheet, Alert, Pressable, 
-  ActivityIndicator, Modal, KeyboardAvoidingView, Platform, ScrollView 
+  ActivityIndicator, Modal, KeyboardAvoidingView, Platform, ScrollView, Share, Image 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useThemeStore } from '../../store/useThemeStore';
+import { ColorTheme } from '../../constants/theme';
 import BrutalButton from '../../components/BrutalButton';
 import BrutalCard from '../../components/BrutalCard';
 import { Colors } from '../../constants/Colors';
 import api from '../../services/api';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { 
   ArrowLeft, Search, CheckCircle2, Clock, 
-  Inbox, Send, MessageSquare, Sparkles, X, Heart 
+  Inbox, Send, MessageSquare, Sparkles, X, 
+  Copy, Share2, Users, UserPlus, ClipboardPaste, 
+  ShieldCheck, MapPin, Zap, Check
 } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const QUICK_NUDGES = [
   "🚀 Let's crush today's tasks together!",
   "⚡ Time to focus and lock in!",
   "🎯 How's your current sprint going?",
   "☕ Don't forget to take a breather!",
-  "🔥 Keep the momentum going!"
+  "🔥 Keep the momentum going!",
+  "🏆 Great job staying productive today!"
 ];
 
 export default function ConnectFriendScreen() {
+  const { user } = useAuthStore();
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const s = styles;
-  const [uniqueId, setUniqueId] = useState('');
+  const router = useRouter();
+
+  const [query, setQuery] = useState('');
   const [friend, setFriend] = useState<any>(null);
   const [searching, setSearching] = useState(false);
   const [sending, setSending] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  const [copiedId, setCopiedId] = useState(false);
+
+  // Message / Cheer modal states
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [messageText, setMessageText] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
-  const router = useRouter();
+
+  // Fetch pending friend requests count on mount
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const res = await api.get('/friends/requests');
+        if (res.data && Array.isArray(res.data)) {
+          setPendingRequestsCount(res.data.length);
+        }
+      } catch (e) {
+        // Silent catch for offline or non-blocking UI
+      }
+    };
+    fetchPendingCount();
+  }, []);
+
+  const handleCopyMyId = async () => {
+    if (!user?.uniqueId) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await Clipboard.setStringAsync(user.uniqueId);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
+  };
+
+  const handleShareMyId = async () => {
+    if (!user?.uniqueId) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await Share.share({
+        title: 'Connect on EventFlow',
+        message: `Add me on EventFlow using my Unique ID: ${user.uniqueId} 🚀`,
+      });
+    } catch (e) {
+      console.log('Share error:', e);
+    }
+  };
+
+  const handlePaste = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const clipboardContent = await Clipboard.getStringAsync();
+      if (clipboardContent && clipboardContent.trim()) {
+        setQuery(clipboardContent.trim());
+      }
+    } catch (e) {
+      console.log('Paste error:', e);
+    }
+  };
 
   const handleSearch = async () => {
-    if (!uniqueId.trim()) return;
+    if (!query.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSearching(true);
+    setFriend(null);
 
     try {
-      const res = await api.post('/friends/search', { uniqueId: uniqueId.trim() });
+      const res = await api.post('/friends/search', { uniqueId: query.trim() });
       setFriend(res.data);
     } catch (err: any) {
       setFriend(null);
-      Alert.alert('Not Found', err.response?.data?.error || 'User not found with this Unique ID.');
+      Alert.alert(
+        'User Not Found',
+        err.response?.data?.error || 'No user found with this Unique ID, username, or email.'
+      );
     } finally {
       setSearching(false);
     }
@@ -78,13 +141,13 @@ export default function ConnectFriendScreen() {
 
     try {
       await api.post('/friends/request', { receiverId: friend._id });
-      Alert.alert('Request Sent', `Friend request sent to ${friend.name}!`);
+      Alert.alert('Request Sent ✨', `Friend request sent to ${friend.name}!`);
       setFriend({
         ...friend,
         relationshipStatus: 'request_sent'
       });
     } catch (err: any) {
-      Alert.alert('Notice', err.response?.data?.error || 'Could not send request.');
+      Alert.alert('Notice', err.response?.data?.error || 'Could not send friend request.');
     } finally {
       setSending(false);
     }
@@ -104,58 +167,191 @@ export default function ConnectFriendScreen() {
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Sent! ✨', `Message delivered to ${friend.name}!`);
+      Alert.alert('Delivered! ✨', `Cheer delivered to ${friend.name}!`);
       setMessageText('');
       setShowMessageModal(false);
     } catch (err: any) {
-      Alert.alert('Notice', err.response?.data?.error || 'Could not send message. Please try again.');
+      Alert.alert('Notice', err.response?.data?.error || 'Could not send message.');
     } finally {
       setSendingMessage(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* HEADER */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <ArrowLeft color="#000" size={26} strokeWidth={2.5} />
+        <Pressable 
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }} 
+          style={styles.backBtn}
+        >
+          <ArrowLeft color={colors.text} size={22} strokeWidth={2.5} />
         </Pressable>
-        <Text style={styles.title}>ADD FRIEND</Text>
-      </View>
-      
-      <View style={styles.content}>
-        <Text style={styles.label}>ENTER UNIQUE ID</Text>
-        <View style={styles.searchRow}>
-          <TextInput
-            style={styles.input}
-            value={uniqueId}
-            onChangeText={setUniqueId}
-            placeholder="e.g. FF#7aK$9x"
-            placeholderTextColor="#999"
-            autoCapitalize="none"
-            autoCorrect={false}
-            onSubmitEditing={handleSearch}
-          />
-          <Pressable style={styles.searchBtn} onPress={handleSearch} disabled={searching}>
-            {searching ? (
-              <ActivityIndicator color="#FFF" size="small" />
-            ) : (
-              <Search color="#FFF" size={22} strokeWidth={2.5} />
-            )}
-          </Pressable>
+
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.title}>ADD FRIENDS</Text>
+          <Text style={styles.subtitle}>Connect & collaborate on shared tasks</Text>
         </View>
 
+        {/* Quick Requests Link */}
+        <Pressable 
+          style={styles.requestsBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push('/friends/requests' as any);
+          }}
+        >
+          <Inbox color={colors.secondary} size={20} strokeWidth={2.2} />
+          {pendingRequestsCount > 0 && (
+            <View style={styles.badgeCount}>
+              <Text style={styles.badgeText}>{pendingRequestsCount}</Text>
+            </View>
+          )}
+        </Pressable>
+      </View>
+
+      <ScrollView 
+        style={styles.scroll} 
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* HERO: MY SHAREABLE ID CARD */}
+        {user?.uniqueId && (
+          <View style={styles.myIdSection}>
+            <LinearGradient
+              colors={[colors.card, colors.surface]}
+              style={styles.myIdCard}
+            >
+              <View style={styles.myIdHeader}>
+                <View style={styles.myAvatar}>
+                  {user.profilePhoto ? (
+                    <Image source={{ uri: user.profilePhoto }} style={styles.myAvatarImg} />
+                  ) : (
+                    <Text style={styles.myAvatarText}>
+                      {user.name?.charAt(0)?.toUpperCase() || 'U'}
+                    </Text>
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.myIdLabel}>YOUR SHAREABLE FRIEND CODE</Text>
+                  <Text style={styles.myIdValue} numberOfLines={1} selectTextOnFocus>
+                    {user.uniqueId}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.myIdActionsRow}>
+                <Pressable 
+                  style={[styles.idActionBtn, copiedId && styles.idActionBtnActive]} 
+                  onPress={handleCopyMyId}
+                >
+                  {copiedId ? (
+                    <>
+                      <Check color={colors.success} size={16} strokeWidth={2.5} />
+                      <Text style={[styles.idActionText, { color: colors.success }]}>COPIED!</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Copy color={colors.text} size={16} strokeWidth={2.2} />
+                      <Text style={styles.idActionText}>COPY ID</Text>
+                    </>
+                  )}
+                </Pressable>
+
+                <Pressable style={styles.idActionBtn} onPress={handleShareMyId}>
+                  <Share2 color={colors.secondary} size={16} strokeWidth={2.2} />
+                  <Text style={[styles.idActionText, { color: colors.secondary }]}>SHARE INVITE</Text>
+                </Pressable>
+              </View>
+            </LinearGradient>
+          </View>
+        )}
+
+        {/* SEARCH INPUT BOX */}
+        <View style={styles.searchSection}>
+          <Text style={styles.sectionLabel}>FIND FRIEND BY ID, USERNAME, OR EMAIL</Text>
+
+          <View style={styles.searchBox}>
+            <Search color={colors.textSecondary} size={20} strokeWidth={2.2} style={styles.searchIcon} />
+            <TextInput
+              style={styles.input}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="e.g. FF#7aK$9x, @username, or email"
+              placeholderTextColor={colors.textSecondary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              onSubmitEditing={handleSearch}
+            />
+
+            {query.length > 0 ? (
+              <Pressable 
+                onPress={() => setQuery('')} 
+                style={styles.clearBtn}
+                hitSlop={8}
+              >
+                <X color={colors.textSecondary} size={18} strokeWidth={2.5} />
+              </Pressable>
+            ) : (
+              <Pressable 
+                onPress={handlePaste} 
+                style={styles.pasteBtn}
+              >
+                <ClipboardPaste color={colors.secondary} size={16} strokeWidth={2.2} />
+                <Text style={styles.pasteText}>PASTE</Text>
+              </Pressable>
+            )}
+
+            <Pressable 
+              style={[styles.searchBtn, searching && styles.searchBtnDisabled]} 
+              onPress={handleSearch} 
+              disabled={searching}
+            >
+              {searching ? (
+                <ActivityIndicator color="#FFF" size="small" />
+              ) : (
+                <ArrowLeft color="#FFF" size={20} strokeWidth={2.5} style={{ transform: [{ rotate: '180deg' }] }} />
+              )}
+            </Pressable>
+          </View>
+        </View>
+
+        {/* SEARCH RESULT USER CARD */}
         {friend && (
           <View style={styles.resultContainer}>
-            <Text style={styles.resultTitle}>USER FOUND</Text>
+            <Text style={styles.sectionLabel}>SEARCH RESULT</Text>
+            
             <BrutalCard shadowOffset={4} style={styles.friendCard}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{friend.name?.charAt(0)?.toUpperCase() || 'U'}</Text>
+              <View style={styles.avatarContainer}>
+                {friend.profilePhoto ? (
+                  <Image source={{ uri: friend.profilePhoto }} style={styles.userPhoto} />
+                ) : (
+                  <View style={styles.avatarFallback}>
+                    <Text style={styles.avatarText}>
+                      {friend.name?.charAt(0)?.toUpperCase() || 'U'}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.onlinePill}>
+                  <Zap color="#FFF" size={10} strokeWidth={3} />
+                </View>
               </View>
+
               <Text style={styles.friendName}>{friend.name}</Text>
               <Text style={styles.friendUsername}>@{friend.username}</Text>
-              {friend.city ? <Text style={styles.friendCity}>📍 {friend.city}</Text> : null}
               
+              {friend.city ? (
+                <View style={styles.cityRow}>
+                  <MapPin color={colors.textSecondary} size={13} strokeWidth={2} />
+                  <Text style={styles.friendCity}>{friend.city}</Text>
+                </View>
+              ) : null}
+
               {/* Status Badges */}
               {friend.isAlreadyFriend || friend.relationshipStatus === 'already_friends' ? (
                 <View style={styles.alreadyFriendsBadge}>
@@ -169,49 +365,92 @@ export default function ConnectFriendScreen() {
                 </View>
               ) : friend.relationshipStatus === 'request_received' ? (
                 <View style={styles.inboxBadge}>
-                  <Inbox color="#4F46E5" size={16} strokeWidth={2.5} />
+                  <Inbox color={colors.secondary} size={16} strokeWidth={2.5} />
                   <Text style={styles.inboxText}>SENT YOU A FRIEND REQUEST</Text>
                 </View>
               ) : null}
 
-              {/* Action Button */}
-              <View style={styles.mt20}>
+              {/* Action Buttons */}
+              <View style={styles.cardActionsWrap}>
                 {friend.isAlreadyFriend || friend.relationshipStatus === 'already_friends' ? (
                   <BrutalButton 
-                    title="SEND MESSAGE / NUDGE" 
-                    color={Colors.light.primary} 
+                    title="SEND FOCUS CHEER" 
+                    color={colors.secondary} 
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                       setShowMessageModal(true);
                     }} 
                   >
-                    <MessageSquare color="#000" size={18} strokeWidth={2.5} />
+                    <MessageSquare color="#FFF" size={18} strokeWidth={2.5} />
                   </BrutalButton>
                 ) : friend.relationshipStatus === 'request_sent' ? (
-                  <Pressable style={styles.disabledPendingBtn} disabled>
+                  <View style={styles.disabledPendingBtn}>
                     <Clock color="#B45309" size={18} strokeWidth={2.5} />
-                    <Text style={styles.disabledPendingText}>REQUEST SENT</Text>
-                  </Pressable>
+                    <Text style={styles.disabledPendingText}>REQUEST SENT (AWAITING)</Text>
+                  </View>
                 ) : friend.relationshipStatus === 'request_received' ? (
                   <BrutalButton 
                     title="VIEW & ACCEPT REQUEST" 
-                    color="#6366F1" 
+                    color={colors.secondary} 
                     onPress={() => router.push('/friends/requests' as any)} 
-                  />
+                  >
+                    <ShieldCheck color="#FFF" size={18} strokeWidth={2.5} />
+                  </BrutalButton>
                 ) : (
                   <BrutalButton 
-                    title={sending ? "SENDING..." : "SEND REQUEST"} 
-                    color={Colors.light.success} 
+                    title={sending ? "SENDING REQUEST..." : "SEND FRIEND REQUEST"} 
+                    color={colors.success} 
                     onPress={sendRequest} 
-                  />
+                    disabled={sending}
+                  >
+                    <UserPlus color="#FFF" size={18} strokeWidth={2.5} />
+                  </BrutalButton>
                 )}
               </View>
             </BrutalCard>
           </View>
         )}
-      </View>
 
-      {/* Interactive Message / Cheer Modal */}
+        {/* QUICK NAVIGATION SHORTCUTS */}
+        <View style={styles.quickNavSection}>
+          <Text style={styles.sectionLabel}>QUICK SHORTCUTS</Text>
+          <View style={styles.shortcutsRow}>
+            <Pressable 
+              style={styles.shortcutCard}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/friends/list' as any);
+              }}
+            >
+              <View style={[styles.shortcutIconCircle, { backgroundColor: colors.secondaryLight }]}>
+                <Users color={colors.secondary} size={22} strokeWidth={2.2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.shortcutTitle}>My Friends</Text>
+                <Text style={styles.shortcutDesc}>View and manage your friend connections</Text>
+              </View>
+            </Pressable>
+
+            <Pressable 
+              style={styles.shortcutCard}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/friends/requests' as any);
+              }}
+            >
+              <View style={[styles.shortcutIconCircle, { backgroundColor: colors.primaryLight || '#EEF2FF' }]}>
+                <Inbox color={colors.primary} size={22} strokeWidth={2.2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.shortcutTitle}>Pending Requests</Text>
+                <Text style={styles.shortcutDesc}>Accept or decline incoming invites</Text>
+              </View>
+            </Pressable>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* INTERACTIVE FOCUS CHEER / MESSAGE MODAL */}
       <Modal
         visible={showMessageModal}
         transparent
@@ -225,15 +464,15 @@ export default function ConnectFriendScreen() {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleRow}>
-                <MessageSquare color="#6366F1" size={22} strokeWidth={2.5} />
-                <Text style={styles.modalTitle}>MESSAGE {friend?.name?.toUpperCase()}</Text>
+                <Sparkles color={colors.secondary} size={22} strokeWidth={2.5} />
+                <Text style={styles.modalTitle}>CHEER {friend?.name?.toUpperCase()}</Text>
               </View>
               <Pressable onPress={() => setShowMessageModal(false)} style={styles.closeBtn}>
-                <X color="#000" size={20} strokeWidth={2.5} />
+                <X color={colors.text} size={20} strokeWidth={2.5} />
               </Pressable>
             </View>
 
-            <Text style={styles.quickLabel}>QUICK FOCUS CHEERS</Text>
+            <Text style={styles.quickLabel}>PICK A QUICK MOTIVATION NUDGE</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.nudgeScroll}>
               {QUICK_NUDGES.map((nudge, idx) => (
                 <Pressable 
@@ -251,8 +490,8 @@ export default function ConnectFriendScreen() {
 
             <TextInput
               style={styles.messageInput}
-              placeholder="Write a motivating note or ask about their tasks..."
-              placeholderTextColor="#94A3B8"
+              placeholder="Write a motivating note or encourage them on their sprint..."
+              placeholderTextColor={colors.textSecondary}
               value={messageText}
               onChangeText={setMessageText}
               multiline
@@ -260,12 +499,12 @@ export default function ConnectFriendScreen() {
             />
 
             <BrutalButton 
-              title={sendingMessage ? "SENDING..." : "SEND TO FRIEND"} 
-              color={Colors.light.primary} 
+              title={sendingMessage ? "SENDING CHEER..." : "SEND FOCUS CHEER"} 
+              color={colors.secondary} 
               onPress={handleSendMessage} 
               disabled={sendingMessage || !messageText.trim()}
             >
-              <Send color="#000" size={18} strokeWidth={2.5} />
+              <Send color="#FFF" size={18} strokeWidth={2.5} />
             </BrutalButton>
           </View>
         </KeyboardAvoidingView>
@@ -275,117 +514,300 @@ export default function ConnectFriendScreen() {
 }
 
 const getStyles = (colors: ColorTheme) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.background },
+  container: { 
+    flex: 1, 
+    backgroundColor: colors.background 
+  },
   header: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    padding: 16, 
-    borderBottomWidth: 3, 
-    borderBottomColor: '#000', 
-    backgroundColor: Colors.light.primary 
+    paddingHorizontal: 16, 
+    paddingVertical: 14, 
+    borderBottomWidth: 1, 
+    borderBottomColor: colors.border, 
+    backgroundColor: colors.card,
   },
   backBtn: { 
-    width: 44, 
-    height: 44, 
-    backgroundColor: '#FFF', 
-    borderRadius: 22, 
-    borderWidth: 2, 
-    borderColor: '#000', 
+    width: 42, 
+    height: 42, 
+    backgroundColor: colors.surface, 
+    borderRadius: 12, 
+    borderWidth: 1, 
+    borderColor: colors.border, 
     alignItems: 'center', 
     justifyContent: 'center', 
-    marginRight: 14 
+    marginRight: 12 
+  },
+  headerTitleWrap: {
+    flex: 1,
   },
   title: { 
     fontFamily: 'Poppins_800ExtraBold', 
-    fontSize: 22, 
-    color: '#000',
+    fontSize: 18, 
+    color: colors.text,
     letterSpacing: 0.5,
   },
-  content: { padding: 20 },
-  label: { 
-    fontFamily: 'Poppins_800ExtraBold', 
-    fontSize: 13, 
-    color: '#000', 
-    marginBottom: 8,
+  subtitle: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: -2,
+  },
+  requestsBtn: {
+    width: 42,
+    height: 42,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  badgeCount: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: colors.error || '#EF4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: colors.card,
+  },
+  badgeText: {
+    fontFamily: 'Poppins_800ExtraBold',
+    fontSize: 10,
+    color: '#FFF',
+  },
+  scroll: {
+    flex: 1,
+  },
+  content: { 
+    padding: 16,
+    paddingBottom: 40,
+    gap: 20,
+  },
+  myIdSection: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  myIdCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  myIdHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 14,
+  },
+  myAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: colors.secondaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  myAvatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  myAvatarText: {
+    fontFamily: 'Poppins_800ExtraBold',
+    fontSize: 20,
+    color: colors.secondary,
+  },
+  myIdLabel: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 10,
+    color: colors.textSecondary,
     letterSpacing: 0.5,
   },
-  searchRow: { 
-    flexDirection: 'row', 
-    gap: 10, 
-    marginBottom: 20 
+  myIdValue: {
+    fontFamily: 'Poppins_800ExtraBold',
+    fontSize: 18,
+    color: colors.text,
+    letterSpacing: 0.8,
+    marginTop: 2,
   },
-  input: { 
-    flex: 1, 
-    backgroundColor: '#FFF', 
-    borderWidth: 2, 
-    borderColor: '#000', 
-    borderRadius: 10, 
-    paddingHorizontal: 16, 
-    paddingVertical: 12,
-    fontFamily: 'Poppins_800ExtraBold', 
-    fontSize: 16, 
-    color: '#000' 
+  myIdActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
   },
-  searchBtn: { 
-    width: 54, 
-    backgroundColor: '#000', 
-    borderRadius: 10, 
-    alignItems: 'center', 
-    justifyContent: 'center' 
+  idActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: colors.surface,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  resultContainer: { marginTop: 8 },
-  resultTitle: { 
-    fontFamily: 'Poppins_800ExtraBold', 
-    fontSize: 14, 
-    color: '#000', 
-    marginBottom: 12, 
-    textAlign: 'center',
+  idActionBtnActive: {
+    backgroundColor: colors.successLight || '#DCFCE7',
+    borderColor: colors.success,
+  },
+  idActionText: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 12,
+    color: colors.text,
+  },
+  searchSection: {
+    gap: 8,
+  },
+  sectionLabel: {
+    fontFamily: 'Poppins_800ExtraBold',
+    fontSize: 11,
+    color: colors.textSecondary,
     letterSpacing: 0.5,
+    marginLeft: 2,
   },
-  friendCard: { 
-    padding: 24, 
-    alignItems: 'center', 
-    backgroundColor: '#FFF' 
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 14,
+    paddingLeft: 12,
+    paddingRight: 6,
+    height: 54,
+    shadowColor: colors.text,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
-  avatar: { 
-    width: 76, 
-    height: 76, 
-    borderRadius: 26, 
-    backgroundColor: Colors.light.accent, 
-    borderWidth: 2.5, 
-    borderColor: '#000', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginBottom: 12 
+  searchIcon: {
+    marginRight: 8,
   },
-  avatarText: { 
-    fontFamily: 'Poppins_800ExtraBold', 
-    fontSize: 34, 
-    color: '#000' 
+  input: {
+    flex: 1,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
+    color: colors.text,
+    height: '100%',
   },
-  friendName: { 
-    fontFamily: 'Poppins_800ExtraBold', 
-    fontSize: 20, 
-    color: '#000' 
+  clearBtn: {
+    padding: 6,
+    marginRight: 4,
   },
-  friendUsername: { 
-    fontFamily: 'Poppins_600SemiBold', 
-    fontSize: 13, 
-    color: '#64748B',
+  pasteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.secondaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    marginRight: 6,
+  },
+  pasteText: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 10,
+    color: colors.secondary,
+  },
+  searchBtn: {
+    width: 42,
+    height: 42,
+    backgroundColor: colors.secondary,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchBtnDisabled: {
+    opacity: 0.7,
+  },
+  resultContainer: {
+    gap: 8,
+  },
+  friendCard: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: 18,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: 12,
+  },
+  userPhoto: {
+    width: 76,
+    height: 76,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  avatarFallback: {
+    width: 76,
+    height: 76,
+    borderRadius: 24,
+    backgroundColor: colors.secondaryLight,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontFamily: 'Poppins_800ExtraBold',
+    fontSize: 32,
+    color: colors.secondary,
+  },
+  onlinePill: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: colors.success,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.card,
+  },
+  friendName: {
+    fontFamily: 'Poppins_800ExtraBold',
+    fontSize: 19,
+    color: colors.text,
+  },
+  friendUsername: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13,
+    color: colors.textSecondary,
     marginTop: 1,
   },
-  friendCity: { 
-    fontFamily: 'Poppins_600SemiBold', 
-    fontSize: 13, 
-    color: '#334155', 
-    marginTop: 6 
+  cityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+  },
+  friendCity: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
+    color: colors.textSecondary,
   },
   alreadyFriendsBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.successLight,
-    borderWidth: 1.5,
+    backgroundColor: colors.successLight || '#DCFCE7',
+    borderWidth: 1,
     borderColor: colors.success,
     borderRadius: 20,
     paddingHorizontal: 12,
@@ -393,16 +815,16 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     marginTop: 12,
   },
   alreadyFriendsText: {
-    fontFamily: 'Poppins_800ExtraBold',
+    fontFamily: 'Poppins_700Bold',
     fontSize: 11,
-    color: '#15803D',
+    color: colors.success,
   },
   pendingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: '#FEF3C7',
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: '#D97706',
     borderRadius: 20,
     paddingHorizontal: 12,
@@ -410,7 +832,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     marginTop: 12,
   },
   pendingText: {
-    fontFamily: 'Poppins_800ExtraBold',
+    fontFamily: 'Poppins_700Bold',
     fontSize: 11,
     color: '#B45309',
   },
@@ -418,22 +840,22 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#EEF2FF',
-    borderWidth: 1.5,
-    borderColor: '#6366F1',
+    backgroundColor: colors.secondaryLight,
+    borderWidth: 1,
+    borderColor: colors.secondary,
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 5,
     marginTop: 12,
   },
   inboxText: {
-    fontFamily: 'Poppins_800ExtraBold',
+    fontFamily: 'Poppins_700Bold',
     fontSize: 11,
-    color: '#4338CA',
+    color: colors.secondary,
   },
-  mt20: { 
-    marginTop: 20, 
-    width: '100%' 
+  cardActionsWrap: {
+    marginTop: 18,
+    width: '100%',
   },
   disabledPendingBtn: {
     flexDirection: 'row',
@@ -441,16 +863,51 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: '#FEF3C7',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#D97706',
-    borderRadius: 10,
+    borderRadius: 14,
     paddingVertical: 14,
     width: '100%',
   },
   disabledPendingText: {
-    fontFamily: 'Poppins_800ExtraBold',
-    fontSize: 14,
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 13,
     color: '#B45309',
+  },
+  quickNavSection: {
+    gap: 10,
+    marginTop: 10,
+  },
+  shortcutsRow: {
+    gap: 12,
+  },
+  shortcutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  shortcutIconCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shortcutTitle: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 14,
+    color: colors.text,
+  },
+  shortcutDesc: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 1,
   },
   modalOverlay: {
     flex: 1,
@@ -460,15 +917,15 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     paddingBottom: 32,
   },
   modalCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 20,
-    borderWidth: 3,
-    borderColor: '#000',
+    backgroundColor: colors.card,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: colors.border,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
+    shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
     elevation: 10,
   },
   modalHeader: {
@@ -477,8 +934,8 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     alignItems: 'center',
     marginBottom: 14,
     paddingBottom: 10,
-    borderBottomWidth: 1.5,
-    borderBottomColor: '#E2E8F0',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   modalTitleRow: {
     flexDirection: 'row',
@@ -488,16 +945,16 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   modalTitle: {
     fontFamily: 'Poppins_800ExtraBold',
     fontSize: 14,
-    color: '#000',
+    color: colors.text,
     letterSpacing: 0.5,
   },
   closeBtn: {
     padding: 4,
   },
   quickLabel: {
-    fontFamily: 'Poppins_800ExtraBold',
+    fontFamily: 'Poppins_700Bold',
     fontSize: 11,
-    color: '#64748B',
+    color: colors.textSecondary,
     marginBottom: 8,
     letterSpacing: 0.5,
   },
@@ -505,9 +962,9 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     marginBottom: 14,
   },
   nudgeChip: {
-    backgroundColor: '#F1F5F9',
-    borderWidth: 1.5,
-    borderColor: '#000',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -516,17 +973,17 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   nudgeText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 12,
-    color: '#000',
+    color: colors.text,
   },
   messageInput: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 2,
-    borderColor: '#000',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 12,
     padding: 14,
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: 'Poppins_500Medium',
     fontSize: 14,
-    color: '#000',
+    color: colors.text,
     minHeight: 80,
     textAlignVertical: 'top',
     marginBottom: 16,
