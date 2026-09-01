@@ -9,7 +9,7 @@ import { Colors } from '../../constants/Colors';
 import api from '../../services/api';
 import { useAuthStore, UserProfile } from '../../store/useAuthStore';
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff } from 'lucide-react-native';
+import { Eye, EyeOff, Check, X, ShieldCheck } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 import { useGoogleAuth } from '../../services/clerkAuth';
@@ -33,9 +33,26 @@ export default function RegisterScreen() {
 
   const { signInWithGoogle } = useGoogleAuth();
 
+  // Password criteria
+  const hasMinLength = password.length >= 8;
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+  const passedCount = [hasMinLength, hasUpper, hasLower, hasNumber, hasSymbol].filter(Boolean).length;
+  const isPasswordStrong = passedCount === 5;
+
   const handleRegister = async () => {
     if (!name.trim() || !email.trim() || !password) {
       Alert.alert('Missing Info', 'Please provide full name, email, and password.');
+      return;
+    }
+
+    if (!isPasswordStrong) {
+      Alert.alert(
+        'Weak Password',
+        'Please ensure your password meets all strong security requirements:\n• At least 8 characters\n• Uppercase (A-Z) & Lowercase (a-z)\n• At least 1 number (0-9)\n• At least 1 symbol (!@#$%^&*)'
+      );
       return;
     }
     
@@ -205,6 +222,46 @@ export default function RegisterScreen() {
               {showPassword ? <EyeOff color="#000" size={22} /> : <Eye color="#000" size={22} />}
             </Pressable>
           </View>
+
+          {/* Password Strength Indicator */}
+          {password.length > 0 && (
+            <View style={{ marginTop: 10, padding: 12, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <ShieldCheck color={isPasswordStrong ? '#10B981' : passedCount >= 3 ? '#F59E0B' : '#EF4444'} size={16} />
+                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: isPasswordStrong ? '#10B981' : passedCount >= 3 ? '#F59E0B' : '#EF4444' }}>
+                    {isPasswordStrong ? 'STRONG PASSWORD' : passedCount >= 3 ? 'MEDIUM PASSWORD' : 'WEAK PASSWORD'}
+                  </Text>
+                </View>
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: colors.textSecondary }}>{passedCount}/5 Met</Text>
+              </View>
+
+              {/* Progress bar */}
+              <View style={{ height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
+                <View style={{ height: '100%', width: `${(passedCount / 5) * 100}%`, backgroundColor: isPasswordStrong ? '#10B981' : passedCount >= 3 ? '#F59E0B' : '#EF4444' }} />
+              </View>
+
+              {/* Rules checklist */}
+              <View style={{ gap: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {hasMinLength ? <Check color="#10B981" size={13} strokeWidth={3} /> : <X color="#9CA3AF" size={13} strokeWidth={2} />}
+                  <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: hasMinLength ? '#10B981' : colors.textSecondary }}>At least 8 characters</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {hasUpper && hasLower ? <Check color="#10B981" size={13} strokeWidth={3} /> : <X color="#9CA3AF" size={13} strokeWidth={2} />}
+                  <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: hasUpper && hasLower ? '#10B981' : colors.textSecondary }}>Uppercase (A-Z) & Lowercase (a-z)</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {hasNumber ? <Check color="#10B981" size={13} strokeWidth={3} /> : <X color="#9CA3AF" size={13} strokeWidth={2} />}
+                  <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: hasNumber ? '#10B981' : colors.textSecondary }}>At least 1 number (0-9)</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {hasSymbol ? <Check color="#10B981" size={13} strokeWidth={3} /> : <X color="#9CA3AF" size={13} strokeWidth={2} />}
+                  <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: hasSymbol ? '#10B981' : colors.textSecondary }}>At least 1 special symbol (!@#$%^&*)</Text>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
 
         <Pressable

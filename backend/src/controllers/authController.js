@@ -45,12 +45,36 @@ const generateUniqueId = async () => {
   return uniqueId;
 };
 
+const validateStrongPassword = (pwd) => {
+  if (!pwd || pwd.length < 8) {
+    return 'Password must be at least 8 characters long.';
+  }
+  if (!/[A-Z]/.test(pwd)) {
+    return 'Password must contain at least one uppercase letter (A-Z).';
+  }
+  if (!/[a-z]/.test(pwd)) {
+    return 'Password must contain at least one lowercase letter (a-z).';
+  }
+  if (!/[0-9]/.test(pwd)) {
+    return 'Password must contain at least one number (0-9).';
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd)) {
+    return 'Password must contain at least one special character (e.g. @, #, $, %, !, &, *).';
+  }
+  return null;
+};
+
 exports.register = async (req, res) => {
   try {
     const { name, username, email, password, city, profilePhoto } = req.body;
     
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required.' });
+    }
+
+    const pwdError = validateStrongPassword(password);
+    if (pwdError) {
+      return res.status(400).json({ error: pwdError });
     }
 
     const cleanEmail = email.trim().toLowerCase();
