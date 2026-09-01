@@ -12,10 +12,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/images/icon_squared.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -59,9 +57,12 @@
         {
           "android": {
             "packagingOptions": {
-              "pickFirsts": [
-                "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
-                "META-INF/MANIFEST.MF"
+              "pickFirst": [
+                "**/META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+                "**/META-INF/MANIFEST.MF",
+                "**/META-INF/DEPENDENCIES",
+                "**/META-INF/LICENSE",
+                "**/META-INF/NOTICE"
               ]
             }
           }

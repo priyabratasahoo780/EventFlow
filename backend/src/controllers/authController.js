@@ -113,12 +113,15 @@ exports.login = async (req, res) => {
     });
     
     if (!user) {
-      return res.status(400).json({ error: 'Invalid Email/Username or Password' });
+      return res.status(404).json({ 
+        error: 'Account does not exist. Please create an account first.', 
+        accountNotFound: true 
+      });
     }
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      return res.status(400).json({ error: 'Invalid Email/Username or Password' });
+      return res.status(400).json({ error: 'Incorrect password. Please check and try again.' });
     }
 
     const token = jwt.sign({ _id: user._id, uniqueId: user.uniqueId }, JWT_SECRET, { expiresIn: '30d' });

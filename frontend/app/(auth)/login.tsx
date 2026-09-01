@@ -44,32 +44,22 @@ export default function LoginScreen() {
       await login(res.data.token, res.data.user);
       router.replace('/(tabs)');
     } catch (err: any) {
+      const isNotFound = err.response?.data?.accountNotFound || err.response?.status === 404;
       const serverError = err.response?.data?.error || err.response?.data?.message;
-      if (serverError) {
-        const errStr = String(serverError).toLowerCase();
-        if (errStr.includes('not found') || errStr.includes('invalid') || errStr.includes('match') || errStr.includes('exist')) {
-          Alert.alert(
-            'Account Not Found',
-            'We could not find an account with those details. Would you like to create a new one?',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Create Account', onPress: () => router.push('/(auth)/register') }
-            ]
-          );
-        } else {
-          Alert.alert('Login Notice', serverError);
-        }
+
+      if (isNotFound) {
+        Alert.alert(
+          'Account Not Available',
+          'No account found with this email/username. Please create an account to get started.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Create Account', onPress: () => router.push('/(auth)/register') }
+          ]
+        );
+      } else if (serverError) {
+        Alert.alert('Login Failed', serverError);
       } else {
-        const dummyUser: UserProfile = {
-          _id: 'local_user_' + Date.now(),
-          uniqueId: 'FOCUS' + Math.floor(100000 + Math.random() * 900000),
-          name: cleanEmail.split('@')[0] || 'Focus User',
-          username: cleanEmail.split('@')[0] || 'focususer',
-          email: cleanEmail,
-          profilePhoto: '',
-        };
-        await login('local_demo_token', dummyUser);
-        router.replace('/(tabs)');
+        Alert.alert('Connection Error', 'Unable to reach the server. Please check your internet connection and try again.');
       }
     } finally {
       setLoading(false);
