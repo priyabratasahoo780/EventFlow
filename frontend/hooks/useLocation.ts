@@ -84,8 +84,21 @@ export function useLocation(tasks: Event[] = []) {
     const now = Date.now();
 
     for (const task of pendingTasks) {
-      if (!task.completed && task.status !== 'completed' && task.locationDetails?.latitude && task.locationDetails?.longitude) {
-        const targetRadius = (task.locationDetails as any).radius || 500;
+      if (
+        !task.completed && 
+        task.status !== 'completed' && 
+        task.locationReminderEnabled &&
+        task.locationDetails?.latitude && 
+        task.locationDetails?.longitude
+      ) {
+        // If task was created less than 30 seconds ago, mark as already at location to avoid instant alarm on save
+        const createdAt = task.createdAt ? new Date(task.createdAt).getTime() : now;
+        if (now - createdAt < 30000 && !triggeredGeofences[task.id]) {
+          triggeredGeofences[task.id] = now;
+          continue;
+        }
+
+        const targetRadius = (task.locationDetails as any).radius || task.geofenceRadius || 500;
         const dist = priorityService.getDistance(
           userCoords.latitude,
           userCoords.longitude,
@@ -102,20 +115,19 @@ export function useLocation(tasks: Event[] = []) {
 
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 
-            // Immediate Loud Proximity Notification
+            // Proximity Notification
             try {
               const locationLabel = task.location || 'Your Destination';
               await Notifications.scheduleNotificationAsync({
                 content: {
                   title: `📍 Arrived Near ${locationLabel}!`,
-                  body: `Don't forget: "${task.title}". Tap to complete or focus!`,
+                  body: `Task reminder: "${task.title}"`,
                   data: { eventId: task.id, type: 'geofence', location: locationLabel },
                   sound: 'default',
-                  priority: Notifications.AndroidNotificationPriority.MAX,
-                  vibrate: [0, 500, 250, 500, 250, 500],
-                  ...(Platform.OS === 'android' ? { channelId: 'focusflow_alarm_v2' } : {})
+                  priority: Notifications.AndroidNotificationPriority.DEFAULT,
+                  vibrate: [0, 250, 250, 250],
                 } as any,
-                trigger: null // Immediate trigger
+                trigger: null
               });
             } catch (notifyErr) {
               console.warn('Geofence notification error:', notifyErr);

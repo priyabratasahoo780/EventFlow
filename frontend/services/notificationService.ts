@@ -181,11 +181,11 @@ export const notificationService = {
         else if (reminder.type === 'exact') {
           if (reminder.date && reminder.time) {
             const [exactHour, exactMinute] = reminder.time.split(':').map(Number);
-            const [y, m, d] = reminder.date.split('-').map(Number);
+            const [y, m, d] = reminder.date.split('T')[0].split('-').map(Number);
             const exactDate = new Date(y, m - 1, d, exactHour, exactMinute, 0, 0);
 
-            // Only schedule if the trigger time is in the future
-            if (exactDate.getTime() > now.getTime()) {
+            // Only schedule if the trigger time is in the future (at least 15 seconds ahead)
+            if (exactDate.getTime() > now.getTime() + 15000) {
               const id = await Notifications.scheduleNotificationAsync({
                 content,
                 trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: exactDate },

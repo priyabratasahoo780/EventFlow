@@ -22,6 +22,12 @@
         "POST_NOTIFICATIONS",
         "WAKE_LOCK",
         "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM",
+        "POST_NOTIFICATIONS",
+        "WAKE_LOCK",
+        "VIBRATE",
         "RECEIVE_BOOT_COMPLETED"
       ],
       "package": "com.priyabrata.focusflow"
@@ -77,6 +83,12 @@
       "eas": {
         "projectId": "6e1d8280-cb77-4673-8219-1b36142d7a90"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6e1d8280-cb77-4673-8219-1b36142d7a90"
     }
   }
 }
