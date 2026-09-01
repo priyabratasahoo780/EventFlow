@@ -162,14 +162,54 @@ exports.updateTask = async (req, res) => {
     );
     if (!updated) return res.status(404).json({ error: 'Task not found' });
 
+    const currentUser = await User.findById(req.userId);
+    const emitIds = new Set([updated.ownerId.toString(), ...(updated.sharedWith || []).map(id => id.toString())]);
+
+    // 1. Socket real-time event
     const io = req.app.get('io');
     if (io) {
-      const emitIds = new Set([updated.ownerId.toString(), ...(updated.sharedWith || []).map(id => id.toString())]);
       emitIds.forEach(id => {
-        if (id !== req.userId) { // Don't emit to self (or do, to update UI)
-          io.to(id).emit('task_updated', updated);
+        if (id !== req.userId.toString()) {
+          io.to(id).emit('task_updated', {
+            ...updated.toObject(),
+            lastModifiedBy: currentUser ? currentUser.name : 'A team member'
+          });
         }
       });
+    }
+
+    // 2. Send Push Notification to all other group members
+    const otherMembers = Array.from(emitIds).filter(id => id !== req.userId.toString());
+    if (otherMembers.length > 0 && currentUser) {
+      try {
+        const usersWithTokens = await User.find({
+          _id: { $in: otherMembers },
+          expoPushToken: { $exists: true, $ne: '' }
+        });
+
+        const messages = [];
+        const expo = new Expo();
+
+        for (const member of usersWithTokens) {
+          if (Expo.isExpoPushToken(member.expoPushToken)) {
+            messages.push({
+              to: member.expoPushToken,
+              sound: 'default',
+              title: `✏️ ${currentUser.name} updated an Event!`,
+              body: `"${updated.title}" has been modified (Time: ${updated.time}).`,
+              data: { eventId: updated.id, type: 'task_updated' },
+              priority: 'high',
+              channelId: 'focusflow_alarm_v2'
+            });
+          }
+        }
+
+        if (messages.length > 0) {
+          await expo.sendPushNotificationsAsync(messages);
+        }
+      } catch (pushErr) {
+        console.error('Update task push notification error:', pushErr);
+      }
     }
 
     res.json(updated);
@@ -194,14 +234,54 @@ exports.updateStatus = async (req, res) => {
     );
     if (!updated) return res.status(404).json({ error: 'Task not found' });
 
+    const currentUser = await User.findById(req.userId);
+    const emitIds = new Set([updated.ownerId.toString(), ...(updated.sharedWith || []).map(id => id.toString())]);
+
     const io = req.app.get('io');
     if (io) {
-      const emitIds = new Set([updated.ownerId.toString(), ...(updated.sharedWith || []).map(id => id.toString())]);
       emitIds.forEach(id => {
-        if (id !== req.userId) {
-          io.to(id).emit('task_updated', updated);
+        if (id !== req.userId.toString()) {
+          io.to(id).emit('task_updated', {
+            ...updated.toObject(),
+            lastModifiedBy: currentUser ? currentUser.name : 'A team member'
+          });
         }
       });
+    }
+
+    // Send push notification for status change
+    const otherMembers = Array.from(emitIds).filter(id => id !== req.userId.toString());
+    if (otherMembers.length > 0 && currentUser) {
+      try {
+        const usersWithTokens = await User.find({
+          _id: { $in: otherMembers },
+          expoPushToken: { $exists: true, $ne: '' }
+        });
+
+        const statusLabel = status === 'completed' ? 'COMPLETED ✅' : status === 'in_progress' ? 'STARTED ⚡' : status.toUpperCase();
+        const messages = [];
+        const expo = new Expo();
+
+        for (const member of usersWithTokens) {
+          if (Expo.isExpoPushToken(member.expoPushToken)) {
+            messages.push({
+              to: member.expoPushToken,
+              sound: 'default',
+              title: `📢 Task Status: ${statusLabel}`,
+              body: `${currentUser.name} marked "${updated.title}" as ${status.replace('_', ' ')}.`,
+              data: { eventId: updated.id, type: 'task_status_updated' },
+              priority: 'high',
+              channelId: 'focusflow_alarm_v2'
+            });
+          }
+        }
+
+        if (messages.length > 0) {
+          await expo.sendPushNotificationsAsync(messages);
+        }
+      } catch (pushErr) {
+        console.error('Status update push notification error:', pushErr);
+      }
     }
 
     res.json(updated);

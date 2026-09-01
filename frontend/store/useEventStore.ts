@@ -51,10 +51,33 @@ export const useEventStore = create<EventState>((set, get) => ({
     if (get().isSocketInitialized) return;
     socketService.connect();
 
-    socketService.on('task_updated', (updatedEvent: Event) => {
-      const { events } = get();
+    socketService.on('task_updated', async (updatedEvent: Event) => {
+      const { events, friendsEvents } = get();
       const newEvents = events.map(e => e.id === updatedEvent.id ? updatedEvent : e);
-      set({ events: newEvents });
+      const newFriendsEvents = friendsEvents.map(e => (e.id || e._id) === (updatedEvent.id || updatedEvent._id) ? updatedEvent : e);
+      set({ events: newEvents, friendsEvents: newFriendsEvents });
+
+      try {
+        if (updatedEvent.completed || updatedEvent.status === 'completed') {
+          // Cancel alarms if task is completed
+          const idsToCancel = (updatedEvent.reminders || []).flatMap(r => r.notificationIds || []);
+          if (idsToCancel.length > 0) {
+            await notificationService.cancelNotifications(idsToCancel);
+          }
+        } else {
+          // Reschedule updated alarms and reminders
+          const reminders = (updatedEvent.reminders && updatedEvent.reminders.length > 0)
+            ? updatedEvent.reminders
+            : [{ id: 'rem_' + Date.now(), type: 'exact', time: updatedEvent.time, date: updatedEvent.date.split('T')[0] }];
+          
+          await notificationService.scheduleEventNotifications({
+            ...updatedEvent,
+            title: `👥 ${updatedEvent.ownerId?.name ? updatedEvent.ownerId.name + ': ' : ''}${updatedEvent.title}`
+          }, reminders);
+        }
+      } catch (scheduleErr) {
+        console.warn('Error rescheduling updated shared event alarms:', scheduleErr);
+      }
     });
 
     socketService.on('task_created', async (newEvent: Event) => {
