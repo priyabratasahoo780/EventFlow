@@ -62,22 +62,69 @@ exports.getRecommendation = async (req, res) => {
   }
 };
 
+const User = require('../models/User');
+const { Expo } = require('expo-server-sdk');
+
 // Create task
 exports.createTask = async (req, res) => {
   try {
+    const currentUser = await User.findById(req.userId);
+    let sharedFriends = req.body.sharedWith || [];
+
+    // If visibility is 'friends', auto-share with all connected friends
+    if (req.body.visibility === 'friends' && currentUser && currentUser.friends && currentUser.friends.length > 0) {
+      sharedFriends = currentUser.friends.map(f => f.toString());
+    }
+
     const newTask = new Event({
       ...req.body,
+      sharedWith: sharedFriends,
       ownerId: req.userId
     });
     newTask.priorityScore = calculatePriorityScore(newTask.toObject());
     await newTask.save();
     
+    // 1. Emit real-time Socket event to friends
     const io = req.app.get('io');
-    if (io) {
-      if (newTask.sharedWith && newTask.sharedWith.length > 0) {
-        newTask.sharedWith.forEach(friendId => {
-          io.to(friendId.toString()).emit('task_created', newTask);
+    if (io && sharedFriends.length > 0) {
+      sharedFriends.forEach(friendId => {
+        io.to(friendId.toString()).emit('task_created', {
+          ...newTask.toObject(),
+          ownerId: currentUser ? { _id: currentUser._id, name: currentUser.name, username: currentUser.username } : newTask.ownerId
         });
+      });
+    }
+
+    // 2. Send Push Notifications to friends' devices
+    if (sharedFriends.length > 0 && currentUser) {
+      try {
+        const friendsWithTokens = await User.find({
+          _id: { $in: sharedFriends },
+          expoPushToken: { $exists: true, $ne: '' }
+        });
+
+        const messages = [];
+        const expo = new Expo();
+
+        for (const friend of friendsWithTokens) {
+          if (Expo.isExpoPushToken(friend.expoPushToken)) {
+            messages.push({
+              to: friend.expoPushToken,
+              sound: 'default',
+              title: `👥 ${currentUser.name} shared an Event!`,
+              body: `"${newTask.title}" at ${newTask.time}. Reminder & Alarm are scheduled on your phone!`,
+              data: { eventId: newTask.id, type: 'shared_event' },
+              priority: 'high',
+              channelId: 'focusflow_alarm_v2'
+            });
+          }
+        }
+
+        if (messages.length > 0) {
+          await expo.sendPushNotificationsAsync(messages);
+        }
+      } catch (pushErr) {
+        console.error('Shared event push notification error:', pushErr);
       }
     }
     

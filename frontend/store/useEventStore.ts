@@ -57,10 +57,24 @@ export const useEventStore = create<EventState>((set, get) => ({
       set({ events: newEvents });
     });
 
-    socketService.on('task_created', (newEvent: Event) => {
-      const { events } = get();
+    socketService.on('task_created', async (newEvent: Event) => {
+      const { events, friendsEvents } = get();
       if (!events.find(e => e.id === newEvent.id)) {
-        set({ events: [...events, newEvent] });
+        set({ events: [...events, newEvent], friendsEvents: [...friendsEvents, newEvent] });
+      }
+
+      // Schedule alarms and reminders on this friend's phone
+      try {
+        const reminders = (newEvent.reminders && newEvent.reminders.length > 0)
+          ? newEvent.reminders
+          : [{ id: 'rem_' + Date.now(), type: 'exact', time: newEvent.time, date: newEvent.date.split('T')[0] }];
+        
+        await notificationService.scheduleEventNotifications({
+          ...newEvent,
+          title: `👥 ${newEvent.ownerId?.name ? newEvent.ownerId.name + ': ' : ''}${newEvent.title}`
+        }, reminders);
+      } catch (scheduleErr) {
+        console.warn('Error scheduling friend shared event alarm:', scheduleErr);
       }
     });
 
