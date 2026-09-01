@@ -112,8 +112,7 @@ export default function HomeScreen() {
       const eventId = notification.request.content.data?.eventId;
       // Search in both user events and friends' events
       const targetEvent = events.find(e => e.id === eventId) || friendsEvents.find(e => (e.id || e._id) === eventId) || getTopRecommendation(location);
-      if (targetEvent && !triggeredAlarms.current.has(targetEvent.id)) {
-        triggeredAlarms.current.add(targetEvent.id);
+      if (targetEvent) {
         setActiveAlarmEvent(targetEvent);
         setShowAlarmModal(true);
       }
@@ -122,8 +121,7 @@ export default function HomeScreen() {
     const resSub = Notifications.addNotificationResponseReceivedListener((response) => {
       const eventId = response.notification.request.content.data?.eventId;
       const targetEvent = events.find(e => e.id === eventId) || friendsEvents.find(e => (e.id || e._id) === eventId) || getTopRecommendation(location);
-      if (targetEvent && !triggeredAlarms.current.has(targetEvent.id || targetEvent._id)) {
-        triggeredAlarms.current.add(targetEvent.id || targetEvent._id);
+      if (targetEvent) {
         setActiveAlarmEvent(targetEvent);
         setShowAlarmModal(true);
       }
@@ -141,7 +139,7 @@ export default function HomeScreen() {
     
     const interval = setInterval(() => {
       const now = new Date();
-      // Only check at the 0th second of the minute to be precise
+      // Only check at the first 5 seconds of each minute
       if (now.getSeconds() > 5) return; 
       
       const currentHours = now.getHours();
@@ -157,7 +155,7 @@ export default function HomeScreen() {
       const dueTask = allEvents.find(e => {
         if (e.completed || e.status === 'completed' || e.status === 'in_progress') return false;
         
-        let triggerTimes = [];
+        let triggerTimes: { h: number; m: number }[] = [];
         
         // 1. Add main event time
         if (e.time && e.date && e.date.startsWith(todayStr)) {
@@ -171,7 +169,7 @@ export default function HomeScreen() {
         // 2. Add reminder times
         if (e.reminders && e.reminders.length > 0) {
           e.reminders.forEach((r: any) => {
-            if (r.type === 'exact' && r.time && (!r.date || r.date === todayStr)) {
+            if (r.type === 'exact' && r.time && (!r.date || r.date.startsWith(todayStr))) {
               let [h, m] = r.time.split(':').map(Number);
               triggerTimes.push({ h, m });
             } else if (r.type === 'before' && r.value && e.time) {
@@ -183,6 +181,7 @@ export default function HomeScreen() {
               let triggerDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
               if (r.unit === 'minutes') triggerDate.setMinutes(triggerDate.getMinutes() - r.value);
               else if (r.unit === 'hours') triggerDate.setHours(triggerDate.getHours() - r.value);
+              else if (r.unit === 'days') triggerDate.setDate(triggerDate.getDate() - r.value);
               
               if (triggerDate.getDate() === now.getDate()) {
                 triggerTimes.push({ h: triggerDate.getHours(), m: triggerDate.getMinutes() });
@@ -193,7 +192,9 @@ export default function HomeScreen() {
         
         // Check if ANY trigger time matches current time
         for (let time of triggerTimes) {
-          if (time.h === currentHours && time.m === currentMinutes && !triggeredAlarms.current.has(e.id || e._id)) {
+          const alarmKey = `${e.id || e._id}_${time.h}:${time.m}`;
+          if (time.h === currentHours && time.m === currentMinutes && !triggeredAlarms.current.has(alarmKey)) {
+            triggeredAlarms.current.add(alarmKey);
             return true;
           }
         }
@@ -201,7 +202,6 @@ export default function HomeScreen() {
       });
 
       if (dueTask && !showAlarmModal) {
-        triggeredAlarms.current.add(dueTask.id || dueTask._id);
         setActiveAlarmEvent(dueTask);
         setShowAlarmModal(true);
       }

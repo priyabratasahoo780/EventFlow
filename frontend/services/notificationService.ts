@@ -100,6 +100,28 @@ export const notificationService = {
     const [year, month, day] = event.date.split('T')[0].split('-').map(Number);
     const [hours, minutes] = event.time.split(':').map(Number);
     const eventDateTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
+    const now = new Date();
+
+    // 1. ALWAYS Schedule the Main Event Time Alarm (at event.date & event.time)
+    if (eventDateTime.getTime() > now.getTime()) {
+      try {
+        const estDuration = event.estimatedDuration || 30;
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `⏰ Event Starting Now: ${event.title}`,
+            body: `Your task "${event.title}" is due now (${event.time}). Tap to start and focus!`,
+            data: { eventId: event.id, category: event.category, isEventTime: true },
+            sound: 'default',
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            vibrate: [0, 500, 250, 500, 250, 500],
+            ...(Platform.OS === 'android' ? { channelId: 'focusflow_alarm_v2' } : {})
+          } as any,
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: eventDateTime },
+        });
+      } catch (eventAlarmErr) {
+        console.error('Error scheduling main event alarm:', eventAlarmErr);
+      }
+    }
 
     for (const reminder of reminders) {
       let ids: string[] = [];
