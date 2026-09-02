@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Modal, FlatList, TextInput, Alert } from 'react-native';
 import * as Contacts from 'expo-contacts';
-import { User, Phone, Search, X, Check, Trash2 } from 'lucide-react-native';
+import { User, Search, X, Trash2 } from 'lucide-react-native';
 import { Colors } from '../constants/Colors';
 import { LinkedContact } from '../models/Event';
 
@@ -14,7 +14,6 @@ export default function ContactSelector({ value, onSelectContact }: Props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [contactList, setContactList] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(false);
 
   const openContactPicker = async () => {
     try {
@@ -24,7 +23,6 @@ export default function ContactSelector({ value, onSelectContact }: Props) {
         return;
       }
 
-      setLoading(true);
       setModalVisible(true);
       const { data } = await Contacts.getContactsAsync({
         fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails],
@@ -35,8 +33,6 @@ export default function ContactSelector({ value, onSelectContact }: Props) {
       }
     } catch (e) {
       console.warn('Contacts error:', e);
-    } finally {
-      setLoading(false);
     }
   };
 

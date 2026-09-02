@@ -7,7 +7,7 @@ import BrutalCard from '../../components/BrutalCard';
 import api from '../../services/api';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Check, X, UserPlus, Inbox, MapPin, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, Check, X, UserPlus, Inbox, MapPin } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function FriendRequestsScreen() {

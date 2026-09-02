@@ -1,9 +1,8 @@
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
-import { Bell, Clock, Zap, CheckCircle2, Volume2, XCircle } from 'lucide-react-native';
-import { Colors } from '../constants/Colors';
+import { Clock, Zap, CheckCircle2, Volume2, XCircle } from 'lucide-react-native';
 import { Event } from '../models/Event';
 import { alarmSoundService } from '../services/alarmSoundService';
 import * as Haptics from 'expo-haptics';
@@ -19,7 +18,6 @@ export default function AlarmModal({ visible, event, onDismiss, onStartTask }: P
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const s = styles;
   useEffect(() => {
     if (visible && event) {
       alarmSoundService.playAlarmSound();

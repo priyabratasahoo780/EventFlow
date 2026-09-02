@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
-import * as Linking from 'expo-linking';
 import { 
   ClerkProvider as ExpoClerkProvider, 
   ClerkLoaded as ExpoClerkLoaded, 
@@ -64,8 +63,6 @@ export const useSignUp = useExpoSignUp;
 export const useGoogleAuth = () => {
   useWarmUpBrowser();
   const { startSSOFlow } = useExpoSSO();
-  const { signIn } = useExpoSignIn();
-  const { signUp } = useExpoSignUp();
 
   const signInWithGoogle = async () => {
     try {

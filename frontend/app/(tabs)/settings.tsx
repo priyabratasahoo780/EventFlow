@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, Switch, Pressable, ScrollView, Alert, ToastAndroid, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { VolumeX, Moon, Bell, Download, Upload, Trash2, Info, Users, Volume2, UserPlus, FileCheck, Sun } from 'lucide-react-native';
+import { VolumeX, Moon, Bell, Download, Upload, Trash2, Info, Users, Volume2, UserPlus, Sun } from 'lucide-react-native';
 import { useEventStore } from '../../store/useEventStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
@@ -17,7 +17,7 @@ import { useRouter } from 'expo-router';
 import AlarmModal from '../../components/AlarmModal';
 
 export default function SettingsScreen() {
-  const { mode, setMode, isDark, getColors } = useThemeStore();
+  const { setMode, isDark, getColors } = useThemeStore();
   const isDarkMode = isDark();
   const colors = getColors();
   const styles = getStyles(colors);

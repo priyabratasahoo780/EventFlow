@@ -4,6 +4,9 @@ import { Event, EventFilters, TaskStatus, ReminderConfig } from '../models/Event
 import { storageService } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
 import { priorityService } from '../services/priorityService';
+import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import * as Haptics from 'expo-haptics';
 import api from '../services/api';
 import { socketService } from '../services/socketService';
 import { geofencingService } from '../services/geofencingService';
@@ -104,6 +107,25 @@ export const useEventStore = create<EventState>((set, get) => ({
     socketService.on('task_deleted', (deletedId: string) => {
       const { events } = get();
       set({ events: events.filter(e => e.id !== deletedId) });
+    });
+
+    socketService.on('cheer_received', async (data: { message: string; senderName?: string; senderUsername?: string }) => {
+      try {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `📣 ${data.senderName || 'Your friend'} cheered you on!`,
+            body: data.message,
+            sound: 'default',
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            vibrate: [0, 250, 250, 250],
+            ...(Platform.OS === 'android' ? { channelId: 'focusflow_alarm_v2' } : {})
+          } as any,
+          trigger: null,
+        });
+      } catch (err) {
+        console.warn('Cheer notification display error:', err);
+      }
     });
     
     set({ isSocketInitialized: true });

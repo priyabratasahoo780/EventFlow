@@ -19,7 +19,6 @@ export default function LoginScreen() {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const s = styles;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

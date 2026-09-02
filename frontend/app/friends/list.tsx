@@ -13,7 +13,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { 
   ArrowLeft, Search, UserPlus, Users, Sparkles, 
-  UserMinus, MessageSquare, Send, X, Inbox, MapPin 
+  UserMinus, MessageSquare, Send, X, MapPin 
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 

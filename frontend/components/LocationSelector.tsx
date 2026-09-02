@@ -3,8 +3,7 @@ import { ColorTheme } from '../constants/theme';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import * as Location from 'expo-location';
-import { MapPin, Navigation, Check, School, ShoppingCart, Briefcase, Home, Compass } from 'lucide-react-native';
-import { Colors } from '../constants/Colors';
+import { MapPin, Navigation, Check, School, ShoppingCart, Briefcase, Home } from 'lucide-react-native';
 import { LocationDetails } from '../models/Event';
 import * as Haptics from 'expo-haptics';
 
@@ -31,7 +30,6 @@ export default function LocationSelector({ value, onChangeLocation }: Props) {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const s = styles;
   const [loading, setLoading] = useState(false);
   const [coords, setCoords] = useState<{ lat?: number; lng?: number }>({});
   const [selectedRadius, setSelectedRadius] = useState<number>(500);

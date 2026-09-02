@@ -1,25 +1,21 @@
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, MapPin, Navigation, Search, Compass, ChevronRight, LocateFixed } from 'lucide-react-native';
 import { useEventStore } from '../store/useEventStore';
 import { useLocation } from '../hooks/useLocation';
-import { Colors } from '../constants/Colors';
 import { priorityService } from '../services/priorityService';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker, Circle } from '../components/maps';
 
-
-
 export default function MapScreen() {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const s = styles;
   const router = useRouter();
   const { events } = useEventStore();
   const { location, address, geocodeAddress } = useLocation(events);

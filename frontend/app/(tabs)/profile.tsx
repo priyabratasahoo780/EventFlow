@@ -7,10 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
-import { Colors } from '../../constants/Colors';
 import { 
   Copy, Share2, LogOut, Camera, Image as ImageIcon, 
-  Edit3, Check, Trash2, X, RefreshCw, Sparkles 
+  Edit3, Check, Trash2, X, RefreshCw 
 } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';

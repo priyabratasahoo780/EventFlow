@@ -14,7 +14,6 @@ export default function Input({ label, error, style, onFocus, onBlur, ...props }
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const s = styles;
   const [isFocused, setIsFocused] = useState(false);
 
   return (
@@ -43,7 +42,7 @@ export default function Input({ label, error, style, onFocus, onBlur, ...props }
   );
 }
 
-const getStyles = (colors: ColorTheme) => StyleSheet.create({
+const getStyles = (_colors: ColorTheme) => StyleSheet.create({
   container: {
     marginBottom: Theme.spacing.md,
   },

@@ -202,6 +202,50 @@ exports.sendMessage = async (req, res) => {
     });
 
     await message.save();
+
+    const sender = await User.findById(req.user._id).select('name username profilePhoto');
+    const receiver = await User.findById(receiverId);
+
+    // 1. Real-time Socket.IO emission to receiver
+    const io = req.app.get('io');
+    if (io && receiverId) {
+      io.to(receiverId.toString()).emit('cheer_received', {
+        message: message.text,
+        type: message.type,
+        senderName: sender?.name || 'A friend',
+        senderUsername: sender?.username || '',
+        senderPhoto: sender?.profilePhoto || '',
+        createdAt: message.createdAt
+      });
+      io.to(receiverId.toString()).emit('new_message', message);
+    }
+
+    // 2. Push Notification via Expo Server SDK
+    if (receiver && receiver.expoPushToken) {
+      const { Expo } = require('expo-server-sdk');
+      const expo = new Expo();
+      if (Expo.isExpoPushToken(receiver.expoPushToken)) {
+        try {
+          await expo.sendPushNotificationsAsync([{
+            to: receiver.expoPushToken,
+            sound: 'default',
+            priority: 'high',
+            channelId: 'focusflow_alarm_v2',
+            title: `📣 ${sender?.name || 'A friend'} cheered you on!`,
+            body: text.trim(),
+            data: { 
+              type: 'cheer_nudge',
+              senderId: req.user._id,
+              senderName: sender?.name,
+              text: text.trim()
+            }
+          }]);
+        } catch (pushErr) {
+          console.error('Cheer push notification error:', pushErr);
+        }
+      }
+    }
+
     res.json({ message: 'Message sent successfully!', data: message });
   } catch (err) {
     console.error('sendMessage error:', err);

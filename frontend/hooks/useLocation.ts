@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
 import { Event } from '../models/Event';
 import { priorityService } from '../services/priorityService';
 import * as Haptics from 'expo-haptics';

@@ -8,7 +8,6 @@ import { useEventStore } from '../../store/useEventStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import EventCard from '../../components/EventCard';
-import { Colors } from '../../constants/Colors';
 import { 
   Calendar as CalendarIcon, 
   Plus, 
@@ -101,8 +100,6 @@ export default function CalendarScreen() {
       return selectedDate;
     }
   }, [selectedDate]);
-
-  const customHeaderProps: any = {};
 
   return (
     <View style={styles.root}>

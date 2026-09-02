@@ -3,7 +3,7 @@ import * as Device from 'expo-device';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 import { Event, ReminderConfig } from '../models/Event';
-import { subMinutes, subHours, subDays, subWeeks, parseISO, setHours, setMinutes, setDate as setDateFns, setMonth, getDay } from 'date-fns';
+import { subMinutes, subHours, subDays, subWeeks } from 'date-fns';
 
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient || (Constants as any).appOwnership === 'expo';
 
@@ -105,7 +105,6 @@ export const notificationService = {
     // 1. ALWAYS Schedule the Main Event Time Alarm (at event.date & event.time)
     if (eventDateTime.getTime() > now.getTime()) {
       try {
-        const estDuration = event.estimatedDuration || 30;
         await Notifications.scheduleNotificationAsync({
           content: {
             title: `⏰ Event Starting Now: ${event.title}`,

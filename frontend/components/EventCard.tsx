@@ -23,11 +23,10 @@ const getPriorityConfig = (colors: ColorTheme): Record<string, { strip: string; 
   low:      { strip: colors.success, bg: colors.successLight, text: colors.success, label: 'LOW' },
 });
 
-export default function EventCard({ event, index, onPress, onComplete }: EventCardProps) {
+export default function EventCard({ event, onPress, onComplete }: EventCardProps) {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const s = styles;
   const isCompleted = event.completed || event.status === 'completed';
   const isInProgress = event.status === 'in_progress';
   const PRIORITY_CONFIG = getPriorityConfig(colors);
@@ -37,10 +36,6 @@ export default function EventCard({ event, index, onPress, onComplete }: EventCa
   const estDuration = event.estimatedDuration || 30;
 
   const handleToggleComplete = () => {
-  const { getColors } = useThemeStore();
-  const colors = getColors();
-  const styles = getStyles(colors);
-  const s = styles;
     Haptics.notificationAsync(
       isCompleted
         ? Haptics.NotificationFeedbackType.Warning

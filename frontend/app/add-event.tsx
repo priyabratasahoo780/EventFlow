@@ -1,30 +1,23 @@
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { 
   StyleSheet, ScrollView, View, Text, Pressable, Platform, 
-  TextInput, KeyboardAvoidingView, ToastAndroid, Modal, Switch, Animated, Alert
+  TextInput, KeyboardAvoidingView, ToastAndroid, Modal, Switch, Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Swipeable } from 'react-native-gesture-handler';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useEventStore } from '../store/useEventStore';
-import { Event, Priority, ReminderConfig, ReminderType } from '../models/Event';
-import { Colors } from '../constants/Colors';
-
-import BrutalCard from '../components/BrutalCard';
-import BrutalButton from '../components/BrutalButton';
+import { Event, ReminderConfig } from '../models/Event';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format, subMinutes, subHours, subDays, subWeeks } from 'date-fns';
 import { 
-  Calendar as CalendarIcon, Clock, Tag, Flag, 
+  Calendar as CalendarIcon, Clock,
   AlignLeft, Bell, ChevronLeft, Type,
-  X, Check, Plus, Globe, Lock, Users,
-  GraduationCap, Briefcase, User, Stethoscope, Mic,
-  Rocket, Activity, ShoppingCart, Zap, Layers
+  X, Check, Plus, Globe, Lock, Users, User
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import api from '../services/api';
@@ -61,9 +54,17 @@ const CATEGORY_ITEMS = [
   { name: 'Shopping', key: 'shopping' },
   { name: 'Other', key: 'other' },
 ];
-const CATEGORIES = CATEGORY_ITEMS.map(c => c.name);
 const COLORS = ['#3B82F6', '#FFD600', '#FF90E8', '#10B981', '#F97316', '#8B5CF6'];
-const PRIORITIES = ['low', 'medium', 'high', 'critical'];
+const PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const SNOOZE_OPTIONS = [
+  { label: 'Off', val: 0 },
+  { label: '5 Min', val: 5 },
+  { label: '10 Min', val: 10 },
+  { label: '15 Min', val: 15 },
+  { label: '30 Min', val: 30 },
+  { label: '1 Hr', val: 60 }
+];
 
 // Utility to generate a unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -72,19 +73,17 @@ export default function AddEventScreen() {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const s = styles;
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { addEvent, updateEvent, events } = useEventStore();
   
   const existingEvent = id ? events.find(e => e.id === id) : null;
   
-  const [date, setDate] = useState(existingEvent ? new Date(existingEvent.date.split('T')[0] + 'T00:00:00') : new Date());
+  const [date, setDate] = useState(existingEvent ? new Date(existingEvent.date) : new Date());
   const [time, setTime] = useState(existingEvent ? new Date(`1970-01-01T${existingEvent.time}:00`) : new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
-  // FocusFlow Extended States
   const [locationText, setLocationText] = useState(existingEvent?.location || '');
   const [locationDetails, setLocationDetails] = useState<LocationDetails | undefined>(existingEvent?.locationDetails);
   
@@ -95,7 +94,7 @@ export default function AddEventScreen() {
   const [imageUri, setImageUri] = useState<string | undefined>(existingEvent?.image);
   const [videoUri, setVideoUri] = useState<string | undefined>(existingEvent?.video);
   const [linkedContact, setLinkedContact] = useState<LinkedContact | undefined>(existingEvent?.linkedContact);
-  const [taskStatus, setTaskStatus] = useState<TaskStatus>(existingEvent?.status || 'pending');
+  const [taskStatus] = useState<TaskStatus>(existingEvent?.status || 'pending');
 
   // Reminders State
   const [reminders, setReminders] = useState<ReminderConfig[]>(existingEvent?.reminders || []);
@@ -111,73 +110,48 @@ export default function AddEventScreen() {
   }, []);
   
   // Custom Reminder Modal States
-  const [modalType, setModalType] = useState<ReminderType>('before');
+  const [modalType, setModalType] = useState<ReminderConfig['type']>('before');
   const [modalValue, setModalValue] = useState<string>('1');
   const [modalUnit, setModalUnit] = useState<'minutes'|'hours'|'days'|'weeks'>('days');
   const [modalTime, setModalTime] = useState(new Date());
-  const [modalShowTimePicker, setModalShowTimePicker] = useState(false);
   const [modalDate, setModalDate] = useState(new Date());
-  const [modalShowDatePicker, setModalShowDatePicker] = useState(false);
-  const [modalDays, setModalDays] = useState<string[]>([]);
-  const [modalDayOfMonth, setModalDayOfMonth] = useState<string>('15');
-  const [modalNotificationPref, setModalNotificationPref] = useState<'banner_sound' | 'banner_only' | 'silent'>('banner_sound');
+  const [modalDays, setModalDays] = useState<string[]>(['Monday']);
+  const [modalDayOfMonth] = useState<string>('1');
+  
+  // Notification & Alarm Customization States
+  const [modalNotificationPref] = useState<'banner_sound' | 'banner_only' | 'silent'>('banner_sound');
   const [modalAlarmPref, setModalAlarmPref] = useState<'notification' | 'alarm' | 'both'>('notification');
   const [modalSnooze, setModalSnooze] = useState<number>(0);
   const [modalSound, setModalSound] = useState<'default'|'silent'|'custom'>('default');
-  const [modalVibration, setModalVibration] = useState<boolean>(true);
-  const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
-  
-  const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const SNOOZE_OPTIONS = [{label: 'Off', val: 0}, {label: '5 Min', val: 5}, {label: '10 Min', val: 10}, {label: '15 Min', val: 15}, {label: '30 Min', val: 30}, {label: '1 Hr', val: 60}];
+  const [modalVibration] = useState<boolean>(true);
 
-  const { control, handleSubmit, watch, formState: { errors } } = useForm<EventFormData>({
+  // Picker States for Modal
+  const [modalShowDatePicker, setModalShowDatePicker] = useState(false);
+  const [modalShowTimePicker, setModalShowTimePicker] = useState(false);
+  const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
+
+  const { control, handleSubmit, formState: { errors } } = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
     defaultValues: existingEvent ? {
       title: existingEvent.title,
       description: existingEvent.description,
       category: existingEvent.category,
       priority: existingEvent.priority,
-      estimatedDuration: String(existingEvent.estimatedDuration || 30),
+      estimatedDuration: existingEvent.estimatedDuration ? existingEvent.estimatedDuration.toString() : '30',
       color: existingEvent.color,
       icon: existingEvent.icon,
-      notes: existingEvent.notes,
+      notes: existingEvent.notes || ''
     } : {
-      category: 'Academic',
+      title: '',
+      description: '',
+      category: 'Work',
       priority: 'medium',
-      estimatedDuration: '45',
+      estimatedDuration: '30',
       color: COLORS[0],
-      icon: 'academic',
+      icon: 'Calendar',
       notes: ''
     }
   });
-
-  const selectedCategory = watch('category');
-
-  // Smart Suggestions
-  const smartSuggestions: { label: string, config: Partial<ReminderConfig> }[] = useMemo(() => {
-    if (selectedCategory === 'Birthday' || selectedCategory === 'Hackathon') {
-      return [
-        { label: '7 Days Before', config: { type: 'before' as ReminderType, value: 7, unit: 'days' } },
-        { label: '1 Day Before', config: { type: 'before' as ReminderType, value: 1, unit: 'days' } },
-        { label: 'Same Day 9:00 AM', config: { type: 'exact' as ReminderType, time: '09:00', date: format(date, 'yyyy-MM-dd') } }
-      ];
-    } else if (selectedCategory === 'Academic' || selectedCategory === 'Interview' || selectedCategory === 'Work') {
-      return [
-        { label: '3 Days Before', config: { type: 'before' as ReminderType, value: 3, unit: 'days' } },
-        { label: '1 Day Before', config: { type: 'before' as ReminderType, value: 1, unit: 'days' } },
-        { label: '2 Hours Before', config: { type: 'before' as ReminderType, value: 2, unit: 'hours' } }
-      ];
-    }
-    return [
-      { label: '1 Hour Before', config: { type: 'before' as ReminderType, value: 1, unit: 'hours' } },
-      { label: '1 Day Before', config: { type: 'before' as ReminderType, value: 1, unit: 'days' } }
-    ];
-  }, [selectedCategory, date]);
-
-  const addSmartSuggestion = (config: Partial<ReminderConfig>) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setReminders(prev => [...prev, { id: generateId(), type: 'before', ...config } as ReminderConfig]);
-  };
 
   const removeReminder = (idToRemove: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -187,24 +161,6 @@ export default function AddEventScreen() {
   const toggleModalDay = (day: string) => {
     Haptics.selectionAsync();
     setModalDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
-  };
-
-  const openEditReminder = (r: ReminderConfig) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setEditingReminderId(r.id);
-    setModalType(r.type);
-    if (r.value) setModalValue(r.value.toString());
-    if (r.unit) setModalUnit(r.unit);
-    if (r.time) setModalTime(new Date(`1970-01-01T${r.time}:00`));
-    if (r.date) setModalDate(new Date(r.date));
-    if (r.days) setModalDays(r.days);
-    if (r.dayOfMonth) setModalDayOfMonth(r.dayOfMonth.toString());
-    if (r.notificationPreference) setModalNotificationPref(r.notificationPreference);
-    if (r.alarmPreference) setModalAlarmPref(r.alarmPreference);
-    setModalSnooze(r.snooze || 0);
-    setModalSound(r.sound || 'default');
-    setModalVibration(r.vibration !== false);
-    setShowReminderModal(true);
   };
 
   const saveCustomReminder = () => {
@@ -293,14 +249,6 @@ export default function AddEventScreen() {
     if (r.type === 'monthly') return `Monthly on the ${r.dayOfMonth} at ${r.time}`;
     if (r.type === 'yearly') return `Yearly on ${r.date} at ${r.time}`;
     return `Custom ${r.type}`;
-  };
-
-  const renderRightActions = (id: string) => {
-    return (
-      <Pressable onPress={() => removeReminder(id)} style={styles.swipeDeleteBtn}>
-        <Text style={styles.swipeDeleteText}>DELETE</Text>
-      </Pressable>
-    );
   };
 
   const onSubmit = async (data: EventFormData) => {
@@ -459,7 +407,7 @@ export default function AddEventScreen() {
                   value={date}
                   mode="date"
                   display="default"
-                  onChange={(event, selectedDate) => {
+                  onChange={(_, selectedDate) => {
                     setShowDatePicker(Platform.OS === 'ios');
                     if (selectedDate) setDate(selectedDate);
                   }}
@@ -471,7 +419,7 @@ export default function AddEventScreen() {
                   value={time}
                   mode="time"
                   display="default"
-                  onChange={(event, selectedTime) => {
+                  onChange={(_, selectedTime) => {
                     setShowTimePicker(Platform.OS === 'ios');
                     if (selectedTime) setTime(selectedTime);
                   }}
@@ -796,7 +744,7 @@ export default function AddEventScreen() {
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScrollContent}>
                 <Text style={styles.label}>TYPE</Text>
                 <View style={styles.chipRowWrap}>
-                  {(['before', 'exact', 'daily', 'weekly'] as ReminderType[]).map(t => (
+                  {(['before', 'exact', 'daily', 'weekly'] as const).map(t => (
                     <Pressable 
                       key={t}
                       style={[styles.modalChip, modalType === t && styles.modalChipActive]}
@@ -899,7 +847,7 @@ export default function AddEventScreen() {
                     value={modalDate}
                     mode="date"
                     display="default"
-                    onChange={(event, selectedDate) => {
+                    onChange={(_, selectedDate) => {
                       setModalShowDatePicker(Platform.OS === 'ios');
                       if (selectedDate) setModalDate(selectedDate);
                     }}
@@ -911,7 +859,7 @@ export default function AddEventScreen() {
                     value={modalTime}
                     mode="time"
                     display="default"
-                    onChange={(event, selectedTime) => {
+                    onChange={(_, selectedTime) => {
                       setModalShowTimePicker(Platform.OS === 'ios');
                       if (selectedTime) setModalTime(selectedTime);
                     }}
@@ -1188,7 +1136,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     color: colors.card,
   },
   saveBtn: { marginTop: 8 },
-  saveBtnText: { fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: Colors.light.text },
+  saveBtnText: { fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: colors.text },
 
   // Reminders & Visibility Styles
   presetRemindersBox: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 16, marginBottom: 12 },
@@ -1243,10 +1191,10 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   visibilityText: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#000' },
   visibilityTextActive: { color: '#FFF' },
   friendSelectRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-  friendSelectAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.light.primary, borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center' },
+  friendSelectAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center' },
   friendSelectAvatarText: { fontFamily: 'Poppins_800ExtraBold', fontSize: 16, color: '#000' },
   friendSelectName: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#000' },
   friendSelectUsername: { fontFamily: 'Poppins_500Medium', fontSize: 12, color: '#666' },
   checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: '#000', backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center' },
-  checkboxActive: { backgroundColor: Colors.light.success }
+  checkboxActive: { backgroundColor: colors.success }
 });

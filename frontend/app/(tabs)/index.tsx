@@ -19,7 +19,7 @@ import {
   Sparkles, Plus, Flame, Calendar as CalendarIcon,
   Hourglass, AlertTriangle, Zap, MapPin, Grid3x3, Bell,
   Menu, GraduationCap, Briefcase, User as UserIcon,
-  Target, Timer, Bookmark, Check, ChevronRight,
+  Check,
   CalendarClock, Users, Code, Activity, ShoppingBag, Hash, Settings, MessageCircle
 } from 'lucide-react-native';
 import { Event } from '../../models/Event';
@@ -67,7 +67,7 @@ export default function HomeScreen() {
   const colors = getColors();
   const s = getStyles(colors);
   const { user } = useAuthStore();
-  const { events, friendsEvents, loadEvents, toggleEventCompletion, syncFriendSharedEvents, updateTaskStatus, filters, setFilters, getFilteredEvents, getTopRecommendation, initSocket } = useEventStore();
+  const { events, friendsEvents, loadEvents, syncFriendSharedEvents, updateTaskStatus, filters, setFilters, getFilteredEvents, getTopRecommendation, initSocket } = useEventStore();
   const { location } = useLocation(events);
   const [refreshing, setRefreshing] = useState(false);
   const [activeAlarmEvent, setActiveAlarmEvent] = useState<Event | null>(null);
@@ -601,7 +601,7 @@ export default function HomeScreen() {
     );
   };
 
-  const renderEventCard = ({ item, index }: { item: Event; index: number }) => {
+  const renderEventCard = ({ item }: { item: Event }) => {
     const isCompleted = item.completed || item.status === 'completed';
     const isInProgress = item.status === 'in_progress';
     const PRIORITY_CONFIG = getPriorityConfig(colors);

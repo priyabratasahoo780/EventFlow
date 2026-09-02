@@ -1,7 +1,7 @@
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
 import React from 'react';
-import { Pressable, Text, StyleSheet, View, ActivityIndicator, StyleProp, ViewStyle } from 'react-native';
+import { Pressable, Text, StyleSheet, View, StyleProp, ViewStyle } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 interface BrutalButtonProps {
@@ -23,12 +23,10 @@ export default function BrutalButton({
   children,
   color,
   style,
-  shadowOffset = 4,
 }: BrutalButtonProps) {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const s = styles;
   const bgColor = color || (
     variant === 'danger'
       ? colors.error

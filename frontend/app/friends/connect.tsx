@@ -9,7 +9,6 @@ import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import BrutalButton from '../../components/BrutalButton';
 import BrutalCard from '../../components/BrutalCard';
-import { Colors } from '../../constants/Colors';
 import api from '../../services/api';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
@@ -238,7 +237,7 @@ export default function ConnectFriendScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.myIdLabel}>YOUR SHAREABLE FRIEND CODE</Text>
-                  <Text style={styles.myIdValue} numberOfLines={1} selectTextOnFocus>
+                  <Text style={styles.myIdValue} numberOfLines={1} selectable>
                     {user.uniqueId}
                   </Text>
                 </View>

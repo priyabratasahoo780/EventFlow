@@ -1,11 +1,10 @@
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, Pressable, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Alert, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import GoogleButton from '../../components/GoogleButton';
-import { Colors } from '../../constants/Colors';
 import api from '../../services/api';
 import { useAuthStore, UserProfile } from '../../store/useAuthStore';
 import { useRouter } from 'expo-router';
@@ -18,7 +17,6 @@ export default function RegisterScreen() {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const s = styles;
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');

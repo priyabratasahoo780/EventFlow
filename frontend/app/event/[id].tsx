@@ -3,10 +3,10 @@ import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { StyleSheet, View, Text, ScrollView, Pressable, Alert, Image, Share as RNShare, Linking, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEventStore } from '../../store/useEventStore';
 import { format } from 'date-fns';
-import { Calendar, Clock, MapPin, Tag, Bell, Share, Trash2, Edit2, CheckSquare, Square, ChevronLeft, Check, User, Phone, Image as ImageIcon, Video, Play, CheckCircle2, Navigation } from 'lucide-react-native';
+import { Calendar, Clock, MapPin, Tag, Bell, Share, Trash2, Edit2, CheckSquare, ChevronLeft, Check, User, Phone, Video, Play, CheckCircle2, Navigation } from 'lucide-react-native';
 import BrutalCard from '../../components/BrutalCard';
 import BrutalButton from '../../components/BrutalButton';
 import * as Haptics from 'expo-haptics';
@@ -27,7 +27,6 @@ export default function EventDetailsScreen() {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const s = styles;
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { events, friendsEvents, deleteEvent, updateTaskStatus } = useEventStore();
@@ -418,7 +417,7 @@ export default function EventDetailsScreen() {
   );
 }
 
-const getStyles = (colors: ColorTheme) => StyleSheet.create({
+const getStyles = (_colors: ColorTheme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: bgCol },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

@@ -14,7 +14,6 @@ export default function ForgotPasswordScreen() {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const s = styles;
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -128,7 +127,7 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const getStyles = (colors: ColorTheme) => StyleSheet.create({
+const getStyles = (_colors: ColorTheme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
   scroll: { padding: 24, paddingBottom: 60 },
   backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 8 },

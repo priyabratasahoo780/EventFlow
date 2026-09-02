@@ -13,7 +13,6 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Alert, Platform, LogBox } from 'react-native';
 import { useRouter, useSegments } from 'expo-router';
