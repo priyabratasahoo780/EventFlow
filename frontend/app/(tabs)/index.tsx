@@ -109,19 +109,30 @@ export default function HomeScreen() {
   // 1. Listen for system push notifications (works in background)
   useEffect(() => {
     const sub = Notifications.addNotificationReceivedListener((notification) => {
-      const eventId = notification.request.content.data?.eventId;
-      // Search in both user events and friends' events
-      const targetEvent = events.find(e => e.id === eventId) || friendsEvents.find(e => (e.id || e._id) === eventId) || getTopRecommendation(location);
-      if (targetEvent) {
+      const data = notification.request.content.data;
+      const eventId = data?.eventId;
+      // Only trigger alarm modal for event notifications (not cheers, messages, or friend requests)
+      if (!eventId || data?.type === 'cheer_nudge' || data?.type === 'friend_request' || data?.type === 'message') {
+        return;
+      }
+
+      const targetEvent = events.find(e => e.id === eventId) || friendsEvents.find(e => (e.id || e._id) === eventId);
+      if (targetEvent && !targetEvent.completed && targetEvent.status !== 'completed') {
         setActiveAlarmEvent(targetEvent);
         setShowAlarmModal(true);
       }
     });
+
     // 1b. Listen for when user TAPS a notification (app was in background/closed)
     const resSub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const eventId = response.notification.request.content.data?.eventId;
-      const targetEvent = events.find(e => e.id === eventId) || friendsEvents.find(e => (e.id || e._id) === eventId) || getTopRecommendation(location);
-      if (targetEvent) {
+      const data = response.notification.request.content.data;
+      const eventId = data?.eventId;
+      if (!eventId || data?.type === 'cheer_nudge' || data?.type === 'friend_request' || data?.type === 'message') {
+        return;
+      }
+
+      const targetEvent = events.find(e => e.id === eventId) || friendsEvents.find(e => (e.id || e._id) === eventId);
+      if (targetEvent && !targetEvent.completed && targetEvent.status !== 'completed') {
         setActiveAlarmEvent(targetEvent);
         setShowAlarmModal(true);
       }
@@ -131,7 +142,7 @@ export default function HomeScreen() {
       sub.remove();
       resSub.remove();
     };
-  }, [events, friendsEvents, location, getTopRecommendation]);
+  }, [events, friendsEvents]);
 
   // 2. Precise foreground alarm checker (fixes Android exact alarm delays)
   useEffect(() => {

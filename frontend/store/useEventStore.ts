@@ -62,11 +62,9 @@ export const useEventStore = create<EventState>((set, get) => ({
 
       try {
         if (updatedEvent.completed || updatedEvent.status === 'completed') {
-          // Cancel alarms if task is completed
+          // Cancel alarms and notifications if task is completed
           const idsToCancel = (updatedEvent.reminders || []).flatMap(r => r.notificationIds || []);
-          if (idsToCancel.length > 0) {
-            await notificationService.cancelNotifications(idsToCancel);
-          }
+          await notificationService.cancelEventNotifications(updatedEvent.id, idsToCancel);
         } else {
           // Reschedule updated alarms and reminders
           const reminders: ReminderConfig[] = (updatedEvent.reminders && updatedEvent.reminders.length > 0)
@@ -280,11 +278,9 @@ export const useEventStore = create<EventState>((set, get) => ({
       startedAt = nowIso;
     } else if (status === 'completed') {
       completedAt = nowIso;
-      // Cancel pending notifications if completed
-      if (targetEvent.reminders) {
-        const idsToCancel = targetEvent.reminders.flatMap(r => r.notificationIds || []);
-        await notificationService.cancelNotifications(idsToCancel);
-      }
+      // Cancel pending alarms & notifications if completed
+      const idsToCancel = targetEvent.reminders ? targetEvent.reminders.flatMap(r => r.notificationIds || []) : [];
+      await notificationService.cancelEventNotifications(id, idsToCancel);
       await geofencingService.stopGeofence(id);
     }
 
@@ -313,9 +309,9 @@ export const useEventStore = create<EventState>((set, get) => ({
     const { events } = get();
     
     const oldEvent = events.find(e => e.id === id);
-    if (oldEvent && oldEvent.reminders) {
-      const idsToCancel = oldEvent.reminders.flatMap(r => r.notificationIds || []);
-      await notificationService.cancelNotifications(idsToCancel);
+    if (oldEvent) {
+      const idsToCancel = oldEvent.reminders ? oldEvent.reminders.flatMap(r => r.notificationIds || []) : [];
+      await notificationService.cancelEventNotifications(id, idsToCancel);
     }
 
     const newEvents = events.filter(e => e.id !== id);
@@ -336,9 +332,9 @@ export const useEventStore = create<EventState>((set, get) => ({
     const { events } = get();
     
     const completedEvents = events.filter(e => e.completed || e.status === 'completed');
-    const idsToCancel = completedEvents.flatMap(e => (e.reminders || []).flatMap(r => r.notificationIds || []));
-    if (idsToCancel.length > 0) {
-      await notificationService.cancelNotifications(idsToCancel);
+    for (const ev of completedEvents) {
+      const idsToCancel = (ev.reminders || []).flatMap(r => r.notificationIds || []);
+      await notificationService.cancelEventNotifications(ev.id, idsToCancel);
     }
 
     const newEvents = events.filter(e => !e.completed && e.status !== 'completed');

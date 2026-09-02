@@ -309,6 +309,23 @@ export const notificationService = {
     }
   },
 
+  async cancelEventNotifications(eventId: string, identifiers?: string[]) {
+    if (identifiers && identifiers.length > 0) {
+      await this.cancelNotifications(identifiers);
+    }
+
+    try {
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+      for (const notif of scheduled) {
+        if (notif.content.data?.eventId === eventId) {
+          await Notifications.cancelScheduledNotificationAsync(notif.identifier);
+        }
+      }
+    } catch (e) {
+      console.warn('Error clearing event scheduled notifications:', e);
+    }
+  },
+
   async sendImmediateNotification(event: Event) {
     const content: Notifications.NotificationContentInput = {
       title: `🔔 New Event Added`,

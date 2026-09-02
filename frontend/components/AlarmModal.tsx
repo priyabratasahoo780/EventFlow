@@ -18,8 +18,11 @@ export default function AlarmModal({ visible, event, onDismiss, onStartTask }: P
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
+
+  const isCompleted = !event || event.completed || event.status === 'completed';
+
   useEffect(() => {
-    if (visible && event) {
+    if (visible && event && !isCompleted) {
       alarmSoundService.playAlarmSound();
     } else {
       alarmSoundService.stopAlarmSound();
@@ -28,9 +31,12 @@ export default function AlarmModal({ visible, event, onDismiss, onStartTask }: P
     return () => {
       alarmSoundService.stopAlarmSound();
     };
-  }, [visible, event]);
+  }, [visible, event, isCompleted]);
 
-  if (!event) return null;
+  if (isCompleted) {
+    alarmSoundService.stopAlarmSound();
+    return null;
+  }
 
   const handleDismiss = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
