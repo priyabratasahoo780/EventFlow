@@ -1,15 +1,19 @@
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert, ScrollView, Modal, Dimensions } from 'react-native';
 import * as Location from 'expo-location';
-import { MapPin, Navigation, Check, School, ShoppingCart, Briefcase, Home } from 'lucide-react-native';
+import { MapPin, Navigation, Check, School, ShoppingCart, Briefcase, Home, Map as MapIcon, X } from 'lucide-react-native';
 import { LocationDetails } from '../models/Event';
 import * as Haptics from 'expo-haptics';
+import MapViewWrapper from './MapViewWrapper';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface Props {
   value: string;
   onChangeLocation: (address: string, details?: LocationDetails) => void;
+  radius?: number;
+  onChangeRadius?: (radius: number) => void;
 }
 
 const PRESETS = [
@@ -21,18 +25,22 @@ const PRESETS = [
 
 const RADII = [
   { label: '100m', val: 100 },
+  { label: '200m', val: 200 },
   { label: '300m', val: 300 },
   { label: '500m', val: 500 },
   { label: '1km', val: 1000 },
 ];
 
-export default function LocationSelector({ value, onChangeLocation }: Props) {
+export default function LocationSelector({ value, onChangeLocation, radius = 500, onChangeRadius }: Props) {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
   const [loading, setLoading] = useState(false);
   const [coords, setCoords] = useState<{ lat?: number; lng?: number }>({});
-  const [selectedRadius, setSelectedRadius] = useState<number>(500);
+  
+  // Map Modal States
+  const [showMapModal, setShowMapModal] = useState(false);
+  const [tempCoords, setTempCoords] = useState<{ lat?: number; lng?: number }>({});
 
   const handleGetCurrentLocation = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -140,47 +148,114 @@ export default function LocationSelector({ value, onChangeLocation }: Props) {
           value={value}
           onChangeText={handleManualSearch}
         />
-        <Pressable style={styles.gpsBtn} onPress={handleGetCurrentLocation} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <Pressable style={styles.gpsBtn} onPress={handleGetCurrentLocation} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <View style={styles.gpsBtnInner}>
+                <Navigation color="#FFF" size={14} strokeWidth={2.5} />
+                <Text style={styles.gpsBtnText}>GPS</Text>
+              </View>
+            )}
+          </Pressable>
+          
+          <Pressable 
+            style={[styles.gpsBtn, { backgroundColor: colors.secondary }]} 
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setTempCoords(coords.lat ? coords : { lat: 20.5937, lng: 78.9629 });
+              setShowMapModal(true);
+            }}
+          >
             <View style={styles.gpsBtnInner}>
-              <Navigation color="#FFF" size={14} strokeWidth={2.5} />
-              <Text style={styles.gpsBtnText}>GPS</Text>
+              <MapIcon color="#FFF" size={14} strokeWidth={2.5} />
+              <Text style={styles.gpsBtnText}>MAP</Text>
             </View>
-          )}
-        </Pressable>
+          </Pressable>
+        </View>
       </View>
 
       {/* Radius Selector & Active Badge */}
       <View style={styles.radiusRow}>
         <Text style={styles.radiusLabel}>Remind within:</Text>
-        <View style={styles.radiusChips}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.radiusChips}>
           {RADII.map(r => (
             <Pressable
               key={r.val}
-              style={[styles.radiusChip, selectedRadius === r.val && styles.radiusChipActive]}
+              style={[styles.radiusChip, radius === r.val && styles.radiusChipActive]}
               onPress={() => {
                 Haptics.selectionAsync();
-                setSelectedRadius(r.val);
+                if (onChangeRadius) onChangeRadius(r.val);
               }}
             >
-              <Text style={[styles.radiusText, selectedRadius === r.val && styles.radiusTextActive]}>
+              <Text style={[styles.radiusText, radius === r.val && styles.radiusTextActive]}>
                 {r.label}
               </Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
       </View>
 
       {coords.lat && coords.lng ? (
         <View style={styles.coordsBadge}>
           <Check color={colors.success} size={13} strokeWidth={3} />
           <Text style={styles.coordsText}>
-            📍 Proximity Geofence Active (within {selectedRadius}m of destination)
+            📍 Proximity Geofence Active (within {radius}m of destination)
           </Text>
         </View>
       ) : null}
+
+      {/* MAP PICKER MODAL */}
+      <Modal visible={showMapModal} animationType="slide" transparent={false} onRequestClose={() => setShowMapModal(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: colors.text }}>Pin Location</Text>
+            <Pressable onPress={() => setShowMapModal(false)} style={{ padding: 8 }}>
+              <X color={colors.textSecondary} size={24} />
+            </Pressable>
+          </View>
+          
+          <View style={{ flex: 1 }}>
+            <MapViewWrapper
+              style={{ flex: 1 }}
+              initialCamera={{ center: { latitude: tempCoords.lat || 20.5937, longitude: tempCoords.lng || 78.9629 } }}
+              showsUserLocation={true}
+              markerCoordinate={tempCoords.lat && tempCoords.lng ? { latitude: tempCoords.lat, longitude: tempCoords.lng } : undefined}
+              onPress={(e) => {
+                Haptics.selectionAsync();
+                setTempCoords({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude });
+              }}
+            />
+            <View style={{ position: 'absolute', bottom: 32, left: 16, right: 16 }}>
+              <Pressable 
+                style={{ backgroundColor: colors.primary, paddingVertical: 16, borderRadius: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 }}
+                onPress={async () => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  if (tempCoords.lat && tempCoords.lng) {
+                    setCoords(tempCoords);
+                    try {
+                      const reverse = await Location.reverseGeocodeAsync({ latitude: tempCoords.lat, longitude: tempCoords.lng });
+                      if (reverse && reverse.length > 0) {
+                        const item = reverse[0];
+                        const formatted = [item.name, item.street, item.city].filter(Boolean).join(', ');
+                        onChangeLocation(formatted || 'Selected on Map', { latitude: tempCoords.lat, longitude: tempCoords.lng, address: formatted });
+                      } else {
+                        onChangeLocation('Selected on Map', { latitude: tempCoords.lat, longitude: tempCoords.lng, address: 'Selected on Map' });
+                      }
+                    } catch (err) {
+                      onChangeLocation('Selected on Map', { latitude: tempCoords.lat, longitude: tempCoords.lng, address: 'Selected on Map' });
+                    }
+                  }
+                  setShowMapModal(false);
+                }}
+              >
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#FFF', letterSpacing: 1 }}>CONFIRM LOCATION</Text>
+              </Pressable>
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }

@@ -96,6 +96,17 @@ export default function AddEventScreen() {
   const [linkedContact, setLinkedContact] = useState<LinkedContact | undefined>(existingEvent?.linkedContact);
   const [taskStatus] = useState<TaskStatus>(existingEvent?.status || 'pending');
 
+  let initDurVal = existingEvent?.estimatedDuration || 30;
+  let initDurUnit: 'minutes' | 'hours' | 'days' = 'minutes';
+  if (initDurVal > 0 && initDurVal % 1440 === 0) {
+    initDurUnit = 'days';
+    initDurVal = initDurVal / 1440;
+  } else if (initDurVal > 0 && initDurVal % 60 === 0) {
+    initDurUnit = 'hours';
+    initDurVal = initDurVal / 60;
+  }
+  const [durationUnit, setDurationUnit] = useState<'minutes' | 'hours' | 'days'>(initDurUnit);
+
   // Reminders State
   const [reminders, setReminders] = useState<ReminderConfig[]>(existingEvent?.reminders || []);
   const [showReminderModal, setShowReminderModal] = useState(false);
@@ -137,7 +148,7 @@ export default function AddEventScreen() {
       description: existingEvent.description,
       category: existingEvent.category,
       priority: existingEvent.priority,
-      estimatedDuration: existingEvent.estimatedDuration ? existingEvent.estimatedDuration.toString() : '30',
+      estimatedDuration: initDurVal.toString(),
       color: existingEvent.color,
       icon: existingEvent.icon,
       notes: existingEvent.notes || ''
@@ -253,7 +264,9 @@ export default function AddEventScreen() {
 
   const onSubmit = async (data: EventFormData) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const durationNum = parseInt(data.estimatedDuration || '30', 10) || 30;
+    let durationNum = parseInt(data.estimatedDuration || '30', 10) || 30;
+    if (durationUnit === 'hours') durationNum *= 60;
+    else if (durationUnit === 'days') durationNum *= 1440;
     
     if (existingEvent) {
       const updatedEvent: Event = {
@@ -427,24 +440,37 @@ export default function AddEventScreen() {
               )}
 
               <View style={styles.mt24}>
-                <Text style={styles.label}>ESTIMATED DURATION (MINUTES)</Text>
-                <Controller
-                  control={control}
-                  name="estimatedDuration"
-                  render={({ field: { onChange, value } }) => (
-                    <View style={[styles.inputWrapper, { backgroundColor: '#F9FAFB', borderColor: colors.border }]}>
-                      <Clock color={colors.secondary} size={20} strokeWidth={2.5} style={styles.inputIcon} />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="45"
-                        placeholderTextColor={colors.textSecondary}
-                        keyboardType="numeric"
-                        value={value}
-                        onChangeText={onChange}
-                      />
-                    </View>
-                  )}
-                />
+                <Text style={styles.label}>ESTIMATED DURATION</Text>
+                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                  <Controller
+                    control={control}
+                    name="estimatedDuration"
+                    render={({ field: { onChange, value } }) => (
+                      <View style={[styles.inputWrapper, { backgroundColor: '#F9FAFB', borderColor: colors.border, flex: 1 }]}>
+                        <Clock color={colors.secondary} size={20} strokeWidth={2.5} style={styles.inputIcon} />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="45"
+                          placeholderTextColor={colors.textSecondary}
+                          keyboardType="numeric"
+                          value={value}
+                          onChangeText={onChange}
+                        />
+                      </View>
+                    )}
+                  />
+                  <View style={{ flexDirection: 'row', backgroundColor: '#F9FAFB', borderRadius: 12, padding: 4, borderWidth: 1, borderColor: colors.border }}>
+                    {['minutes', 'hours', 'days'].map(u => (
+                      <Pressable 
+                        key={u}
+                        style={[{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }, durationUnit === u && { backgroundColor: colors.secondary }]}
+                        onPress={() => { Haptics.selectionAsync(); setDurationUnit(u as any); }}
+                      >
+                        <Text style={[{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: colors.textSecondary, textTransform: 'capitalize' }, durationUnit === u && { color: '#FFF' }]}>{u}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
               </View>
 
               <View style={styles.mt24}>
@@ -657,6 +683,8 @@ export default function AddEventScreen() {
                   setLocationText(addr);
                   if (details) setLocationDetails(details);
                 }}
+                radius={geofenceRadius}
+                onChangeRadius={(rad) => setGeofenceRadius(rad)}
               />
               
               {locationDetails?.latitude ? (

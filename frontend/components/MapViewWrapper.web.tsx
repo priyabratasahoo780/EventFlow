@@ -1,7 +1,5 @@
-// Web stub — react-native-maps is NOT supported on web
 import React from 'react';
-import { View, Text } from 'react-native';
-import { MapPin } from 'lucide-react-native';
+import MapView, { Marker } from './maps';
 
 interface Props {
   style?: any;
@@ -9,15 +7,47 @@ interface Props {
   showsUserLocation?: boolean;
   markerCoordinate?: { latitude: number; longitude: number };
   markerTitle?: string;
+  onPress?: (e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => void;
 }
 
-export default function MapViewWrapper({ style }: Props) {
+export default function MapViewWrapper({
+  style,
+  initialCamera,
+  showsUserLocation,
+  markerCoordinate,
+  markerTitle,
+  onPress,
+}: Props) {
+  const initialRegion = markerCoordinate
+    ? {
+        latitude: markerCoordinate.latitude,
+        longitude: markerCoordinate.longitude,
+        latitudeDelta: 0.015,
+        longitudeDelta: 0.015,
+      }
+    : initialCamera?.center
+    ? {
+        latitude: initialCamera.center.latitude,
+        longitude: initialCamera.center.longitude,
+        latitudeDelta: 0.015,
+        longitudeDelta: 0.015,
+      }
+    : undefined;
+
   return (
-    <View style={[style, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#e8f4f8', borderRadius: 12 }]}>
-      <MapPin color="#6366F1" size={32} strokeWidth={2.5} />
-      <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#555', marginTop: 8 }}>
-        Map view is only available on mobile
-      </Text>
-    </View>
+    <MapView
+      style={style}
+      initialRegion={initialRegion}
+      showsUserLocation={showsUserLocation}
+      onPress={onPress}
+    >
+      {markerCoordinate && (
+        <Marker
+          coordinate={markerCoordinate}
+          title={markerTitle}
+          pinColor="#6366F1"
+        />
+      )}
+    </MapView>
   );
 }

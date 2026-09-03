@@ -10,7 +10,7 @@ import { useLocation } from '../hooks/useLocation';
 import { priorityService } from '../services/priorityService';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import MapView, { Marker, Circle } from '../components/maps';
+import MapView, { Marker, Circle, MapViewRef } from '../components/maps';
 
 export default function MapScreen() {
   const { getColors } = useThemeStore();
@@ -23,7 +23,7 @@ export default function MapScreen() {
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [hasAutoZoomed, setHasAutoZoomed] = useState(false);
 
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<MapViewRef>(null);
 
   const locationTasks = events.filter(e => e.location || (e.locationDetails && e.locationDetails.latitude));
 

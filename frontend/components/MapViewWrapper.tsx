@@ -1,24 +1,52 @@
-// Native version — uses real react-native-maps
-import MapView, { Marker, MapViewProps } from 'react-native-maps';
 import React from 'react';
+import MapView, { Marker } from './maps';
 
 interface Props {
   style?: any;
-  initialCamera?: MapViewProps['initialCamera'];
+  initialCamera?: any;
   showsUserLocation?: boolean;
   markerCoordinate?: { latitude: number; longitude: number };
   markerTitle?: string;
+  onPress?: (e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => void;
 }
 
-export default function MapViewWrapper({ style, initialCamera, showsUserLocation, markerCoordinate, markerTitle }: Props) {
+export default function MapViewWrapper({
+  style,
+  initialCamera,
+  showsUserLocation,
+  markerCoordinate,
+  markerTitle,
+  onPress,
+}: Props) {
+  const initialRegion = markerCoordinate
+    ? {
+        latitude: markerCoordinate.latitude,
+        longitude: markerCoordinate.longitude,
+        latitudeDelta: 0.015,
+        longitudeDelta: 0.015,
+      }
+    : initialCamera?.center
+    ? {
+        latitude: initialCamera.center.latitude,
+        longitude: initialCamera.center.longitude,
+        latitudeDelta: 0.015,
+        longitudeDelta: 0.015,
+      }
+    : undefined;
+
   return (
     <MapView
       style={style}
-      initialCamera={initialCamera}
+      initialRegion={initialRegion}
       showsUserLocation={showsUserLocation}
+      onPress={onPress}
     >
       {markerCoordinate && (
-        <Marker coordinate={markerCoordinate} title={markerTitle} />
+        <Marker
+          coordinate={markerCoordinate}
+          title={markerTitle}
+          pinColor="#6366F1"
+        />
       )}
     </MapView>
   );

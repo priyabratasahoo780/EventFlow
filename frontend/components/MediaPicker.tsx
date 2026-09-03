@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, Alert, ActivityIndicator, Modal, SafeAreaView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, Image as ImageIcon, Video, Trash2 } from 'lucide-react-native';
+import { Camera, Image as ImageIcon, Video, Trash2, Play, X } from 'lucide-react-native';
 import { Colors } from '../constants/Colors';
+import { Video as ExpoVideo, ResizeMode } from 'expo-av';
 
 interface Props {
   imageUri?: string;
@@ -13,6 +14,7 @@ interface Props {
 
 export default function MediaPicker({ imageUri, videoUri, onSelectImage, onSelectVideo }: Props) {
   const [loading, setLoading] = useState(false);
+  const [previewVideo, setPreviewVideo] = useState(false);
 
   const takePhoto = async () => {
     setLoading(true);
@@ -136,20 +138,39 @@ export default function MediaPicker({ imageUri, videoUri, onSelectImage, onSelec
       ) : null}
 
       {videoUri ? (
-        <View style={styles.videoCard}>
-          <View style={styles.videoIconBox}>
-            <Video color="#FFF" size={20} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.videoTitle} numberOfLines={1}>
-              {videoUri.split('/').pop() || 'presentation-instructions.mp4'}
-            </Text>
-            <Text style={styles.videoSub}>Video Instruction Attached (.mp4)</Text>
-          </View>
-          <Pressable style={styles.videoRemoveBtn} onPress={() => onSelectVideo(undefined)}>
-            <Trash2 color={Colors.light.danger} size={18} />
+        <>
+          <Pressable style={styles.videoCard} onPress={() => setPreviewVideo(true)}>
+            <View style={styles.videoIconBox}>
+              <Play color="#FFF" size={20} fill="#FFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.videoTitle} numberOfLines={1}>
+                {videoUri.split('/').pop() || 'presentation-instructions.mp4'}
+              </Text>
+              <Text style={styles.videoSub}>Tap to preview video</Text>
+            </View>
+            <Pressable style={styles.videoRemoveBtn} onPress={() => onSelectVideo(undefined)}>
+              <Trash2 color={Colors.light.danger} size={18} />
+            </Pressable>
           </Pressable>
-        </View>
+
+          <Modal visible={previewVideo} animationType="slide" transparent={false} onRequestClose={() => setPreviewVideo(false)}>
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', padding: 16 }}>
+                <Pressable onPress={() => setPreviewVideo(false)} style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 }}>
+                  <X color="#FFF" size={24} />
+                </Pressable>
+              </View>
+              <ExpoVideo
+                source={{ uri: videoUri }}
+                style={{ flex: 1 }}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                shouldPlay
+              />
+            </SafeAreaView>
+          </Modal>
+        </>
       ) : null}
     </View>
   );

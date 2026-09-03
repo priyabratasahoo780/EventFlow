@@ -23,12 +23,8 @@
         "WAKE_LOCK",
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
-        "SCHEDULE_EXACT_ALARM",
-        "USE_EXACT_ALARM",
-        "POST_NOTIFICATIONS",
-        "WAKE_LOCK",
-        "VIBRATE",
-        "RECEIVE_BOOT_COMPLETED"
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
       ],
       "package": "com.priyabrata.focusflow"
     },
