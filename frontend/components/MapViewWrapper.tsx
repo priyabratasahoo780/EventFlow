@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import MapView, { Marker } from './maps';
 
 interface Props {
@@ -10,14 +10,14 @@ interface Props {
   onPress?: (e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => void;
 }
 
-export default function MapViewWrapper({
+export default forwardRef(function MapViewWrapper({
   style,
   initialCamera,
   showsUserLocation,
   markerCoordinate,
   markerTitle,
   onPress,
-}: Props) {
+}: Props, ref: any) {
   const initialRegion = markerCoordinate
     ? {
         latitude: markerCoordinate.latitude,
@@ -36,6 +36,7 @@ export default function MapViewWrapper({
 
   return (
     <MapView
+      ref={ref}
       style={style}
       initialRegion={initialRegion}
       showsUserLocation={showsUserLocation}
@@ -50,4 +51,4 @@ export default function MapViewWrapper({
       )}
     </MapView>
   );
-}
+});

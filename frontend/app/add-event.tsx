@@ -263,64 +263,69 @@ export default function AddEventScreen() {
   };
 
   const onSubmit = async (data: EventFormData) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    let durationNum = parseInt(data.estimatedDuration || '30', 10) || 30;
-    if (durationUnit === 'hours') durationNum *= 60;
-    else if (durationUnit === 'days') durationNum *= 1440;
-    
-    if (existingEvent) {
-      const updatedEvent: Event = {
-        ...existingEvent,
-        ...data,
-        estimatedDuration: durationNum,
-        status: taskStatus,
-        location: locationText,
-        locationDetails: locationDetails,
-        locationReminderEnabled: locationReminderEnabled,
-        geofenceRadius: geofenceRadius,
-        triggerType: triggerType,
-        image: imageUri,
-        video: videoUri,
-        linkedContact: linkedContact,
-        date: date.toISOString(),
-        time: format(time, 'HH:mm'),
-        reminders: reminders,
-        visibility,
-        sharedWith: visibility === 'selectedFriends' ? sharedWith : [],
-        updatedAt: new Date().toISOString(),
-      };
-      await updateEvent(updatedEvent as Event);
-      if (Platform.OS === 'android') ToastAndroid.show('TASK UPDATED 🔥', ToastAndroid.SHORT);
-    } else {
-      const newEvent: Event = {
-        id: generateId(),
-        ...data,
-        description: data.description || '',
-        notes: data.notes || '',
-        estimatedDuration: durationNum,
-        status: 'pending',
-        location: locationText,
-        locationDetails: locationDetails,
-        locationReminderEnabled: locationReminderEnabled,
-        geofenceRadius: geofenceRadius,
-        triggerType: triggerType,
-        image: imageUri,
-        video: videoUri,
-        linkedContact: linkedContact,
-        date: date.toISOString(),
-        time: format(time, 'HH:mm'),
-        reminders: reminders,
-        visibility,
-        sharedWith: visibility === 'selectedFriends' ? sharedWith : [],
-        completed: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      await addEvent(newEvent as Event);
-      if (Platform.OS === 'android') ToastAndroid.show('TASK CREATED 🔥', ToastAndroid.SHORT);
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      let durationNum = parseInt(data.estimatedDuration || '30', 10) || 30;
+      if (durationUnit === 'hours') durationNum *= 60;
+      else if (durationUnit === 'days') durationNum *= 1440;
+      
+      if (existingEvent) {
+        const updatedEvent: Event = {
+          ...existingEvent,
+          ...data,
+          estimatedDuration: durationNum,
+          status: taskStatus,
+          location: locationText,
+          locationDetails: locationDetails,
+          locationReminderEnabled: locationReminderEnabled,
+          geofenceRadius: geofenceRadius,
+          triggerType: triggerType,
+          image: imageUri,
+          video: videoUri,
+          linkedContact: linkedContact,
+          date: date.toISOString(),
+          time: format(time, 'HH:mm'),
+          reminders: reminders,
+          visibility,
+          sharedWith: visibility === 'selectedFriends' ? sharedWith : [],
+          updatedAt: new Date().toISOString(),
+        };
+        await updateEvent(updatedEvent as Event);
+        if (Platform.OS === 'android') ToastAndroid.show('TASK UPDATED 🔥', ToastAndroid.SHORT);
+      } else {
+        const newEvent: Event = {
+          id: generateId(),
+          ...data,
+          description: data.description || '',
+          notes: data.notes || '',
+          estimatedDuration: durationNum,
+          status: 'pending',
+          location: locationText,
+          locationDetails: locationDetails,
+          locationReminderEnabled: locationReminderEnabled,
+          geofenceRadius: geofenceRadius,
+          triggerType: triggerType,
+          image: imageUri,
+          video: videoUri,
+          linkedContact: linkedContact,
+          date: date.toISOString(),
+          time: format(time, 'HH:mm'),
+          reminders: reminders,
+          visibility,
+          sharedWith: visibility === 'selectedFriends' ? sharedWith : [],
+          completed: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await addEvent(newEvent as Event);
+        if (Platform.OS === 'android') ToastAndroid.show('TASK CREATED 🔥', ToastAndroid.SHORT);
+      }
+      
+      router.back();
+    } catch (err: any) {
+      console.error('Submit Error:', err);
+      Alert.alert('Error Saving Event', err?.message || 'An unexpected error occurred. Check console logs.');
     }
-    
-    router.back();
   };
 
   return (
@@ -359,7 +364,7 @@ export default function AddEventScreen() {
                 render={({ field: { onChange, value } }) => (
                   <View>
                     <Text style={styles.label}>EVENT TITLE</Text>
-                    <View style={[styles.inputWrapper, errors.title && styles.inputError, { borderColor: '#FFD5B0', backgroundColor: '#FFF9F5' }]}>
+                    <View style={[styles.inputWrapper, errors.title && styles.inputError, { borderColor: colors.secondary, backgroundColor: colors.secondaryLight }]}>
                       <Type color={colors.secondary} size={20} strokeWidth={2.5} style={styles.inputIcon} />
                       <TextInput
                         style={styles.input}
@@ -399,14 +404,14 @@ export default function AddEventScreen() {
                 <Text style={styles.label}>DATE & TIME</Text>
                 <View style={styles.row}>
                   <Pressable 
-                    style={[styles.inputWrapper, styles.flex1, { backgroundColor: '#F9FAFB', borderColor: colors.border }]} 
+                    style={[styles.inputWrapper, styles.flex1, { backgroundColor: colors.inputBackground || colors.surface, borderColor: colors.border }]} 
                     onPress={() => setShowDatePicker(true)}
                   >
                     <CalendarIcon color={colors.secondary} size={20} strokeWidth={2.5} style={styles.inputIcon} />
                     <Text style={[styles.input, { fontFamily: 'Poppins_600SemiBold', marginTop: 14 }]}>{format(date, 'MMM dd, yyyy')}</Text>
                   </Pressable>
                   <Pressable 
-                    style={[styles.inputWrapper, styles.flex1, { backgroundColor: '#F9FAFB', borderColor: colors.border }]} 
+                    style={[styles.inputWrapper, styles.flex1, { backgroundColor: colors.inputBackground || colors.surface, borderColor: colors.border }]} 
                     onPress={() => setShowTimePicker(true)}
                   >
                     <Clock color={colors.secondary} size={20} strokeWidth={2.5} style={styles.inputIcon} />
@@ -446,7 +451,7 @@ export default function AddEventScreen() {
                     control={control}
                     name="estimatedDuration"
                     render={({ field: { onChange, value } }) => (
-                      <View style={[styles.inputWrapper, { backgroundColor: '#F9FAFB', borderColor: colors.border, flex: 1 }]}>
+                      <View style={[styles.inputWrapper, { backgroundColor: colors.inputBackground || colors.surface, borderColor: colors.border, flex: 1 }]}>
                         <Clock color={colors.secondary} size={20} strokeWidth={2.5} style={styles.inputIcon} />
                         <TextInput
                           style={styles.input}
@@ -459,7 +464,7 @@ export default function AddEventScreen() {
                       </View>
                     )}
                   />
-                  <View style={{ flexDirection: 'row', backgroundColor: '#F9FAFB', borderRadius: 12, padding: 4, borderWidth: 1, borderColor: colors.border }}>
+                  <View style={{ flexDirection: 'row', backgroundColor: colors.inputBackground || colors.surface, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: colors.border }}>
                     {['minutes', 'hours', 'days'].map(u => (
                       <Pressable 
                         key={u}
@@ -700,7 +705,7 @@ export default function AddEventScreen() {
                   </View>
 
                   {locationReminderEnabled && (
-                    <View style={{ backgroundColor: '#F9FAFB', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.border }}>
+                    <View style={{ backgroundColor: colors.inputBackground || colors.surface, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.border }}>
                       <Text style={[styles.label, { fontSize: 12, marginBottom: 8 }]}>TRIGGER WHEN I...</Text>
                       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
                         <Pressable 
@@ -1197,7 +1202,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   modalChipActive: { backgroundColor: colors.primary, borderColor: colors.primary, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
   modalChipText: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: colors.text },
   modalChipTextActive: { color: colors.card },
-  modalInputWrapper: { height: 52, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, justifyContent: 'center' },
+  modalInputWrapper: { height: 52, backgroundColor: colors.inputBackground || colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, justifyContent: 'center' },
   modalInputText: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: colors.text },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 24 },
   saveReminderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.secondary, paddingVertical: 16, borderRadius: 16, gap: 10, marginTop: 16, shadowColor: colors.secondary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6 },
@@ -1214,15 +1219,15 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   swipeDeleteText: { fontFamily: 'Poppins_800ExtraBold', fontSize: 14, color: '#FFF' },
   
   // Visibility Styles
-  visibilityRow: { flexDirection: 'row', alignItems: 'center', padding: 16, borderWidth: 2, borderColor: '#000', borderRadius: 8, backgroundColor: '#FFF', gap: 12 },
-  visibilityRowActive: { backgroundColor: '#000' },
-  visibilityText: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#000' },
-  visibilityTextActive: { color: '#FFF' },
+  visibilityRow: { flexDirection: 'row', alignItems: 'center', padding: 16, borderWidth: 2, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, gap: 12 },
+  visibilityRowActive: { backgroundColor: colors.text, borderColor: colors.text },
+  visibilityText: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: colors.text },
+  visibilityTextActive: { color: colors.card },
   friendSelectRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-  friendSelectAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center' },
-  friendSelectAvatarText: { fontFamily: 'Poppins_800ExtraBold', fontSize: 16, color: '#000' },
-  friendSelectName: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#000' },
-  friendSelectUsername: { fontFamily: 'Poppins_500Medium', fontSize: 12, color: '#666' },
-  checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: '#000', backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center' },
+  friendSelectAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  friendSelectAvatarText: { fontFamily: 'Poppins_800ExtraBold', fontSize: 16, color: '#FFF' },
+  friendSelectName: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: colors.text },
+  friendSelectUsername: { fontFamily: 'Poppins_500Medium', fontSize: 12, color: colors.textSecondary },
+  checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   checkboxActive: { backgroundColor: colors.success }
 });

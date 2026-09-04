@@ -10,7 +10,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Linking from 'expo-linking';
-import * as Notifications from 'expo-notifications';
+import * as Notifications from '../../mock-expo-notifications';
 import { Event } from '../../models/Event';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
@@ -32,8 +32,13 @@ export default function SettingsScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const { status } = await Notifications.getPermissionsAsync();
-        setNotificationsEnabled(status === 'granted');
+        const storedReminders = await AsyncStorage.getItem('smartRemindersEnabled');
+        if (storedReminders !== null) {
+          setNotificationsEnabled(JSON.parse(storedReminders));
+        } else {
+          const { status } = await Notifications.getPermissionsAsync();
+          setNotificationsEnabled(status === 'granted');
+        }
       } catch (e) {
         console.warn('Notification permission check error:', e);
       }
@@ -57,6 +62,7 @@ export default function SettingsScreen() {
         const { status } = await Notifications.requestPermissionsAsync();
         const granted = status === 'granted';
         setNotificationsEnabled(granted);
+        await AsyncStorage.setItem('smartRemindersEnabled', JSON.stringify(granted));
         if (granted) {
           if (Platform.OS === 'android') ToastAndroid.show('Notifications Enabled! 🔔', ToastAndroid.SHORT);
           await Notifications.scheduleNotificationAsync({
@@ -73,9 +79,11 @@ export default function SettingsScreen() {
       } catch (e) {
         console.warn('Notification error:', e);
         setNotificationsEnabled(false);
+        await AsyncStorage.setItem('smartRemindersEnabled', JSON.stringify(false));
       }
     } else {
       setNotificationsEnabled(false);
+      await AsyncStorage.setItem('smartRemindersEnabled', JSON.stringify(false));
       if (Platform.OS === 'android') {
         ToastAndroid.show('Notifications disabled', ToastAndroid.SHORT);
       }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, FlatList, Pressable, Modal, TextInput, ActivityIndicator, Image, ToastAndroid, Platform, Alert } from 'react-native';
 import { useAuthStore } from '../../store/useAuthStore';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import api from '../../services/api';
@@ -16,6 +16,7 @@ export default function CommunityReviewsScreen() {
   const { user: currentUser } = useAuthStore();
   const colors = getColors();
   const s = getStyles(colors);
+  const insets = useSafeAreaInsets();
 
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,7 +180,7 @@ export default function CommunityReviewsScreen() {
         <FlatList
           data={reviews}
           keyExtractor={(item) => item._id || item.id}
-          contentContainerStyle={s.listContent}
+          contentContainerStyle={[s.listContent, { paddingBottom: 120 + Math.max(insets.bottom, 16) }]}
           renderItem={renderReview}
           ListEmptyComponent={
             <View style={s.emptyBox}>
@@ -193,14 +194,14 @@ export default function CommunityReviewsScreen() {
 
       {/* ── FLOATING WRITE BUTTON ── */}
       <Pressable 
-        style={({pressed}) => [s.fab, pressed && { transform: [{ scale: 0.95 }] }]}
+        style={({pressed}) => [s.fab, { bottom: 30 + Math.max(insets.bottom, 0) }, pressed && { transform: [{ scale: 0.95 }] }]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           setModalVisible(true);
         }}
       >
         <LinearGradient colors={['#F59E0B', '#EA580C']} style={s.fabGrad}>
-          <MessageCircle color="#FFF" size={26} strokeWidth={2.5} />
+          <MessageCircle color="#FFF" fill="#FFF" size={26} strokeWidth={2.5} style={{ marginTop: -3 }} />
         </LinearGradient>
       </Pressable>
 

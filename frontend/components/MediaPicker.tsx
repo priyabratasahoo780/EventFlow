@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Image, Alert, ActivityIndicator, Modal, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, Alert, ActivityIndicator, Modal } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Image as ImageIcon, Video, Trash2, Play, X } from 'lucide-react-native';
 import { Colors } from '../constants/Colors';

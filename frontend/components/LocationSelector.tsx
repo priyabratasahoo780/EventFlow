@@ -1,13 +1,14 @@
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert, ScrollView, Modal, Dimensions } from 'react-native';
 import * as Location from 'expo-location';
-import { MapPin, Navigation, Check, School, ShoppingCart, Briefcase, Home, Map as MapIcon, X } from 'lucide-react-native';
+import { MapPin, Navigation, Check, School, ShoppingCart, Briefcase, Home, Map as MapIcon, X, Search } from 'lucide-react-native';
 import { LocationDetails } from '../models/Event';
 import * as Haptics from 'expo-haptics';
 import MapViewWrapper from './MapViewWrapper';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface Props {
   value: string;
@@ -41,6 +42,35 @@ export default function LocationSelector({ value, onChangeLocation, radius = 500
   // Map Modal States
   const [showMapModal, setShowMapModal] = useState(false);
   const [tempCoords, setTempCoords] = useState<{ lat?: number; lng?: number }>({});
+  
+  const mapRef = useRef<any>(null);
+  const [mapSearchText, setMapSearchText] = useState('');
+  const [mapSearchLoading, setMapSearchLoading] = useState(false);
+
+  const handleMapSearch = async () => {
+    if (!mapSearchText || mapSearchText.length < 3) return;
+    setMapSearchLoading(true);
+    try {
+      const results = await Location.geocodeAsync(mapSearchText);
+      if (results && results.length > 0) {
+        const { latitude, longitude } = results[0];
+        setTempCoords({ lat: latitude, lng: longitude });
+        mapRef.current?.animateToRegion({
+          latitude,
+          longitude,
+          latitudeDelta: 0.015,
+          longitudeDelta: 0.015
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Alert.alert('Not Found', 'Could not find the location.');
+      }
+    } catch (e) {
+      console.warn(e);
+    } finally {
+      setMapSearchLoading(false);
+    }
+  };
 
   const handleGetCurrentLocation = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -207,54 +237,89 @@ export default function LocationSelector({ value, onChangeLocation, radius = 500
       ) : null}
 
       {/* MAP PICKER MODAL */}
-      <Modal visible={showMapModal} animationType="slide" transparent={false} onRequestClose={() => setShowMapModal(false)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: colors.text }}>Pin Location</Text>
-            <Pressable onPress={() => setShowMapModal(false)} style={{ padding: 8 }}>
-              <X color={colors.textSecondary} size={24} />
-            </Pressable>
-          </View>
-          
-          <View style={{ flex: 1 }}>
-            <MapViewWrapper
-              style={{ flex: 1 }}
-              initialCamera={{ center: { latitude: tempCoords.lat || 20.5937, longitude: tempCoords.lng || 78.9629 } }}
-              showsUserLocation={true}
-              markerCoordinate={tempCoords.lat && tempCoords.lng ? { latitude: tempCoords.lat, longitude: tempCoords.lng } : undefined}
-              onPress={(e) => {
-                Haptics.selectionAsync();
-                setTempCoords({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude });
-              }}
-            />
-            <View style={{ position: 'absolute', bottom: 32, left: 16, right: 16 }}>
+      <Modal visible={showMapModal} animationType="slide" transparent={true} onRequestClose={() => setShowMapModal(false)}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          <MapViewWrapper
+            ref={mapRef}
+            style={{ flex: 1 }}
+            initialCamera={{ center: { latitude: tempCoords.lat || 20.5937, longitude: tempCoords.lng || 78.9629 } }}
+            showsUserLocation={true}
+            markerCoordinate={tempCoords.lat && tempCoords.lng ? { latitude: tempCoords.lat, longitude: tempCoords.lng } : undefined}
+            onPress={(e) => {
+              Haptics.selectionAsync();
+              setTempCoords({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude });
+            }}
+          />
+
+          {/* FLOATING TOP BAR */}
+          <SafeAreaView style={{ position: 'absolute', top: 0, left: 0, right: 0 }} edges={['top']}>
+            <View style={{ marginHorizontal: 16, marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Pressable 
-                style={{ backgroundColor: colors.primary, paddingVertical: 16, borderRadius: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 }}
-                onPress={async () => {
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  if (tempCoords.lat && tempCoords.lng) {
-                    setCoords(tempCoords);
-                    try {
-                      const reverse = await Location.reverseGeocodeAsync({ latitude: tempCoords.lat, longitude: tempCoords.lng });
-                      if (reverse && reverse.length > 0) {
-                        const item = reverse[0];
-                        const formatted = [item.name, item.street, item.city].filter(Boolean).join(', ');
-                        onChangeLocation(formatted || 'Selected on Map', { latitude: tempCoords.lat, longitude: tempCoords.lng, address: formatted });
-                      } else {
-                        onChangeLocation('Selected on Map', { latitude: tempCoords.lat, longitude: tempCoords.lng, address: 'Selected on Map' });
-                      }
-                    } catch (err) {
+                onPress={() => setShowMapModal(false)} 
+                style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 }}
+              >
+                <X color={colors.text} size={22} strokeWidth={2.5} />
+              </Pressable>
+
+              <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.card, borderRadius: 25, paddingHorizontal: 16, alignItems: 'center', height: 50, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 }}>
+                <Search color={colors.textSecondary} size={20} style={{ marginRight: 8 }} strokeWidth={2.5} />
+                <TextInput 
+                  style={{ flex: 1, fontFamily: 'Poppins_500Medium', fontSize: 14, color: colors.text }}
+                  placeholder="Search map location..."
+                  placeholderTextColor={colors.textSecondary}
+                  value={mapSearchText}
+                  onChangeText={setMapSearchText}
+                  onSubmitEditing={handleMapSearch}
+                  returnKeyType="search"
+                />
+                {mapSearchLoading && <ActivityIndicator size="small" color={colors.primary} />}
+              </View>
+            </View>
+          </SafeAreaView>
+
+          {/* FLOATING BOTTOM PANEL */}
+          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.card, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 40, shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 20 }}>
+            
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
+              <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+                <MapPin color={colors.primary} size={26} strokeWidth={2.2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: colors.text, marginBottom: 2 }}>Pin Location</Text>
+                <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 13, color: colors.textSecondary }} numberOfLines={2}>
+                  {tempCoords.lat ? `Selected: ${tempCoords.lat.toFixed(4)}, ${tempCoords.lng?.toFixed(4)}` : 'Tap on the map to drop a pin'}
+                </Text>
+              </View>
+            </View>
+
+            <Pressable 
+              style={({pressed}) => [{ borderRadius: 16, shadowColor: colors.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 10 }, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+              onPress={async () => {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                if (tempCoords.lat && tempCoords.lng) {
+                  setCoords(tempCoords);
+                  try {
+                    const reverse = await Location.reverseGeocodeAsync({ latitude: tempCoords.lat, longitude: tempCoords.lng });
+                    if (reverse && reverse.length > 0) {
+                      const item = reverse[0];
+                      const formatted = [item.name, item.street, item.city].filter(Boolean).join(', ');
+                      onChangeLocation(formatted || 'Selected on Map', { latitude: tempCoords.lat, longitude: tempCoords.lng, address: formatted });
+                    } else {
                       onChangeLocation('Selected on Map', { latitude: tempCoords.lat, longitude: tempCoords.lng, address: 'Selected on Map' });
                     }
+                  } catch (err) {
+                    onChangeLocation('Selected on Map', { latitude: tempCoords.lat, longitude: tempCoords.lng, address: 'Selected on Map' });
                   }
-                  setShowMapModal(false);
-                }}
-              >
-                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#FFF', letterSpacing: 1 }}>CONFIRM LOCATION</Text>
-              </Pressable>
-            </View>
+                }
+                setShowMapModal(false);
+              }}
+            >
+              <LinearGradient colors={['#6366F1', '#4F46E5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 18, alignItems: 'center', justifyContent: 'center', borderRadius: 16, overflow: 'hidden' }}>
+                <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 15, color: '#FFF', letterSpacing: 1.2 }}>CONFIRM LOCATION</Text>
+              </LinearGradient>
+            </Pressable>
           </View>
-        </SafeAreaView>
+        </View>
       </Modal>
     </View>
   );

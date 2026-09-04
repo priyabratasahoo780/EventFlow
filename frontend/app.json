@@ -69,7 +69,10 @@
             }
           }
         }
-      ]
+      ],
+      "expo-sharing",
+      "expo-status-bar",
+      "./plugins/withAlarmManager"
     ],
     "experiments": {
       "typedRoutes": true

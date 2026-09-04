@@ -200,7 +200,7 @@ export default function StatisticsScreen() {
         {/* ── METRICS GRID ── */}
         <View style={styles.gridRow}>
           {/* Card 1: Most Active Category */}
-          <View style={[styles.gridCard, { backgroundColor: '#F5F3FF', borderWidth: 0 }]}>
+          <View style={[styles.gridCard, { backgroundColor: colors.primaryLight, borderWidth: 0 }]}>
             <View style={[styles.iconCircle, { backgroundColor: colors.primaryLight }]}>
               <GraduationCap color={colors.primary} size={20} strokeWidth={2} />
             </View>
@@ -227,7 +227,7 @@ export default function StatisticsScreen() {
         <View style={styles.gridRow}>
           {/* Card 3: Total Tasks */}
           <View style={[styles.gridCard, { backgroundColor: colors.card }]}>
-            <View style={[styles.iconCircle, { backgroundColor: '#FEF2F2' }]}>
+            <View style={[styles.iconCircle, { backgroundColor: colors.dangerLight }]}>
               <Target color={colors.error} size={22} strokeWidth={2.5} />
             </View>
             <Text style={[styles.cardValueLarge, { color: colors.text }]}>{stats.total}</Text>
@@ -248,7 +248,7 @@ export default function StatisticsScreen() {
 
         <View style={styles.gridRow}>
           {/* Card 5: In Progress */}
-          <View style={[styles.gridCard, { backgroundColor: '#F5F3FF', borderWidth: 0 }]}>
+          <View style={[styles.gridCard, { backgroundColor: colors.primaryLight, borderWidth: 0 }]}>
             <View style={[styles.iconCircle, { backgroundColor: colors.primaryLight }]}>
               <PlayCircle color={colors.primary} size={22} strokeWidth={2.5} />
             </View>
@@ -259,7 +259,7 @@ export default function StatisticsScreen() {
           <View style={styles.gridGap} />
 
           {/* Card 6: Overdue */}
-          <View style={[styles.gridCard, { backgroundColor: '#FEF2F2', borderWidth: 0 }]}>
+          <View style={[styles.gridCard, { backgroundColor: colors.dangerLight, borderWidth: 0 }]}>
             <View style={[styles.iconCircle, { backgroundColor: colors.dangerLight }]}>
               <AlertTriangle color={colors.error} size={22} strokeWidth={2.5} />
             </View>
@@ -596,13 +596,13 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 16,
     marginBottom: 8,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.inputBackground || colors.surface,
     borderWidth: 1,
     borderColor: 'transparent',
   },
   modalOptionActive: {
     backgroundColor: colors.secondaryLight,
-    borderColor: '#FFD5B0',
+    borderColor: colors.secondary,
   },
   modalOptionText: {
     fontFamily: 'Poppins_600SemiBold',

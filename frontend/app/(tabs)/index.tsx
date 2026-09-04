@@ -4,7 +4,9 @@ import React, {
 import {
   StyleSheet, View, FlatList, TextInput, ScrollView,
   RefreshControl, Text, Pressable, AppState, Image, Modal,
+  Animated, Dimensions, Easing,
 } from 'react-native';
+import { rs, ms, hs, SCREEN } from '../../constants/responsive';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -13,13 +15,13 @@ import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useLocation } from '../../hooks/useLocation';
 import AlarmModal from '../../components/AlarmModal';
-import * as Notifications from 'expo-notifications';
+import * as Notifications from '../../mock-expo-notifications';
 import {
   Search, Filter, CheckCircle2, Clock, X,
   Sparkles, Plus, Flame, Calendar as CalendarIcon,
   Hourglass, AlertTriangle, Zap, MapPin, Grid3x3, Bell,
   Menu, GraduationCap, Briefcase, User as UserIcon,
-  Check,
+  Check, ChevronRight, LogOut,
   CalendarClock, Users, Code, Activity, ShoppingBag, Hash, Settings, MessageCircle
 } from 'lucide-react-native';
 import { Event } from '../../models/Event';
@@ -75,6 +77,45 @@ export default function HomeScreen() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const appState = useRef(AppState.currentState);
 
+  const slideAnim = useRef(new Animated.Value(-Dimensions.get('window').width)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const openMenu = useCallback(() => {
+    setIsMenuOpen(true);
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        easing: Easing.out(Easing.poly(4)),
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, [slideAnim, fadeAnim]);
+
+  const closeMenu = useCallback((callback?: () => void) => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: -Dimensions.get('window').width,
+        duration: 250,
+        easing: Easing.in(Easing.poly(4)),
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      setIsMenuOpen(false);
+      if (callback) callback();
+    });
+  }, [slideAnim, fadeAnim]);
+
   const fetchFriendsEvents = useCallback(async () => {
     try {
       await syncFriendSharedEvents();
@@ -108,7 +149,7 @@ export default function HomeScreen() {
 
   // 1. Listen for system push notifications (works in background)
   useEffect(() => {
-    const sub = Notifications.addNotificationReceivedListener((notification) => {
+    const sub = Notifications.addNotificationReceivedListener((notification: any) => {
       const data = notification.request.content.data;
       const eventId = data?.eventId;
       // Only trigger alarm modal for event notifications (not cheers, messages, or friend requests)
@@ -124,7 +165,7 @@ export default function HomeScreen() {
     });
 
     // 1b. Listen for when user TAPS a notification (app was in background/closed)
-    const resSub = Notifications.addNotificationResponseReceivedListener((response) => {
+    const resSub = Notifications.addNotificationResponseReceivedListener((response: any) => {
       const data = response.notification.request.content.data;
       const eventId = data?.eventId;
       if (!eventId || data?.type === 'cheer_nudge' || data?.type === 'friend_request' || data?.type === 'message') {
@@ -280,7 +321,7 @@ export default function HomeScreen() {
           style={s.navIconBtn}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setIsMenuOpen(true);
+            openMenu();
           }}
         >
           <Menu color={colors.text} size={22} strokeWidth={2} />
@@ -509,74 +550,98 @@ export default function HomeScreen() {
     </>
   );
 
-  const renderHeroFocusCard = () => {
-    if (!topTask) {
-      return (
-        <View style={s.heroCard}>
-          <View style={s.aiEmptyBody}>
-            <Sparkles color={colors.secondary} size={24} />
-            <Text style={s.aiEmptyTitle}>All Caught Up! 🎉</Text>
-            <Text style={s.aiEmptySub}>You have no pending tasks right now.</Text>
-          </View>
-        </View>
-      );
-    }
+  // ── Hero Carousel auto-scroll ──────────────────────────────────────────────
+  const carouselRef = useRef<any>(null);
+  const carouselIndex = useRef(0);
+  const CARD_W = SCREEN.width * 0.85; // slightly smaller so next card peeks in
 
-    const score = priorityService.calculateScore(topTask, location);
+  // Build list: top pending events for today (2+ triggers carousel), fallback to topTask
+  const heroTasks = useMemo(() => {
+    const todayPending = events.filter(
+      e => !e.completed && e.status !== 'completed' && e.date?.startsWith(todayStr)
+    );
+    // Sort by priority score descending
+    const sorted = [...todayPending].sort(
+      (a, b) => priorityService.calculateScore(b, location) - priorityService.calculateScore(a, location)
+    );
+    if (sorted.length >= 2) return sorted;
+    // Fallback: topTask only
+    return topTask ? [topTask] : [];
+  }, [events, todayStr, topTask, location]);
+
+  useEffect(() => {
+    if (heroTasks.length < 2) return;
+    const interval = setInterval(() => {
+      const next = (carouselIndex.current + 1) % heroTasks.length;
+      carouselIndex.current = next;
+      carouselRef.current?.scrollToIndex({ index: next, animated: true });
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [heroTasks.length]);
+
+  const getCategoryDefaults = (): Record<string, string> => ({
+    work:     "https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=800&auto=format&fit=crop",
+    study:    "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=800&auto=format&fit=crop",
+    health:   "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&w=800&auto=format&fit=crop",
+    personal: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=800&auto=format&fit=crop",
+    shopping: "https://images.unsplash.com/photo-1472851294608-062f824d29cc?q=80&w=800&auto=format&fit=crop",
+    fitness:  "https://images.unsplash.com/photo-1534258936925-c58bed479fcb?q=80&w=800&auto=format&fit=crop",
+    academic: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=800&auto=format&fit=crop",
+    meeting:  "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=800&auto=format&fit=crop",
+  });
+
+  const buildHeroCard = (task: Event) => {
+    const score = priorityService.calculateScore(task, location);
     const prioInfo = priorityService.getPriorityInfo(score);
-
-    const dateStr = topTask.date ? topTask.date.split('T')[0] : new Date().toISOString().split('T')[0];
-    const timeStr = topTask.time || '23:59';
-    const deadline = new Date(`${dateStr}T${timeStr.length <= 5 ? timeStr + ':00' : timeStr}`);
-    const diffMinutes = Math.round((deadline.getTime() - Date.now()) / (1000 * 60));
-    
-    let timeFormatted = '';
-    if (diffMinutes < 0) { timeFormatted = `Overdue by ${Math.abs(Math.round(diffMinutes / 60))} hours`; }
-    else if (diffMinutes < 60) timeFormatted = `Due in ${diffMinutes} minutes`;
-    else if (diffMinutes < 1440) timeFormatted = `Due in ${Math.round(diffMinutes / 60)} hours`;
-    else timeFormatted = `Due in ${Math.round(diffMinutes / 1440)} days`;
-
-    const durationMins = topTask.estimatedDuration || 30;
-
-    const defaultCover = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop";
-    const coverImg = topTask.image || defaultCover;
+    const dateStr2 = task.date ? task.date.split('T')[0] : new Date().toISOString().split('T')[0];
+    const timeStr2 = task.time || '23:59';
+    const deadline2 = new Date(`${dateStr2}T${timeStr2.length <= 5 ? timeStr2 + ':00' : timeStr2}`);
+    const diffMin2 = Math.round((deadline2.getTime() - Date.now()) / 60000);
+    let timeFmt = diffMin2 < 0
+      ? `Overdue by ${Math.abs(Math.round(diffMin2 / 60))}h`
+      : diffMin2 < 60 ? `Due in ${diffMin2} min`
+      : diffMin2 < 1440 ? `Due in ${Math.round(diffMin2 / 60)}h`
+      : `Due in ${Math.round(diffMin2 / 1440)}d`;
+    const durationMins2 = task.estimatedDuration || 30;
+    const defaults = getCategoryDefaults();
+    const cat2 = (task.category || '').toLowerCase();
+    const cover = task.image || defaults[cat2] || "https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?q=80&w=800&auto=format&fit=crop";
 
     return (
-      <View style={[s.heroCard, { padding: 0, overflow: 'hidden' }]}>
-        <View style={{ width: '100%', height: 160 }}>
-          <Image source={{ uri: coverImg }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
-          <LinearGradient colors={['transparent', 'rgba(0,0,0,0.85)']} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end', padding: 20 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <Flame color={colors.secondary} size={16} fill={colors.secondary} />
-              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: colors.secondary, textTransform: 'uppercase', letterSpacing: 1 }}>Focus on this</Text>
+      <View key={task.id} style={[s.heroCard, { width: CARD_W, padding: 0, marginHorizontal: 0, borderRadius: rs(24) }]}>
+        <View style={{ width: '100%', height: hs(160), borderTopLeftRadius: rs(24), borderTopRightRadius: rs(24), overflow: 'hidden' }}>
+          <Image source={{ uri: cover }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
+          <LinearGradient colors={['transparent', 'rgba(0,0,0,0.85)']} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end', padding: rs(20) }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: rs(6), marginBottom: rs(6) }}>
+              <Flame color={colors.secondary} size={rs(16)} fill={colors.secondary} />
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: ms(12), color: colors.secondary, textTransform: 'uppercase', letterSpacing: 1 }}>Focus on this</Text>
             </View>
-            <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 24, color: '#FFF', lineHeight: 32 }} numberOfLines={2}>{topTask.title}</Text>
+            <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: ms(22), color: '#FFF', lineHeight: ms(30) }} numberOfLines={2}>{task.title}</Text>
           </LinearGradient>
         </View>
-        
-        <View style={{ padding: 20, backgroundColor: colors.card }}>
-          <View style={{ gap: 12, marginBottom: 20 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Text style={{ fontSize: 16 }}>{prioInfo.badge}</Text>
-              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: colors.text }}>{topTask.priority.toUpperCase()} PRIORITY</Text>
+
+        <View style={{ padding: rs(20), backgroundColor: colors.card, borderBottomLeftRadius: rs(24), borderBottomRightRadius: rs(24) }}>
+          <View style={{ gap: rs(10), marginBottom: rs(16) }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: rs(12) }}>
+              <Text style={{ fontSize: ms(15) }}>{prioInfo.badge}</Text>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: ms(13), color: colors.text }}>{task.priority.toUpperCase()} PRIORITY</Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Clock color={colors.textSecondary} size={18} strokeWidth={2.5} />
-              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: colors.textSecondary }}>{timeFormatted}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: rs(12) }}>
+              <Clock color={colors.textSecondary} size={rs(18)} strokeWidth={2.5} />
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: ms(13), color: colors.textSecondary }}>{timeFmt}</Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Zap color={colors.textSecondary} size={18} strokeWidth={2.5} />
-              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: colors.textSecondary }}>Estimated: {durationMins} mins</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: rs(12) }}>
+              <Zap color={colors.textSecondary} size={rs(18)} strokeWidth={2.5} />
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: ms(13), color: colors.textSecondary }}>Estimated: {durationMins2} mins</Text>
             </View>
-            {topTask.reminders && topTask.reminders.length > 0 && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Bell color={colors.secondary} size={18} strokeWidth={2.5} />
-                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: colors.secondary }}>
-                  {topTask.reminders.map(r => {
+            {task.reminders && task.reminders.length > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: rs(12) }}>
+                <Bell color={colors.secondary} size={rs(18)} strokeWidth={2.5} />
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: ms(13), color: colors.secondary }} numberOfLines={1}>
+                  {task.reminders.map(r => {
                     if (r.type === 'exact') return `Reminder at ${r.time}`;
                     if (r.type === 'before') return `Reminder: ${r.value} ${r.unit} before`;
                     if (r.type === 'daily') return `Daily Reminder: ${r.time}`;
-                    if (r.type === 'weekly') return `Weekly Reminder: ${r.time}`;
                     return `Reminder: ${r.time || r.type}`;
                   }).join(' · ')}
                 </Text>
@@ -588,22 +653,20 @@ export default function HomeScreen() {
             style={s.heroBtnWrapper}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              if (topTask.status === 'in_progress') handleCompleteTask(topTask);
-              else handleStartTask(topTask);
+              if (task.status === 'in_progress') handleCompleteTask(task);
+              else handleStartTask(task);
             }}
           >
             <LinearGradient
-              colors={topTask.status === 'in_progress' ? [colors.success, colors.success] : [colors.secondary, colors.secondary]}
+              colors={task.status === 'in_progress' ? [colors.success, colors.success] : [colors.secondary, colors.secondary]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={[s.heroBtn, { borderRadius: 16, height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
+              style={[s.heroBtn, { borderRadius: rs(16), height: rs(56), flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}
             >
-              {topTask.status === 'in_progress' ? (
-                 <CheckCircle2 color="#FFF" size={20} strokeWidth={2.5} style={{ marginRight: 8 }} />
-              ) : (
-                 <Zap color="#FFF" size={20} fill="#FFF" style={{ marginRight: 8 }} />
-              )}
-              <Text style={[s.heroBtnText, { fontSize: 14, fontFamily: 'Poppins_800ExtraBold', color: '#FFF' }]}>
-                {topTask.status === 'in_progress' ? 'MARK COMPLETED' : 'START TASK NOW'}
+              {task.status === 'in_progress'
+                ? <CheckCircle2 color="#FFF" size={rs(20)} strokeWidth={2.5} style={{ marginRight: rs(8) }} />
+                : <Zap color="#FFF" size={rs(20)} fill="#FFF" style={{ marginRight: rs(8) }} />}
+              <Text style={[s.heroBtnText, { fontSize: ms(14), fontFamily: 'Poppins_800ExtraBold', color: '#FFF' }]}>
+                {task.status === 'in_progress' ? 'MARK COMPLETED' : 'START TASK NOW'}
               </Text>
             </LinearGradient>
           </Pressable>
@@ -611,6 +674,57 @@ export default function HomeScreen() {
       </View>
     );
   };
+
+  const renderHeroFocusCard = () => {
+    if (heroTasks.length === 0) {
+      return (
+        <View style={s.heroCard}>
+          <View style={s.aiEmptyBody}>
+            <Sparkles color={colors.secondary} size={rs(24)} />
+            <Text style={s.aiEmptyTitle}>All Caught Up! 🎉</Text>
+            <Text style={s.aiEmptySub}>You have no pending tasks right now.</Text>
+          </View>
+        </View>
+      );
+    }
+
+    // Single event → plain card, no scroll
+    if (heroTasks.length === 1) {
+      return (
+        <View style={{ paddingHorizontal: rs(16), paddingBottom: rs(20), paddingTop: rs(10) }}>
+          {buildHeroCard(heroTasks[0])}
+        </View>
+      );
+    }
+
+    // 2+ events → horizontal auto-scroll carousel
+    return (
+      <View style={{ marginBottom: rs(10) }}>
+        <FlatList
+          ref={carouselRef}
+          data={heroTasks}
+          keyExtractor={item => item.id}
+          horizontal
+          pagingEnabled={false}
+          snapToInterval={CARD_W + rs(12)}
+          snapToAlignment="start"
+          decelerationRate="fast"
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: rs(16), gap: rs(12), paddingBottom: rs(24), paddingTop: rs(10) }}
+          renderItem={({ item }) => buildHeroCard(item)}
+          onScrollToIndexFailed={() => {}}
+        />
+        {/* Dot indicators */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: rs(6), marginTop: rs(-5) }}>
+          {heroTasks.map((_, i) => (
+            <View key={i} style={{ width: rs(6), height: rs(6), borderRadius: rs(3), backgroundColor: i === 0 ? colors.secondary : colors.border }} />
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+
 
   const renderEventCard = ({ item }: { item: Event }) => {
     const isCompleted = item.completed || item.status === 'completed';
@@ -718,10 +832,10 @@ export default function HomeScreen() {
               }}
             >
               <LinearGradient 
-                colors={isCompleted ? [colors.success, colors.success] : ['#FEF2F2', '#FEE2E2']} 
-                style={[s.taskAddBtnGrad, !isCompleted && { borderWidth: 1, borderColor: '#FCA5A5' }, isCompleted && { borderWidth: 0 }]}
+                colors={isCompleted ? [colors.success, colors.success] : [colors.dangerLight || '#FEF2F2', colors.dangerLight || '#FEE2E2']} 
+                style={[s.taskAddBtnGrad, !isCompleted && { borderWidth: 1, borderColor: colors.error }, isCompleted && { borderWidth: 0 }]}
               >
-                {isCompleted ? <Check color="#FFF" size={20} strokeWidth={3} /> : <X color="#EF4444" size={20} strokeWidth={2.5} />}
+                {isCompleted ? <Check color="#FFF" size={20} strokeWidth={3} /> : <X color={colors.error} size={20} strokeWidth={2.5} />}
               </LinearGradient>
             </Pressable>
           </View>
@@ -780,65 +894,68 @@ export default function HomeScreen() {
         onStartTask={(ev) => { setShowAlarmModal(false); handleStartTask(ev); }}
       />
 
-      {/* ── HAMBURGER MENU MODAL ── */}
-      <Modal visible={isMenuOpen} transparent animationType="fade" onRequestClose={() => setIsMenuOpen(false)}>
-        <Pressable style={s.menuOverlay} onPress={() => setIsMenuOpen(false)}>
-          <View style={s.menuDropdown}>
-            <Pressable 
-              style={s.menuItem} 
-              onPress={() => {
-                Haptics.selectionAsync();
-                setIsMenuOpen(false);
-                router.push('/(tabs)/profile' as any);
-              }}
-            >
-              <UserIcon color={colors.text} size={20} strokeWidth={2.2} />
-              <Text style={s.menuItemText}>My Profile</Text>
-            </Pressable>
-            
-            <View style={s.menuDivider} />
-            
-            <Pressable 
-              style={s.menuItem} 
-              onPress={() => {
-                Haptics.selectionAsync();
-                setIsMenuOpen(false);
-                router.push('/friends/list' as any);
-              }}
-            >
-              <Users color={colors.text} size={20} strokeWidth={2.2} />
-              <Text style={s.menuItemText}>My Friends</Text>
-            </Pressable>
-
-            <View style={s.menuDivider} />
-            
-            <Pressable 
-              style={s.menuItem} 
-              onPress={() => {
-                Haptics.selectionAsync();
-                setIsMenuOpen(false);
-                router.push('/(tabs)/settings' as any);
-              }}
-            >
-              <Settings color={colors.text} size={20} strokeWidth={2.2} />
-              <Text style={s.menuItemText}>Settings</Text>
-            </Pressable>
-
-            <View style={s.menuDivider} />
-            
-            <Pressable 
-              style={s.menuItem} 
-              onPress={() => {
-                Haptics.selectionAsync();
-                setIsMenuOpen(false);
-                router.push('/community/reviews' as any);
-              }}
-            >
-              <MessageCircle color={colors.text} size={20} strokeWidth={2.2} />
-              <Text style={s.menuItemText}>Community Reviews</Text>
-            </Pressable>
+      {/* ── HAMBURGER MENU MODAL (SIDE NAVBAR) ── */}
+      <Modal visible={isMenuOpen} transparent animationType="none" onRequestClose={() => closeMenu()}>
+        <Animated.View style={[s.menuOverlay, { opacity: fadeAnim }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => closeMenu()} />
+        </Animated.View>
+        <Animated.View style={[s.sideNavbar, { transform: [{ translateX: slideAnim }] }]}>
+          <View style={s.sideNavHeader}>
+             <View style={s.sideNavAvatar}>
+                {hasValidPhoto ? (
+                  <Image source={{ uri: user?.profilePhoto }} style={s.sideNavAvatarImg} />
+                ) : (
+                  <Text style={s.sideNavAvatarText}>{userInitial}</Text>
+                )}
+             </View>
+             <View style={{ flex: 1 }}>
+                <Text style={s.sideNavName} numberOfLines={1}>{user?.name || 'User'}</Text>
+                <Text style={s.sideNavEmail} numberOfLines={1}>{user?.email || '@username'}</Text>
+             </View>
+             <Pressable onPress={() => closeMenu()} style={s.sideNavCloseBtn}>
+                <X color={colors.textSecondary} size={22} strokeWidth={2.5} />
+             </Pressable>
           </View>
-        </Pressable>
+          
+          <ScrollView style={s.sideNavScroll} contentContainerStyle={{ paddingBottom: 40 }}>
+            <Text style={s.sideNavSectionLabel}>ACCOUNT</Text>
+            
+            <Pressable style={s.sideNavItem} onPress={() => closeMenu(() => router.push('/(tabs)/profile' as any))}>
+              <View style={[s.sideNavIconBox, { backgroundColor: colors.primaryLight || '#EEF2FF' }]}>
+                <UserIcon color={colors.primary} size={20} strokeWidth={2.5} />
+              </View>
+              <Text style={s.sideNavItemText}>My Profile</Text>
+              <ChevronRight color={colors.border} size={18} strokeWidth={2.5} />
+            </Pressable>
+
+            <Pressable style={s.sideNavItem} onPress={() => closeMenu(() => router.push('/friends/list' as any))}>
+              <View style={[s.sideNavIconBox, { backgroundColor: colors.secondaryLight }]}>
+                <Users color={colors.secondary} size={20} strokeWidth={2.5} />
+              </View>
+              <Text style={s.sideNavItemText}>My Friends</Text>
+              <ChevronRight color={colors.border} size={18} strokeWidth={2.5} />
+            </Pressable>
+
+            <Pressable style={s.sideNavItem} onPress={() => closeMenu(() => router.push('/(tabs)/settings' as any))}>
+              <View style={[s.sideNavIconBox, { backgroundColor: colors.surface }]}>
+                <Settings color={colors.icon} size={20} strokeWidth={2.5} />
+              </View>
+              <Text style={s.sideNavItemText}>Settings</Text>
+              <ChevronRight color={colors.border} size={18} strokeWidth={2.5} />
+            </Pressable>
+
+            <View style={s.sideNavDivider} />
+            <Text style={s.sideNavSectionLabel}>EXPLORE</Text>
+
+            <Pressable style={s.sideNavItem} onPress={() => closeMenu(() => router.push('/community/reviews' as any))}>
+              <View style={[s.sideNavIconBox, { backgroundColor: colors.warningLight || '#FEF3C7' }]}>
+                <MessageCircle color={colors.warning || '#D97706'} size={20} strokeWidth={2.5} />
+              </View>
+              <Text style={s.sideNavItemText}>Community Reviews</Text>
+              <ChevronRight color={colors.border} size={18} strokeWidth={2.5} />
+            </Pressable>
+          </ScrollView>
+        </Animated.View>
       </Modal>
     </SafeAreaView>
   );
@@ -872,7 +989,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   listContent: {
-    paddingBottom: 160,
+    paddingBottom: hs(160),
   },
 
   // ── Navbar ──
@@ -880,14 +997,14 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 4,
+    paddingHorizontal: rs(16),
+    paddingTop: rs(10),
+    paddingBottom: rs(4),
   },
   navIconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: rs(38),
+    height: rs(38),
+    borderRadius: rs(12),
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -897,39 +1014,39 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   navCenter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: rs(5),
   },
   datePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: rs(4),
   },
   datePillText: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11,
+    fontSize: ms(11),
     color: colors.textSecondary,
   },
   brandDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 2,
+    width: rs(3),
+    height: rs(3),
+    borderRadius: rs(2),
     backgroundColor: '#D1D9E6',
   },
   navBrand: {
     fontFamily: 'Poppins_800ExtraBold',
-    fontSize: 11,
+    fontSize: ms(11),
     color: colors.secondary,
     letterSpacing: 1.2,
   },
   navRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: rs(8),
   },
   bellBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: rs(38),
+    height: rs(38),
+    borderRadius: rs(12),
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -939,11 +1056,11 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   },
   notifDot: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: rs(8),
+    right: rs(8),
+    width: rs(8),
+    height: rs(8),
+    borderRadius: rs(4),
     backgroundColor: colors.error,
     borderWidth: 1.5,
     borderColor: colors.background,
@@ -952,31 +1069,31 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     position: 'relative',
   },
   avatarImg: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: rs(38),
+    height: rs(38),
+    borderRadius: rs(12),
     borderWidth: 2,
     borderColor: colors.secondary,
   },
   avatarFallback: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: rs(38),
+    height: rs(38),
+    borderRadius: rs(12),
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarFallbackText: {
     fontFamily: 'Poppins_800ExtraBold',
-    fontSize: 16,
+    fontSize: ms(16),
     color: '#FFF',
   },
   onlineDot: {
     position: 'absolute',
     bottom: 1,
     right: 1,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: rs(10),
+    height: rs(10),
+    borderRadius: rs(5),
     backgroundColor: colors.success,
     borderWidth: 1.5,
     borderColor: colors.background,
@@ -984,15 +1101,15 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
 
   // ── Greeting ──
   greetingRow: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 14,
+    paddingHorizontal: rs(16),
+    paddingTop: rs(10),
+    paddingBottom: rs(14),
   },
   greeting: {
     fontFamily: 'Poppins_700Bold',
-    fontSize: 22,
+    fontSize: ms(22),
     color: colors.text,
-    lineHeight: 30,
+    lineHeight: ms(30),
   },
 
   // ── Momentum Card ──
@@ -1096,18 +1213,16 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
 
   greetingSub: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 14,
+    fontSize: ms(14),
     color: colors.textSecondary,
-    marginTop: 2,
+    marginTop: rs(2),
   },
 
   // ── Hero Focus Card ──
   heroCard: {
     backgroundColor: colors.card,
-    borderRadius: 24,
-    marginHorizontal: 16,
-    marginBottom: 20,
-    padding: 24,
+    borderRadius: rs(24),
+    padding: rs(24),
     shadowColor: colors.text,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
@@ -1116,24 +1231,24 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   },
   heroLabel: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
+    fontSize: ms(14),
     color: colors.secondary,
-    marginBottom: 8,
+    marginBottom: rs(8),
   },
   heroTitle: {
     fontFamily: 'Poppins_700Bold',
-    fontSize: 22,
+    fontSize: ms(22),
     color: colors.text,
-    lineHeight: 30,
-    marginBottom: 16,
+    lineHeight: ms(30),
+    marginBottom: rs(16),
   },
   heroMetaCol: {
-    gap: 8,
-    marginBottom: 24,
+    gap: rs(8),
+    marginBottom: rs(24),
   },
   heroMetaText: {
     fontFamily: 'Poppins_500Medium',
-    fontSize: 14,
+    fontSize: ms(14),
     color: colors.textSecondary,
   },
   heroBtnWrapper: {
@@ -1144,14 +1259,14 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     elevation: 4,
   },
   heroBtn: {
-    paddingVertical: 14,
-    borderRadius: 16,
+    paddingVertical: rs(14),
+    borderRadius: rs(16),
     alignItems: 'center',
     justifyContent: 'center',
   },
   heroBtnText: {
     fontFamily: 'Poppins_700Bold',
-    fontSize: 14,
+    fontSize: ms(14),
     color: colors.card,
     letterSpacing: 0.5,
   },
@@ -1227,7 +1342,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#FFD5B0',
+    borderColor: colors.secondary,
     marginTop: 4,
   },
   aiCreateBtnText: {
@@ -1251,7 +1366,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#FFD5B0',
+    borderColor: colors.secondary,
   },
   aiMetaPillOverdue: {
     backgroundColor: '#FEF2F2',
@@ -1388,7 +1503,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     borderRadius: 24,
     backgroundColor: colors.secondaryLight,
     borderWidth: 1.5,
-    borderColor: '#FFD5B0',
+    borderColor: colors.secondary,
   },
   statusPillInner: {
     flexDirection: 'row',
@@ -1470,7 +1585,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   // ── Task Cards ──
   taskCard: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 16,
     marginHorizontal: 16,
     marginBottom: 12,
@@ -1509,7 +1624,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#FFD5B0',
+    borderColor: colors.secondary,
   },
   catBadgeText: {
     fontFamily: 'Poppins_700Bold',
@@ -1552,10 +1667,10 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   },
   taskTitle: {
     fontFamily: 'Poppins_700Bold',
-    fontSize: 15,
+    fontSize: ms(15),
     color: colors.text,
-    lineHeight: 22,
-    marginBottom: 3,
+    lineHeight: ms(22),
+    marginBottom: rs(3),
   },
   taskTitleDone: {
     textDecorationLine: 'line-through',
@@ -1563,10 +1678,10 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   },
   taskDesc: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 12,
+    fontSize: ms(12),
     color: colors.textSecondary,
-    lineHeight: 17,
-    marginBottom: 9,
+    lineHeight: ms(17),
+    marginBottom: rs(9),
   },
   taskDescDone: {
     color: '#B0B9C6',
@@ -1575,55 +1690,55 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    marginTop: 2,
+    marginTop: rs(2),
   },
   taskFooterLeft: {
     flex: 1,
-    paddingRight: 8,
+    paddingRight: rs(8),
   },
   taskMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: rs(6),
     flexWrap: 'wrap',
   },
   metaTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: rs(3),
     backgroundColor: colors.surface,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 7,
+    paddingHorizontal: rs(7),
+    paddingVertical: rs(3),
+    borderRadius: rs(7),
     borderWidth: 1,
     borderColor: colors.border,
   },
   metaTagText: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 10,
+    fontSize: ms(10),
     color: colors.textSecondary,
   },
   durationTag: {
     backgroundColor: colors.secondaryLight,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 7,
+    paddingHorizontal: rs(7),
+    paddingVertical: rs(3),
+    borderRadius: rs(7),
     borderWidth: 1,
-    borderColor: '#FFD5B0',
+    borderColor: colors.secondary,
   },
   durationText: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 10,
+    fontSize: ms(10),
     color: colors.secondary,
   },
   locTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: rs(3),
   },
   locTagText: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 10,
+    fontSize: ms(10),
     color: colors.textSecondary,
   },
   taskAddBtn: {
@@ -1638,9 +1753,9 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     elevation: 0,
   },
   taskAddBtnGrad: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: rs(48),
+    height: rs(48),
+    borderRadius: rs(24),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1648,20 +1763,20 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   // ── Empty State ──
   emptyBox: {
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 20,
+    paddingHorizontal: rs(24),
+    paddingTop: rs(32),
+    paddingBottom: rs(20),
   },
   emptyIconBox: {
-    width: 72,
-    height: 72,
-    borderRadius: 24,
+    width: rs(72),
+    height: rs(72),
+    borderRadius: rs(24),
     backgroundColor: colors.primaryLight,
     borderWidth: 1.5,
     borderColor: colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: rs(16),
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
@@ -1670,17 +1785,17 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   },
   emptyTitle: {
     fontFamily: 'Poppins_700Bold',
-    fontSize: 17,
+    fontSize: ms(17),
     color: colors.text,
-    marginBottom: 6,
+    marginBottom: rs(6),
   },
   emptySub: {
     fontFamily: 'Poppins_400Regular',
-    fontSize: 13,
+    fontSize: ms(13),
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 19,
-    marginBottom: 20,
+    lineHeight: ms(19),
+    marginBottom: rs(20),
   },
   emptyBtn: {
     borderRadius: 14,
@@ -1706,43 +1821,110 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     letterSpacing: 0.3,
   },
   
-  // ── Hamburger Menu Dropdown ──
+  // ── Hamburger Menu (Side Navbar) ──
   menuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-  },
-  menuDropdown: {
     position: 'absolute',
-    top: 70,
-    left: 20,
-    width: 240,
-    backgroundColor: colors.card,
-    borderRadius: 20,
-    paddingVertical: 12,
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.12,
-    shadowRadius: 32,
-    elevation: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(150, 150, 150, 0.1)',
+    top: 0, bottom: 0, left: 0, right: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  menuItem: {
+  sideNavbar: {
+    position: 'absolute',
+    top: 0, bottom: 0, left: 0,
+    width: SCREEN.width * 0.8,
+    maxWidth: rs(340),
+    backgroundColor: colors.card,
+    borderTopRightRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 20,
+    overflow: 'hidden',
+    paddingTop: 60, // Avoid safe area notch
+  },
+  sideNavHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 22,
-    paddingVertical: 16,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: 12,
+  },
+  sideNavAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: colors.secondaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  sideNavAvatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  sideNavAvatarText: {
+    fontFamily: 'Poppins_800ExtraBold',
+    fontSize: 22,
+    color: colors.secondary,
+  },
+  sideNavName: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 16,
+    color: colors.text,
+  },
+  sideNavEmail: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: -2,
+  },
+  sideNavCloseBtn: {
+    padding: 8,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+  },
+  sideNavScroll: {
+    flex: 1,
+    paddingTop: 16,
+  },
+  sideNavSectionLabel: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 11,
+    color: colors.textSecondary,
+    letterSpacing: 0.8,
+    marginLeft: 24,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  sideNavItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
     gap: 14,
   },
-  menuItemText: {
+  sideNavIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sideNavItemText: {
+    flex: 1,
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 15,
     color: colors.text,
-    marginTop: 2,
   },
-  menuDivider: {
+  sideNavDivider: {
     height: 1,
-    backgroundColor: '#F3F4F6',
-    marginHorizontal: 16,
+    backgroundColor: '#F1F5F9',
+    marginHorizontal: 24,
+    marginVertical: 8,
   },
 });

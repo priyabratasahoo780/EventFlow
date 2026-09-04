@@ -27,6 +27,7 @@ export interface MapViewProps {
   showsUserLocation?: boolean;
   showsMyLocationButton?: boolean;
   showsCompass?: boolean;
+  customMapStyle?: any[];
   onPress?: (e: { nativeEvent: { coordinate: LatLng } }) => void;
   children?: React.ReactNode;
 }
@@ -268,9 +269,8 @@ const MapView = forwardRef<MapViewRef, MapViewProps>(
       attributionControl: false
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      subdomains: 'abcd'
+    L.tileLayer('http://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}', {
+      maxZoom: 20
     }).addTo(map);
 
     var markersLayer = L.layerGroup().addTo(map);
@@ -406,7 +406,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
   },
   loadingContainer: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    left: 0, right: 0, top: 0, bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F3F4F6',

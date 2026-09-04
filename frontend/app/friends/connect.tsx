@@ -14,7 +14,7 @@ import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { 
-  ArrowLeft, Search, CheckCircle2, Clock, 
+  ArrowLeft, ArrowRight, Search, CheckCircle2, Clock, 
   Inbox, Send, MessageSquare, Sparkles, X, 
   Copy, Share2, Users, UserPlus, ClipboardPaste, 
   ShieldCheck, MapPin, Zap, Check
@@ -280,7 +280,7 @@ export default function ConnectFriendScreen() {
               style={styles.input}
               value={query}
               onChangeText={setQuery}
-              placeholder="e.g. FF#7aK$9x, @username, or email"
+              placeholder="Friend ID, @username, or email"
               placeholderTextColor={colors.textSecondary}
               autoCapitalize="none"
               autoCorrect={false}
@@ -314,7 +314,7 @@ export default function ConnectFriendScreen() {
               {searching ? (
                 <ActivityIndicator color="#FFF" size="small" />
               ) : (
-                <ArrowLeft color="#FFF" size={20} strokeWidth={2.5} style={{ transform: [{ rotate: '180deg' }] }} />
+                <ArrowRight color="#FFF" size={20} strokeWidth={2.5} />
               )}
             </Pressable>
           </View>
@@ -597,8 +597,13 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   myIdCard: {
     padding: 16,
     borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: colors.border,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
   myIdHeader: {
     flexDirection: 'row',
@@ -679,9 +684,9 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
     paddingLeft: 12,
     paddingRight: 6,
     height: 54,
@@ -696,8 +701,8 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 13,
     color: colors.text,
     height: '100%',
   },
@@ -724,7 +729,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     width: 42,
     height: 42,
     backgroundColor: colors.secondary,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },

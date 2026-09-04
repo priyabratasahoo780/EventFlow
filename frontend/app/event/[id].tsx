@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
-import { StyleSheet, View, Text, ScrollView, Pressable, Alert, Image, Share as RNShare, Linking, Platform } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Pressable, Alert, Image, Share as RNShare, Linking, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEventStore } from '../../store/useEventStore';
 import { format } from 'date-fns';
-import { Calendar, Clock, MapPin, Tag, Bell, Share, Trash2, Edit2, CheckSquare, ChevronLeft, Check, User, Phone, Video, Play, CheckCircle2, Navigation } from 'lucide-react-native';
+import { Calendar, Clock, MapPin, Tag, Bell, Share, Trash2, Edit2, CheckSquare, ChevronLeft, Check, User, Phone, Video as VideoIcon, Play, CheckCircle2, Navigation, X } from 'lucide-react-native';
 import BrutalCard from '../../components/BrutalCard';
 import BrutalButton from '../../components/BrutalButton';
 import * as Haptics from 'expo-haptics';
@@ -16,6 +16,7 @@ import { Colors } from '../../constants/Colors';
 import { priorityService } from '../../services/priorityService';
 import * as Location from 'expo-location';
 import MapViewWrapper from '../../components/MapViewWrapper';
+import { Video as ExpoVideo, ResizeMode } from 'expo-av';
 
 const bgCol = Colors.light.background;
 const primaryCol = Colors.light.primary;
@@ -34,6 +35,7 @@ export default function EventDetailsScreen() {
   const [showMap, setShowMap] = useState(false);
 
   const event = events.find(e => e.id === id) || friendsEvents.find(e => (e.id || e._id) === id);
+  const [previewVideo, setPreviewVideo] = useState(false);
 
   useEffect(() => {
     if (!event) return;
@@ -317,8 +319,8 @@ export default function EventDetailsScreen() {
         {event.video ? (
           <BrutalCard shadowOffset={4} color="#FFF" style={styles.infoCard}>
             <Text style={styles.sectionLabel}>VIDEO ATTACHMENT</Text>
-            <View style={styles.videoBox}>
-              <Video color="#000" size={24} strokeWidth={2} />
+            <Pressable style={styles.videoBox} onPress={() => setPreviewVideo(true)}>
+              <VideoIcon color="#000" size={24} strokeWidth={2} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.videoTitle} numberOfLines={1} ellipsizeMode="middle">
                   {event.video.split('/').pop() || 'Video Instruction Attached'}
@@ -328,9 +330,28 @@ export default function EventDetailsScreen() {
               <View style={styles.playBtnCircle}>
                 <Play color="#FFF" size={14} fill="#FFF" />
               </View>
-            </View>
+            </Pressable>
           </BrutalCard>
         ) : null}
+
+        <Modal visible={previewVideo} animationType="slide" transparent={false} onRequestClose={() => setPreviewVideo(false)}>
+          <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center' }}>
+            <View style={{ position: 'absolute', top: Platform.OS === 'ios' ? 50 : 20, right: 20, zIndex: 10 }}>
+              <Pressable onPress={() => setPreviewVideo(false)} style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 }}>
+                <X color="#FFF" size={24} strokeWidth={3} />
+              </Pressable>
+            </View>
+            {event?.video ? (
+              <ExpoVideo
+                source={{ uri: event.video }}
+                style={{ width: '100%', height: 300 }}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                shouldPlay
+              />
+            ) : null}
+          </View>
+        </Modal>
 
         {/* REMINDERS SUMMARY CARD */}
         <BrutalCard shadowOffset={4} color="#F5F3FF" style={styles.infoCard}>

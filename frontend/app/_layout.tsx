@@ -6,14 +6,14 @@ import {
   Poppins_700Bold,
   Poppins_800ExtraBold
 } from '@expo-google-fonts/poppins';
-import { Stack } from 'expo-router';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Stack, DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import * as Notifications from 'expo-notifications';
+import * as Notifications from '../mock-expo-notifications';
+
 import { Alert, Platform, LogBox } from 'react-native';
 import { useRouter, useSegments } from 'expo-router';
 import { useAuthStore } from '../store/useAuthStore';
@@ -28,18 +28,23 @@ LogBox.ignoreLogs([
   'Android Push notifications (remote notifications) functionality provided by expo-notifications was removed from Expo Go',
   'Push notifications (remote notifications) functionality provided by expo-notifications was removed from Expo Go',
   'was removed from Expo Go with the release of SDK 53',
+  'Property "opacity" of AnimatedComponent(View) may be overwritten by a layout animation',
 ]);
 
-// Configure foreground local notification handler for both Expo Go and standalone builds
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+try {
+  // Configure foreground local notification handler for both Expo Go and standalone builds
+  Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+} catch (e) {
+  console.warn('Failed to set notification handler:', e);
+}
 export {
   // Catch any errors thrown by the Layout component.
   ErrorBoundary,
@@ -85,9 +90,7 @@ export default function RootLayout() {
 
   return (
     <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
-      <ClerkLoaded>
-        <RootLayoutNav />
-      </ClerkLoaded>
+      <RootLayoutNav />
     </ClerkProvider>
   );
 }

@@ -5,7 +5,7 @@ import { storageService } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
 import { priorityService } from '../services/priorityService';
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import * as Notifications from '../mock-expo-notifications';
 import * as Haptics from 'expo-haptics';
 import api from '../services/api';
 import { socketService } from '../services/socketService';
@@ -217,18 +217,16 @@ export const useEventStore = create<EventState>((set, get) => ({
     
     const newEvents = [...events, finalEvent];
     await storageService.saveEvents(newEvents);
-    
-    try {
-      await api.post('/tasks', finalEvent);
-    } catch (e) {
-      console.log('Backend sync failed, saved locally');
-    }
+    set({ events: newEvents });
+
+    // Background sync to backend (don't await so UI doesn't hang)
+    api.post('/tasks', finalEvent).catch(e => {
+      console.log('Backend sync failed, saved locally', e);
+    });
 
     if (finalEvent.locationReminderEnabled) {
       await geofencingService.startGeofence(finalEvent as Event);
     }
-
-    set({ events: newEvents });
   },
 
   updateEvent: async (updatedEvent: Event) => {
@@ -252,11 +250,10 @@ export const useEventStore = create<EventState>((set, get) => ({
     await storageService.saveEvents(newEvents);
     set({ events: newEvents });
 
-    try {
-      await api.put(`/tasks/${finalEvent.id}`, finalEvent);
-    } catch (e) {
-      console.log('Backend update sync failed, updated locally');
-    }
+    // Background update sync (don't await so UI doesn't hang)
+    api.put(`/tasks/${finalEvent.id}`, finalEvent).catch(e => {
+      console.log('Backend update sync failed, updated locally', e);
+    });
     
     await geofencingService.stopGeofence(finalEvent.id);
     if (finalEvent.locationReminderEnabled) {
@@ -296,11 +293,10 @@ export const useEventStore = create<EventState>((set, get) => ({
     const newEvents = events.map(e => e.id === id ? updatedEvent : e);
     await storageService.saveEvents(newEvents);
 
-    try {
-      await api.patch(`/tasks/${id}/status`, { status });
-    } catch (e) {
-      console.log('Backend status update failed, saved locally');
-    }
+    // Background status sync
+    api.patch(`/tasks/${id}/status`, { status, startedAt, completedAt }).catch(e => {
+      console.log('Backend status sync failed, updated locally', e);
+    });
 
     set({ events: newEvents });
   },

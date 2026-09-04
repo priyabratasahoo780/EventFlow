@@ -234,20 +234,21 @@ export default function ProfileScreen() {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     setShowPhotoModal(true);
                   }} 
-                  style={styles.avatarContainer} 
                   disabled={uploading}
                 >
-                  {uploading ? (
-                    <View style={styles.avatarFallback}>
-                      <ActivityIndicator size="large" color={colors.secondary} />
-                    </View>
-                  ) : hasValidPhoto ? (
-                    <Image source={{ uri: user.profilePhoto }} style={styles.avatarImage} />
-                  ) : (
-                    <LinearGradient colors={[colors.primary, '#3F35C8']} style={styles.avatarFallback}>
-                      <Text style={styles.avatarText}>{userInitial}</Text>
-                    </LinearGradient>
-                  )}
+                  <View style={styles.avatarContainer}>
+                    {uploading ? (
+                      <View style={styles.avatarFallback}>
+                        <ActivityIndicator size="large" color={colors.secondary} />
+                      </View>
+                    ) : hasValidPhoto ? (
+                      <Image source={{ uri: user.profilePhoto }} style={styles.avatarImage} />
+                    ) : (
+                      <LinearGradient colors={[colors.primary, '#3F35C8']} style={styles.avatarFallback}>
+                        <Text style={styles.avatarText}>{userInitial}</Text>
+                      </LinearGradient>
+                    )}
+                  </View>
 
                   <View style={styles.cameraIconBadge}>
                     <Camera color="#FFF" size={14} strokeWidth={2.5} />

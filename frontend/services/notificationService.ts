@@ -1,9 +1,10 @@
-import * as Notifications from 'expo-notifications';
+import * as Notifications from '../mock-expo-notifications';
 import * as Device from 'expo-device';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 import { Event, ReminderConfig } from '../models/Event';
 import { subMinutes, subHours, subDays, subWeeks } from 'date-fns';
+import { alarmService } from './alarmService';
 
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient || (Constants as any).appOwnership === 'expo';
 
@@ -95,6 +96,13 @@ export const notificationService = {
   async scheduleEventNotifications(event: Event, reminders: ReminderConfig[]): Promise<ReminderConfig[]> {
     await this.ensureNotificationChannel();
     const updatedReminders: ReminderConfig[] = [];
+
+    // ── Native AlarmManager (fires even when app is closed) ──────────────────
+    // This runs in parallel with expo-notifications. On iOS or Expo Go it's a no-op.
+    alarmService.scheduleEventAlarms(event, reminders).catch(e =>
+      console.warn('[AlarmService] scheduleEventAlarms error (non-fatal):', e)
+    );
+    // ─────────────────────────────────────────────────────────────────────────
 
     // Parse main event date and time safely
     const [year, month, day] = event.date.split('T')[0].split('-').map(Number);
