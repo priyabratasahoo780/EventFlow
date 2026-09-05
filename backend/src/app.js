@@ -12,7 +12,7 @@ const taskRoutes = require('./routes/task.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const uploadRoutes = require('./routes/upload.routes');
 const userRoutes = require('./routes/user.routes');
-const reviewRoutes = require('./routes/reviewRoutes');
+const reviewRoutes = require('./routes/review.routes');
 
 const { apiLimiter } = require('./middleware/rateLimiter');
 

@@ -1,44 +1,29 @@
+/**
+ * server.js — EventFlow API Entry Point
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Bootstraps the HTTP server, validates environment, wires socket.io,
+ * and starts listening. All socket and app config lives in src/.
+ */
+
 require('dotenv').config();
+
 const http = require('http');
-const { Server } = require('socket.io');
-const jwt = require('jsonwebtoken');
+const { validateEnv } = require('./src/config/env');
+const { setupSocket } = require('./src/config/socket');
+const logger = require('./src/utils/logger');
+
+// Fail fast if any required env vars are missing
+const env = validateEnv();
+
 const app = require('./src/app');
 
-const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
-  }
-});
-
-io.use((socket, next) => {
-  const token = socket.handshake.auth.token;
-  if (!token) return next(new Error('Authentication error'));
-  
-  try {
-    const jwtSecret = process.env.JWT_SECRET || 'supersecretjwtkey_eventflow2026';
-    const decoded = jwt.verify(token, jwtSecret);
-    socket.userId = decoded._id || decoded.id;
-    next();
-  } catch (err) {
-    next(new Error('Invalid token'));
-  }
-});
-
-io.on('connection', (socket) => {
-  console.log(`Socket connected: ${socket.id} (User: ${socket.userId})`);
-  socket.join(socket.userId);
-  
-  socket.on('disconnect', () => {
-    console.log(`Socket disconnected: ${socket.id}`);
-  });
-});
-
+// Attach socket.io
+const io = setupSocket(server);
 app.set('io', io);
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`FocusFlow Backend Server running on port ${PORT} 🚀`);
+// Start listening
+server.listen(env.PORT, '0.0.0.0', () => {
+  logger.info(`EventFlow Backend running on port ${env.PORT} [${env.NODE_ENV}] 🚀`);
 });
