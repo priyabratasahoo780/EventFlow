@@ -1,6 +1,6 @@
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
 import { Clock, Zap, CheckCircle2, Volume2, XCircle } from 'lucide-react-native';
 import { Event } from '../models/Event';

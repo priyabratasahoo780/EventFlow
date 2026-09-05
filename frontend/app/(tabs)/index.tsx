@@ -15,6 +15,7 @@ import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useLocation } from '../../hooks/useLocation';
 import AlarmModal from '../../components/AlarmModal';
+import LocationArrivalModal from '../../components/LocationArrivalModal';
 import * as Notifications from '../../mock-expo-notifications';
 import {
   Search, Filter, CheckCircle2, Clock, X,
@@ -70,7 +71,7 @@ export default function HomeScreen() {
   const s = getStyles(colors);
   const { user } = useAuthStore();
   const { events, friendsEvents, loadEvents, syncFriendSharedEvents, updateTaskStatus, filters, setFilters, getFilteredEvents, getTopRecommendation, initSocket } = useEventStore();
-  const { location } = useLocation(events);
+  const { location, arrivedTask, arrivedTriggerType, dismissArrivedTask } = useLocation(events);
   const [refreshing, setRefreshing] = useState(false);
   const [activeAlarmEvent, setActiveAlarmEvent] = useState<Event | null>(null);
   const [showAlarmModal, setShowAlarmModal] = useState(false);
@@ -79,6 +80,16 @@ export default function HomeScreen() {
 
   const slideAnim = useRef(new Animated.Value(-Dimensions.get('window').width)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const emptyFloatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(emptyFloatAnim, { toValue: 1, duration: 2500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(emptyFloatAnim, { toValue: 0, duration: 2500, easing: Easing.inOut(Easing.ease), useNativeDriver: true })
+      ])
+    ).start();
+  }, [emptyFloatAnim]);
 
   const openMenu = useCallback(() => {
     setIsMenuOpen(true);
@@ -678,12 +689,105 @@ export default function HomeScreen() {
   const renderHeroFocusCard = () => {
     if (heroTasks.length === 0) {
       return (
-        <View style={s.heroCard}>
-          <View style={s.aiEmptyBody}>
-            <Sparkles color={colors.secondary} size={rs(24)} />
-            <Text style={s.aiEmptyTitle}>All Caught Up! 🎉</Text>
-            <Text style={s.aiEmptySub}>You have no pending tasks right now.</Text>
-          </View>
+        <View style={{ paddingHorizontal: rs(16), marginBottom: rs(20), paddingTop: rs(10) }}>
+          <LinearGradient 
+            colors={[`${colors.secondary}15`, `${colors.secondary}05`, colors.card]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[s.heroCard, { 
+              alignItems: 'center', 
+              paddingVertical: rs(40), 
+              borderWidth: 1.5, 
+              borderColor: `${colors.secondary}40`,
+              borderStyle: 'dashed',
+              borderRadius: rs(32),
+              marginHorizontal: 0,
+              paddingHorizontal: rs(20),
+              elevation: 0,
+              shadowOpacity: 0
+            }]}
+          >
+            {/* Perfectly centered layered circles */}
+            <Animated.View style={{
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: rs(20),
+              transform: [{
+                translateY: emptyFloatAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -10]
+                })
+              }]
+            }}>
+              {/* Outer orange glow ring */}
+              <View style={{
+                width: rs(130),
+                height: rs(130),
+                borderRadius: rs(65),
+                backgroundColor: `${colors.secondary}22`,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                {/* Mid orange ring */}
+                <View style={{
+                  width: rs(104),
+                  height: rs(104),
+                  borderRadius: rs(52),
+                  backgroundColor: `${colors.secondary}18`,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  {/* Inner white circle with icon */}
+                  <View style={{
+                    width: rs(76),
+                    height: rs(76),
+                    borderRadius: rs(38),
+                    backgroundColor: colors.card,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    shadowColor: colors.secondary,
+                    shadowOffset: { width: 0, height: 8 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 16,
+                    elevation: 10,
+                  }}>
+                    <Sparkles color={colors.secondary} size={rs(36)} strokeWidth={2} />
+                  </View>
+                </View>
+              </View>
+            </Animated.View>
+            
+            <Text style={[s.aiEmptyTitle, { fontSize: ms(24), marginBottom: rs(8), color: colors.secondary, letterSpacing: -0.5 }]}>All Caught Up! 🎉</Text>
+            
+            <Text style={[s.aiEmptySub, { fontSize: ms(15), textAlign: 'center', paddingHorizontal: rs(20), lineHeight: ms(22), color: colors.textSecondary }]}>
+              You've conquered your list. Take a breather or plan your next move!
+            </Text>
+            
+            <Pressable 
+              style={({pressed}) => [{ 
+                marginTop: rs(28), 
+                backgroundColor: colors.secondary, 
+                paddingHorizontal: rs(28), 
+                paddingVertical: rs(16), 
+                borderRadius: rs(20), 
+                flexDirection: 'row', 
+                alignItems: 'center', 
+                gap: rs(10), 
+                shadowColor: colors.secondary, 
+                shadowOffset: { width: 0, height: 8 }, 
+                shadowOpacity: 0.3, 
+                shadowRadius: 16, 
+                elevation: 8 
+              }, pressed && { transform: [{ scale: 0.95 }] }]}
+              onPress={() => { 
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); 
+                router.push('/add-event'); 
+              }}
+            >
+              <Plus color="#FFF" size={rs(20)} strokeWidth={3} />
+              <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: ms(14), color: '#FFF', letterSpacing: 0.8 }}>PLAN NEW TASK</Text>
+            </Pressable>
+          </LinearGradient>
         </View>
       );
     }
@@ -892,6 +996,14 @@ export default function HomeScreen() {
         event={activeAlarmEvent}
         onDismiss={() => setShowAlarmModal(false)}
         onStartTask={(ev) => { setShowAlarmModal(false); handleStartTask(ev); }}
+      />
+
+      <LocationArrivalModal
+        visible={!!arrivedTask && !showAlarmModal}
+        event={arrivedTask}
+        triggerType={arrivedTriggerType}
+        onDismiss={dismissArrivedTask}
+        onStartTask={(ev) => { dismissArrivedTask(); handleStartTask(ev); }}
       />
 
       {/* ── HAMBURGER MENU MODAL (SIDE NAVBAR) ── */}

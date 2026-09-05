@@ -7,7 +7,7 @@
  * Falls back gracefully (no-op) on iOS or when module is unavailable.
  */
 
-import { NativeModules, Platform, Alert, Linking } from "react-native";
+import { NativeModules, Platform, Alert } from "react-native";
 import { Event, ReminderConfig } from "../models/Event";
 import { subMinutes, subHours, subDays } from "date-fns";
 

@@ -1,10 +1,10 @@
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, TextInput, Dimensions, Platform } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, Pressable, FlatList, TextInput, Dimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, MapPin, Navigation, Search, Compass, ChevronRight, LocateFixed } from 'lucide-react-native';
+import { ArrowLeft, MapPin, Search, Compass, ChevronRight, LocateFixed } from 'lucide-react-native';
 import { useEventStore } from '../store/useEventStore';
 import { useLocation } from '../hooks/useLocation';
 import { priorityService } from '../services/priorityService';
@@ -23,7 +23,7 @@ export default function MapScreen() {
   const styles = getStyles(colors, isDarkMode);
   const router = useRouter();
   const { events } = useEventStore();
-  const { location, address, geocodeAddress } = useLocation(events);
+  const { location, geocodeAddress } = useLocation(events);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [hasAutoZoomed, setHasAutoZoomed] = useState(false);

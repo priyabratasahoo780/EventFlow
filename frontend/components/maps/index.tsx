@@ -5,7 +5,7 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
-import { StyleSheet, View, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 export interface LatLng {
@@ -80,10 +80,6 @@ const MapView = forwardRef<MapViewRef, MapViewProps>(
       React.Children.forEach(children, (child, index) => {
         if (!React.isValidElement(child)) return;
 
-        const typeName =
-          (child.type as any)?.name ||
-          (child.type as any)?.displayName ||
-          '';
 
         const props = child.props as any;
 

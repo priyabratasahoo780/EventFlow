@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, FlatList, Pressable, Modal, TextInput, ActivityIndicator, Image, ToastAndroid, Platform, Alert } from 'react-native';
 import { useAuthStore } from '../../store/useAuthStore';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';

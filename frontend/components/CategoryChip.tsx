@@ -1,4 +1,3 @@
-import React from 'react';
 import { Pressable, Text, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {

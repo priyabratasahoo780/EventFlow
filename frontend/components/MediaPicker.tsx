@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Image as ImageIcon, Video, Trash2, Play, X } from 'lucide-react-native';
 import { Colors } from '../constants/Colors';
-import { Video as ExpoVideo, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 interface Props {
   imageUri?: string;
@@ -162,18 +162,27 @@ export default function MediaPicker({ imageUri, videoUri, onSelectImage, onSelec
                   <X color="#FFF" size={24} />
                 </Pressable>
               </View>
-              <ExpoVideo
-                source={{ uri: videoUri }}
-                style={{ flex: 1 }}
-                useNativeControls
-                resizeMode={ResizeMode.CONTAIN}
-                shouldPlay
-              />
+              <VideoPreview uri={videoUri} />
             </SafeAreaView>
           </Modal>
         </>
       ) : null}
     </View>
+  );
+}
+
+function VideoPreview({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, player => {
+    player.loop = true;
+    player.play();
+  });
+  
+  return (
+    <VideoView
+      style={{ flex: 1 }}
+      player={player}
+      nativeControls
+    />
   );
 }
 

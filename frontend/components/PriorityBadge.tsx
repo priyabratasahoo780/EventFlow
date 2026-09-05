@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { priorityService } from '../services/priorityService';
 import { Flame, AlertTriangle, ShieldAlert, CheckCircle2 } from 'lucide-react-native';

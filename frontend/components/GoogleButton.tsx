@@ -1,4 +1,3 @@
-import React from 'react';
 import { Pressable, Text, StyleSheet, View, ActivityIndicator } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';

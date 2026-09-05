@@ -1,15 +1,14 @@
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   StyleSheet, ScrollView, View, Text, Pressable, Platform, 
   TextInput, KeyboardAvoidingView, ToastAndroid, Modal, Switch, Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { useFormik } from 'formik';
+import * as yup from 'yup';
 import { useEventStore } from '../store/useEventStore';
 import { Event, ReminderConfig } from '../models/Event';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -29,18 +28,18 @@ import MediaPicker from '../components/MediaPicker';
 import ContactSelector from '../components/ContactSelector';
 import { LocationDetails, LinkedContact, TaskStatus } from '../models/Event';
 
-const eventSchema = z.object({
-  title: z.string().min(1, 'Title is required').max(50, 'Title is too long'),
-  description: z.string().optional(),
-  category: z.string().min(1, 'Category is required'),
-  priority: z.enum(['low', 'medium', 'high', 'critical']),
-  estimatedDuration: z.string().optional(),
-  color: z.string(),
-  icon: z.string(),
-  notes: z.string().optional()
+const eventSchema = yup.object().shape({
+  title: yup.string().required('Title is required').max(50, 'Title is too long'),
+  description: yup.string().optional(),
+  category: yup.string().required('Category is required'),
+  priority: yup.string().oneOf(['low', 'medium', 'high', 'critical']).required(),
+  estimatedDuration: yup.string().optional(),
+  color: yup.string().required(),
+  icon: yup.string().required(),
+  notes: yup.string().optional()
 });
 
-type EventFormData = z.infer<typeof eventSchema>;
+type EventFormData = yup.InferType<typeof eventSchema>;
 
 const CATEGORY_ITEMS = [
   { name: 'Academic', key: 'academic' },
@@ -141,9 +140,9 @@ export default function AddEventScreen() {
   const [modalShowTimePicker, setModalShowTimePicker] = useState(false);
   const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
 
-  const { control, handleSubmit, formState: { errors } } = useForm<EventFormData>({
-    resolver: zodResolver(eventSchema),
-    defaultValues: existingEvent ? {
+  const formik = useFormik<EventFormData>({
+    validationSchema: eventSchema,
+    initialValues: existingEvent ? {
       title: existingEvent.title,
       description: existingEvent.description,
       category: existingEvent.category,
@@ -161,6 +160,71 @@ export default function AddEventScreen() {
       color: COLORS[0],
       icon: 'Calendar',
       notes: ''
+    },
+    onSubmit: async (data: EventFormData) => {
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        let durationNum = parseInt(data.estimatedDuration || '30', 10) || 30;
+        if (durationUnit === 'hours') durationNum *= 60;
+        else if (durationUnit === 'days') durationNum *= 1440;
+        
+        if (existingEvent) {
+          const updatedEvent: Event = {
+            ...existingEvent,
+            ...data,
+            estimatedDuration: durationNum,
+            status: taskStatus,
+            location: locationText,
+            locationDetails: locationDetails,
+            locationReminderEnabled: locationReminderEnabled,
+            geofenceRadius: geofenceRadius,
+            triggerType: triggerType,
+            image: imageUri,
+            video: videoUri,
+            linkedContact: linkedContact,
+            date: date.toISOString(),
+            time: format(time, 'HH:mm'),
+            reminders: reminders,
+            visibility,
+            sharedWith: visibility === 'selectedFriends' ? sharedWith : [],
+            updatedAt: new Date().toISOString(),
+          };
+          await updateEvent(updatedEvent as Event);
+          if (Platform.OS === 'android') ToastAndroid.show('TASK UPDATED 🔥', ToastAndroid.SHORT);
+        } else {
+          const newEvent: Event = {
+            id: generateId(),
+            ...data,
+            description: data.description || '',
+            notes: data.notes || '',
+            estimatedDuration: durationNum,
+            status: 'pending',
+            location: locationText,
+            locationDetails: locationDetails,
+            locationReminderEnabled: locationReminderEnabled,
+            geofenceRadius: geofenceRadius,
+            triggerType: triggerType,
+            image: imageUri,
+            video: videoUri,
+            linkedContact: linkedContact,
+            date: date.toISOString(),
+            time: format(time, 'HH:mm'),
+            reminders: reminders,
+            visibility,
+            sharedWith: visibility === 'selectedFriends' ? sharedWith : [],
+            completed: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          await addEvent(newEvent as Event);
+          if (Platform.OS === 'android') ToastAndroid.show('TASK CREATED 🔥', ToastAndroid.SHORT);
+        }
+        
+        router.back();
+      } catch (err: any) {
+        console.error('Submit Error:', err);
+        Alert.alert('Error Saving Event', err?.message || 'An unexpected error occurred. Check console logs.');
+      }
     }
   });
 
@@ -358,47 +422,38 @@ export default function AddEventScreen() {
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             
             <View style={styles.mainCard}>
-              <Controller
-                control={control}
-                name="title"
-                render={({ field: { onChange, value } }) => (
-                  <View>
-                    <Text style={styles.label}>EVENT TITLE</Text>
-                    <View style={[styles.inputWrapper, errors.title && styles.inputError, { borderColor: colors.secondary, backgroundColor: colors.secondaryLight }]}>
-                      <Type color={colors.secondary} size={20} strokeWidth={2.5} style={styles.inputIcon} />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="e.g. Birthday Party"
-                        placeholderTextColor={colors.textSecondary}
-                        value={value}
-                        onChangeText={onChange}
-                      />
-                    </View>
-                    {errors.title && <Text style={styles.errorText}>{errors.title.message}</Text>}
-                  </View>
-                )}
-              />
+              <View>
+                <Text style={styles.label}>EVENT TITLE</Text>
+                <View style={[styles.inputWrapper, formik.touched.title && formik.errors.title ? styles.inputError : null, { borderColor: colors.secondary, backgroundColor: colors.secondaryLight }]}>
+                  <Type color={colors.secondary} size={20} strokeWidth={2.5} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. Birthday Party"
+                    placeholderTextColor={colors.textSecondary}
+                    value={formik.values.title}
+                    onChangeText={formik.handleChange('title')}
+                    onBlur={formik.handleBlur('title')}
+                  />
+                </View>
+                {formik.touched.title && formik.errors.title && <Text style={styles.errorText}>{formik.errors.title}</Text>}
+              </View>
 
-              <Controller
-                control={control}
-                name="description"
-                render={({ field: { onChange, value } }) => (
-                  <View style={styles.mt24}>
-                    <Text style={styles.label}>DESCRIPTION</Text>
-                    <View style={[styles.inputWrapper, { height: 100, alignItems: 'flex-start', paddingTop: 14 }]}>
-                      <AlignLeft color={colors.secondary} size={20} strokeWidth={2.5} style={styles.inputIcon} />
-                      <TextInput
-                        style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
-                        placeholder="Add details..."
-                        placeholderTextColor={colors.textSecondary}
-                        multiline
-                        value={value}
-                        onChangeText={onChange}
-                      />
-                    </View>
-                  </View>
-                )}
-              />
+              <View style={styles.mt24}>
+                <Text style={styles.label}>DESCRIPTION</Text>
+                <View style={[styles.inputWrapper, { height: 100, alignItems: 'flex-start', paddingTop: 14 }]}>
+                  <AlignLeft color={colors.secondary} size={20} strokeWidth={2.5} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+                    placeholder="Add details..."
+                    placeholderTextColor={colors.textSecondary}
+                    multiline
+                    value={formik.values.description}
+                    onChangeText={formik.handleChange('description')}
+                    onBlur={formik.handleBlur('description')}
+                  />
+                </View>
+                {formik.touched.description && formik.errors.description && <Text style={styles.errorText}>{formik.errors.description}</Text>}
+              </View>
 
               <View style={styles.mt24}>
                 <Text style={styles.label}>DATE & TIME</Text>
@@ -447,23 +502,18 @@ export default function AddEventScreen() {
               <View style={styles.mt24}>
                 <Text style={styles.label}>ESTIMATED DURATION</Text>
                 <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                  <Controller
-                    control={control}
-                    name="estimatedDuration"
-                    render={({ field: { onChange, value } }) => (
-                      <View style={[styles.inputWrapper, { backgroundColor: colors.inputBackground || colors.surface, borderColor: colors.border, flex: 1 }]}>
-                        <Clock color={colors.secondary} size={20} strokeWidth={2.5} style={styles.inputIcon} />
-                        <TextInput
-                          style={styles.input}
-                          placeholder="45"
-                          placeholderTextColor={colors.textSecondary}
-                          keyboardType="numeric"
-                          value={value}
-                          onChangeText={onChange}
-                        />
-                      </View>
-                    )}
-                  />
+                  <View style={[styles.inputWrapper, { backgroundColor: colors.inputBackground || colors.surface, borderColor: colors.border, flex: 1 }]}>
+                    <Clock color={colors.secondary} size={20} strokeWidth={2.5} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="45"
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType="numeric"
+                      value={formik.values.estimatedDuration}
+                      onChangeText={formik.handleChange('estimatedDuration')}
+                      onBlur={formik.handleBlur('estimatedDuration')}
+                    />
+                  </View>
                   <View style={{ flexDirection: 'row', backgroundColor: colors.inputBackground || colors.surface, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: colors.border }}>
                     {['minutes', 'hours', 'days'].map(u => (
                       <Pressable 
@@ -480,64 +530,54 @@ export default function AddEventScreen() {
 
               <View style={styles.mt24}>
                 <Text style={styles.label}>CATEGORY</Text>
-                <Controller
-                  control={control}
-                  name="category"
-                  render={({ field: { onChange, value } }) => (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipContainer}>
-                      {CATEGORY_ITEMS.map((item) => {
-                        const isSelected = value === item.name;
-                        return (
-                          <Pressable
-                            key={item.name}
-                            style={[styles.chip, isSelected && styles.chipActive]}
-                            onPress={() => {
-                              Haptics.selectionAsync();
-                              onChange(item.name);
-                            }}
-                          >
-                            <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>{item.name}</Text>
-                          </Pressable>
-                        );
-                      })}
-                    </ScrollView>
-                  )}
-                />
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipContainer}>
+                  {CATEGORY_ITEMS.map((item) => {
+                    const isSelected = formik.values.category === item.name;
+                    return (
+                      <Pressable
+                        key={item.name}
+                        style={[styles.chip, isSelected && styles.chipActive]}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          formik.setFieldValue('category', item.name);
+                        }}
+                      >
+                        <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>{item.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                {formik.touched.category && formik.errors.category && <Text style={styles.errorText}>{formik.errors.category}</Text>}
               </View>
 
               <View style={styles.mt24}>
                 <Text style={styles.label}>IMPORTANCE LEVEL</Text>
-                <Controller
-                  control={control}
-                  name="priority"
-                  render={({ field: { onChange, value } }) => (
-                    <View style={styles.row}>
-                      {PRIORITIES.map((p) => {
-                        const isSelected = value === p;
-                        const prioColors: Record<string, string> = { low: colors.success, medium: colors.secondary, high: '#EAB308', critical: colors.error };
-                        const activeColor = prioColors[p];
-                        
-                        return (
-                          <Pressable
-                            key={p}
-                            style={[
-                              styles.prioChip, 
-                              styles.flex1, 
-                              isSelected && { borderColor: activeColor, backgroundColor: colors.card, shadowColor: activeColor, elevation: 4 }
-                            ]}
-                            onPress={() => {
-                              Haptics.selectionAsync();
-                              onChange(p);
-                            }}
-                          >
-                            <Text style={[styles.prioChipText, isSelected && { color: activeColor }]}>{p.toUpperCase()}</Text>
-                            <View style={[styles.prioChipDot, { backgroundColor: isSelected ? activeColor : '#D1D9E6' }]} />
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  )}
-                />
+                <View style={styles.row}>
+                  {PRIORITIES.map((p) => {
+                    const isSelected = formik.values.priority === p;
+                    const prioColors: Record<string, string> = { low: colors.success, medium: colors.secondary, high: '#EAB308', critical: colors.error };
+                    const activeColor = prioColors[p];
+                    
+                    return (
+                      <Pressable
+                        key={p}
+                        style={[
+                          styles.prioChip, 
+                          styles.flex1, 
+                          isSelected && { borderColor: activeColor, backgroundColor: colors.card, shadowColor: activeColor, elevation: 4 }
+                        ]}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          formik.setFieldValue('priority', p);
+                        }}
+                      >
+                        <Text style={[styles.prioChipText, isSelected && { color: activeColor }]}>{p.toUpperCase()}</Text>
+                        <View style={[styles.prioChipDot, { backgroundColor: isSelected ? activeColor : '#D1D9E6' }]} />
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {formik.touched.priority && formik.errors.priority && <Text style={styles.errorText}>{formik.errors.priority}</Text>}
               </View>
 
               <View style={styles.mt24}>
@@ -752,7 +792,7 @@ export default function AddEventScreen() {
               />
             </View>
 
-            <Pressable style={styles.createEventBtnWrapper} onPress={handleSubmit(onSubmit)}>
+            <Pressable style={styles.createEventBtnWrapper} onPress={() => formik.handleSubmit()}>
               <LinearGradient colors={[colors.secondary, colors.secondary]} style={styles.createEventBtn}>
                 <CalendarIcon color="#FFF" size={20} strokeWidth={2.5} />
                 <Text style={styles.createEventBtnText}>SAVE EVENT</Text>

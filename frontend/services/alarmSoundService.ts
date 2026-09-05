@@ -1,41 +1,37 @@
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 
 // High pitch alarm chime sound URL
 const ALARM_SOUND_URL = 'https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg';
 
 class AlarmSoundService {
-  private soundObject: Audio.Sound | null = null;
+  private player: AudioPlayer | null = null;
   private isPlaying: boolean = false;
   private hapticInterval: ReturnType<typeof setInterval> | null = null;
 
   async playAlarmSound() {
-    if (this.isPlaying || this.soundObject) return;
+    if (this.isPlaying || this.player) return;
     this.isPlaying = true;
 
     try {
       // Configure audio mode to override silent switches & play loudly
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        staysActiveInBackground: true,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: false,
-        playThroughEarpieceAndroid: false,
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: true,
       });
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: ALARM_SOUND_URL },
-        { shouldPlay: false, isLooping: true, volume: 1.0 } // Don't play immediately here
-      );
+      const player = createAudioPlayer(ALARM_SOUND_URL);
+      player.loop = true;
+      player.volume = 1.0;
 
-      // If stopAlarmSound was called while we were downloading, abort!
+      // If stopAlarmSound was called while we were preparing, abort!
       if (!this.isPlaying) {
-        await sound.unloadAsync();
+        player.release();
         return;
       }
 
-      this.soundObject = sound;
-      await sound.playAsync();
+      this.player = player;
+      player.play();
 
       // Start continuous heavy vibration pattern
       this.startVibration();
@@ -43,7 +39,7 @@ class AlarmSoundService {
     } catch (error) {
       console.warn('Alarm sound playback fallback trigger:', error);
       this.isPlaying = false;
-      this.soundObject = null;
+      this.player = null;
       this.startVibration();
     }
   }
@@ -61,14 +57,14 @@ class AlarmSoundService {
       this.hapticInterval = null;
     }
 
-    if (this.soundObject) {
+    if (this.player) {
       try {
-        await this.soundObject.stopAsync();
-        await this.soundObject.unloadAsync();
+        this.player.pause();
+        this.player.release();
       } catch (e) {
         console.log('Sound unload error:', e);
       }
-      this.soundObject = null;
+      this.player = null;
     }
     this.isPlaying = false;
     console.log('🛑 ALARM SOUND STOPPED.');

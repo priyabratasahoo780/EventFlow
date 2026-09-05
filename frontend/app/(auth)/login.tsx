@@ -1,6 +1,6 @@
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, Alert,
   Pressable, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform,
@@ -14,13 +14,18 @@ import { useRouter } from 'expo-router';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useGoogleAuth } from '../../services/clerkAuth';
+import { useFormik } from 'formik';
+import * as yup from 'yup';
+
+const validationSchema = yup.object().shape({
+  email: yup.string().required('Email/Username is required'),
+  password: yup.string().required('Password is required'),
+});
 
 export default function LoginScreen() {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -28,42 +33,41 @@ export default function LoginScreen() {
   const router = useRouter();
   const { signInWithGoogle } = useGoogleAuth();
 
-  const handleLogin = async () => {
-    if (!email.trim() || !password) {
-      Alert.alert('Missing Fields', 'Please enter both your email/username and password.');
-      return;
-    }
+  const formik = useFormik({
+    initialValues: { email: '', password: '' },
+    validationSchema,
+    onSubmit: async (values) => {
+      setLoading(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const cleanEmail = values.email.trim().toLowerCase();
 
-    setLoading(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const cleanEmail = email.trim().toLowerCase();
+      try {
+        const res = await api.post('/auth/login', { email: cleanEmail, password: values.password });
+        await login(res.data.token, res.data.user);
+        router.replace('/(tabs)');
+      } catch (err: any) {
+        const isNotFound = err.response?.data?.accountNotFound || err.response?.status === 404;
+        const serverError = err.response?.data?.error || err.response?.data?.message;
 
-    try {
-      const res = await api.post('/auth/login', { email: cleanEmail, password });
-      await login(res.data.token, res.data.user);
-      router.replace('/(tabs)');
-    } catch (err: any) {
-      const isNotFound = err.response?.data?.accountNotFound || err.response?.status === 404;
-      const serverError = err.response?.data?.error || err.response?.data?.message;
-
-      if (isNotFound) {
-        Alert.alert(
-          'Account Not Available',
-          'No account found with this email/username. Please create an account to get started.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Create Account', onPress: () => router.push('/(auth)/register') }
-          ]
-        );
-      } else if (serverError) {
-        Alert.alert('Login Failed', serverError);
-      } else {
-        Alert.alert('Connection Error', 'Unable to reach the server. Please check your internet connection and try again.');
+        if (isNotFound) {
+          Alert.alert(
+            'Account Not Available',
+            'No account found with this email/username. Please create an account to get started.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Create Account', onPress: () => router.push('/(auth)/register') }
+            ]
+          );
+        } else if (serverError) {
+          Alert.alert('Login Failed', serverError);
+        } else {
+          Alert.alert('Connection Error', 'Unable to reach the server. Please check your internet connection and try again.');
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
@@ -140,31 +144,36 @@ export default function LoginScreen() {
           {/* Email Input */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>EMAIL OR USERNAME</Text>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, formik.touched.email && formik.errors.email && { borderColor: colors.error }]}>
               <Mail color={colors.textSecondary} size={18} strokeWidth={2} />
               <TextInput
                 style={styles.input}
                 placeholder="your.email@example.com"
                 placeholderTextColor={colors.textSecondary}
-                value={email}
-                onChangeText={setEmail}
+                value={formik.values.email}
+                onChangeText={formik.handleChange('email')}
+                onBlur={formik.handleBlur('email')}
                 autoCapitalize="none"
                 keyboardType="email-address"
               />
             </View>
+            {formik.touched.email && formik.errors.email && (
+              <Text style={styles.errorText}>{formik.errors.email}</Text>
+            )}
           </View>
 
           {/* Password Input */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>PASSWORD</Text>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, formik.touched.password && formik.errors.password && { borderColor: colors.error }]}>
               <Lock color={colors.textSecondary} size={18} strokeWidth={2} />
               <TextInput
                 style={styles.input}
                 placeholder="••••••••"
                 placeholderTextColor={colors.textSecondary}
-                value={password}
-                onChangeText={setPassword}
+                value={formik.values.password}
+                onChangeText={formik.handleChange('password')}
+                onBlur={formik.handleBlur('password')}
                 secureTextEntry={!showPassword}
               />
               <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
@@ -174,6 +183,9 @@ export default function LoginScreen() {
                 }
               </Pressable>
             </View>
+            {formik.touched.password && formik.errors.password && (
+              <Text style={styles.errorText}>{formik.errors.password}</Text>
+            )}
           </View>
 
           {/* Forgot Password */}
@@ -186,7 +198,7 @@ export default function LoginScreen() {
 
           {/* Login Button */}
           <Pressable
-            onPress={handleLogin}
+            onPress={() => formik.handleSubmit()}
             disabled={loading}
             style={({ pressed }) => [pressed && { opacity: 0.88 }]}
           >
@@ -371,5 +383,12 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     fontFamily: 'Poppins_700Bold',
     fontSize: 14,
     color: colors.secondary,
+  },
+  errorText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
+    color: colors.error,
+    marginTop: 4,
+    marginLeft: 4,
   },
 });

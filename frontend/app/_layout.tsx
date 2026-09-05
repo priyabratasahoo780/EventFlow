@@ -18,7 +18,7 @@ import { Alert, Platform, LogBox } from 'react-native';
 import { useRouter, useSegments } from 'expo-router';
 import { useAuthStore } from '../store/useAuthStore';
 import { useThemeStore } from '../store/useThemeStore';
-import { ClerkProvider, ClerkLoaded } from '../services/clerkAuth';
+import { ClerkProvider } from '../services/clerkAuth';
 import { tokenCache } from '../services/tokenCache';
 import '../services/geofencingService'; // Initialize Geofencing Background Task
 import * as Location from 'expo-location';

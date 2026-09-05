@@ -1,6 +1,6 @@
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Alert, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,18 +10,30 @@ import { useAuthStore, UserProfile } from '../../store/useAuthStore';
 import { useRouter } from 'expo-router';
 import { Eye, EyeOff, Check, X, ShieldCheck } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useFormik } from 'formik';
+import * as yup from 'yup';
 
 import { useGoogleAuth } from '../../services/clerkAuth';
+
+const validationSchema = yup.object().shape({
+  name: yup.string().trim().required('Full Name is required'),
+  username: yup.string().trim().required('Username is required'),
+  email: yup.string().email('Invalid email address').trim().required('Email is required'),
+  city: yup.string().trim().required('City is required'),
+  password: yup.string()
+    .min(8, 'Password must be at least 8 characters')
+    .matches(/[A-Z]/, 'Password requires an uppercase letter')
+    .matches(/[a-z]/, 'Password requires a lowercase letter')
+    .matches(/[0-9]/, 'Password requires a number')
+    .matches(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, 'Password requires a symbol')
+    .required('Password is required'),
+});
 
 export default function RegisterScreen() {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const [name, setName] = useState('');
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [city, setCity] = useState('');
-  const [password, setPassword] = useState('');
+  
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -31,7 +43,64 @@ export default function RegisterScreen() {
 
   const { signInWithGoogle } = useGoogleAuth();
 
-  // Password criteria
+  const formik = useFormik({
+    initialValues: { name: '', username: '', email: '', city: '', password: '' },
+    validationSchema,
+    onSubmit: async (values) => {
+      setLoading(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      const cleanEmail = values.email.trim().toLowerCase();
+      const cleanUsername = (values.username || values.name.split(' ')[0]).trim().toLowerCase();
+      const cleanName = values.name.trim();
+
+      try {
+        const res = await api.post('/auth/register', {
+          name: cleanName,
+          username: cleanUsername,
+          email: cleanEmail,
+          city: values.city.trim(),
+          password: values.password
+        });
+        await login(res.data.token, res.data.user);
+        router.replace('/(tabs)');
+      } catch (err: any) {
+        const serverError = err.response?.data?.error || err.response?.data?.message;
+        if (serverError) {
+          const errStr = String(serverError).toLowerCase();
+          if (errStr.includes('already') || errStr.includes('exist')) {
+            Alert.alert(
+              'Account Exists',
+              'You already have an account! Please log in instead.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Go to Login', onPress: () => router.push('/(auth)/login') }
+              ]
+            );
+          } else {
+            Alert.alert('Registration Notice', serverError);
+          }
+        } else {
+          // Unreachable backend / network fallback session
+          const localUser: UserProfile = {
+            _id: 'local_user_' + Date.now(),
+            uniqueId: 'FOCUS' + Math.floor(100000 + Math.random() * 900000),
+            name: cleanName,
+            username: cleanUsername,
+            email: cleanEmail,
+            profilePhoto: ''
+          };
+          await login('local_demo_token', localUser);
+          router.replace('/(tabs)');
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+  });
+
+  // Password criteria derived from formik values
+  const password = formik.values.password;
   const hasMinLength = password.length >= 8;
   const hasUpper = /[A-Z]/.test(password);
   const hasLower = /[a-z]/.test(password);
@@ -39,71 +108,6 @@ export default function RegisterScreen() {
   const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
   const passedCount = [hasMinLength, hasUpper, hasLower, hasNumber, hasSymbol].filter(Boolean).length;
   const isPasswordStrong = passedCount === 5;
-
-  const handleRegister = async () => {
-    if (!name.trim() || !email.trim() || !password) {
-      Alert.alert('Missing Info', 'Please provide full name, email, and password.');
-      return;
-    }
-
-    if (!isPasswordStrong) {
-      Alert.alert(
-        'Weak Password',
-        'Please ensure your password meets all strong security requirements:\n• At least 8 characters\n• Uppercase (A-Z) & Lowercase (a-z)\n• At least 1 number (0-9)\n• At least 1 symbol (!@#$%^&*)'
-      );
-      return;
-    }
-    
-    setLoading(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanUsername = (username || name.split(' ')[0]).trim().toLowerCase();
-    const cleanName = name.trim();
-
-    try {
-      const res = await api.post('/auth/register', {
-        name: cleanName,
-        username: cleanUsername,
-        email: cleanEmail,
-        city: city.trim(),
-        password
-      });
-      await login(res.data.token, res.data.user);
-      router.replace('/(tabs)');
-    } catch (err: any) {
-      const serverError = err.response?.data?.error || err.response?.data?.message;
-      if (serverError) {
-        const errStr = String(serverError).toLowerCase();
-        if (errStr.includes('already') || errStr.includes('exist')) {
-          Alert.alert(
-            'Account Exists',
-            'You already have an account! Please log in instead.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Go to Login', onPress: () => router.push('/(auth)/login') }
-            ]
-          );
-        } else {
-          Alert.alert('Registration Notice', serverError);
-        }
-      } else {
-        // Unreachable backend / network fallback session
-        const localUser: UserProfile = {
-          _id: 'local_user_' + Date.now(),
-          uniqueId: 'FOCUS' + Math.floor(100000 + Math.random() * 900000),
-          name: cleanName,
-          username: cleanUsername,
-          email: cleanEmail,
-          profilePhoto: ''
-        };
-        await login('local_demo_token', localUser);
-        router.replace('/(tabs)');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleGoogleSignUp = async () => {
     setGoogleLoading(true);
@@ -116,7 +120,7 @@ export default function RegisterScreen() {
         try {
           const res = await api.post('/auth/google', {
             email: result.user.email,
-            name: result.user.name || name.trim() || 'Google User',
+            name: result.user.name || formik.values.name.trim() || 'Google User',
             profilePhoto: result.user.profilePhoto || ''
           });
 
@@ -140,7 +144,7 @@ export default function RegisterScreen() {
           const fallbackUser: UserProfile = {
             _id: 'google_user_' + Date.now(),
             uniqueId: randomId,
-            name: result.user.name || name.trim() || 'Google User',
+            name: result.user.name || formik.values.name.trim() || 'Google User',
             username: (result.user.email.split('@')[0] || 'googleuser').replace(/[^a-zA-Z0-9_]/g, ''),
             email: result.user.email,
             profilePhoto: result.user.profilePhoto || ''
@@ -169,57 +173,77 @@ export default function RegisterScreen() {
         <View style={styles.inputContainer}>
           <Text style={styles.label}>FULL NAME</Text>
           <TextInput 
-            style={styles.input} 
+            style={[styles.input, formik.touched.name && formik.errors.name ? { borderColor: colors.error } : null]} 
             placeholder="John Doe"
             placeholderTextColor="#888"
-            value={name} 
-            onChangeText={setName} 
+            value={formik.values.name} 
+            onChangeText={formik.handleChange('name')} 
+            onBlur={formik.handleBlur('name')}
           />
+          {formik.touched.name && formik.errors.name && (
+            <Text style={styles.errorText}>{formik.errors.name}</Text>
+          )}
 
           <Text style={styles.label}>USERNAME</Text>
           <TextInput 
-            style={styles.input} 
+            style={[styles.input, formik.touched.username && formik.errors.username ? { borderColor: colors.error } : null]} 
             placeholder="johndoe"
             placeholderTextColor="#888"
-            value={username} 
-            onChangeText={setUsername} 
+            value={formik.values.username} 
+            onChangeText={formik.handleChange('username')} 
+            onBlur={formik.handleBlur('username')}
             autoCapitalize="none" 
           />
+          {formik.touched.username && formik.errors.username && (
+            <Text style={styles.errorText}>{formik.errors.username}</Text>
+          )}
           
           <Text style={styles.label}>EMAIL</Text>
           <TextInput 
-            style={styles.input} 
+            style={[styles.input, formik.touched.email && formik.errors.email ? { borderColor: colors.error } : null]} 
             placeholder="john@example.com"
             placeholderTextColor="#888"
-            value={email} 
-            onChangeText={setEmail} 
+            value={formik.values.email} 
+            onChangeText={formik.handleChange('email')} 
+            onBlur={formik.handleBlur('email')}
             autoCapitalize="none" 
             keyboardType="email-address" 
           />
+          {formik.touched.email && formik.errors.email && (
+            <Text style={styles.errorText}>{formik.errors.email}</Text>
+          )}
           
           <Text style={styles.label}>CITY</Text>
           <TextInput 
-            style={styles.input} 
+            style={[styles.input, formik.touched.city && formik.errors.city ? { borderColor: colors.error } : null]} 
             placeholder="New York"
             placeholderTextColor="#888"
-            value={city} 
-            onChangeText={setCity} 
+            value={formik.values.city} 
+            onChangeText={formik.handleChange('city')} 
+            onBlur={formik.handleBlur('city')}
           />
+          {formik.touched.city && formik.errors.city && (
+            <Text style={styles.errorText}>{formik.errors.city}</Text>
+          )}
           
           <Text style={styles.label}>PASSWORD</Text>
-          <View style={styles.passwordWrapper}>
+          <View style={[styles.passwordWrapper, formik.touched.password && formik.errors.password ? { borderColor: colors.error } : null]}>
             <TextInput 
               style={styles.passwordInput} 
               placeholder="••••••••"
               placeholderTextColor="#888"
-              value={password} 
-              onChangeText={setPassword} 
+              value={formik.values.password} 
+              onChangeText={formik.handleChange('password')} 
+              onBlur={formik.handleBlur('password')}
               secureTextEntry={!showPassword} 
             />
             <Pressable style={styles.eyeBtn} onPress={() => setShowPassword(!showPassword)}>
               {showPassword ? <EyeOff color="#000" size={22} /> : <Eye color="#000" size={22} />}
             </Pressable>
           </View>
+          {formik.touched.password && formik.errors.password && (
+            <Text style={styles.errorText}>{formik.errors.password}</Text>
+          )}
 
           {/* Password Strength Indicator */}
           {password.length > 0 && (
@@ -263,7 +287,7 @@ export default function RegisterScreen() {
         </View>
 
         <Pressable
-          onPress={handleRegister}
+          onPress={() => formik.handleSubmit()}
           disabled={loading}
           style={({ pressed }) => [pressed && { opacity: 0.88 }]}
         >
@@ -399,5 +423,12 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     fontFamily: 'Poppins_700Bold',
     fontSize: 14,
     color: colors.secondary,
+  },
+  errorText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
+    color: colors.error,
+    marginTop: 4,
+    marginLeft: 4,
   },
 });

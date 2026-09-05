@@ -26,7 +26,7 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
       let triggeredTasks: Record<string, boolean> = triggeredStr ? JSON.parse(triggeredStr) : {};
 
       // 2. Fetch the actual task from AsyncStorage
-      const eventsStr = await AsyncStorage.getItem('events');
+      const eventsStr = await AsyncStorage.getItem('@eventflow_events');
       if (!eventsStr) return;
       
       const events: Event[] = JSON.parse(eventsStr);

@@ -1,18 +1,44 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as Location from 'expo-location';
 import * as Notifications from '../mock-expo-notifications';
 import { Event } from '../models/Event';
 import { priorityService } from '../services/priorityService';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Track triggered tasks so we don't spam the user repeatedly while staying at the location
-const triggeredGeofences: Record<string, number> = {};
+const TRIGGERED_KEY = '@eventflow_geofence_triggered';
+
+// Load cooldown timestamps from storage
+async function loadTriggered(): Promise<Record<string, number>> {
+  try {
+    const raw = await AsyncStorage.getItem(TRIGGERED_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveTriggered(data: Record<string, number>): Promise<void> {
+  try {
+    await AsyncStorage.setItem(TRIGGERED_KEY, JSON.stringify(data));
+  } catch {}
+}
 
 export function useLocation(tasks: Event[] = []) {
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [address, setAddress] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [arrivedTask, setArrivedTask] = useState<Event | null>(null);
+  const [arrivedTriggerType, setArrivedTriggerType] = useState<'arrive' | 'leave'>('arrive');
+
+  // Keep a ref so the watchPosition callback always has the latest tasks list
+  const tasksRef = useRef<Event[]>(tasks);
+  tasksRef.current = tasks;
+
+  // Keep previous location to detect leave events
+  const prevLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  // Track whether we were inside each geofence
+  const insideGeofences = useRef<Record<string, boolean>>({});
 
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null;
@@ -29,14 +55,17 @@ export function useLocation(tasks: Event[] = []) {
         try {
           const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
           coords = { latitude: current.coords.latitude, longitude: current.coords.longitude };
-        } catch (e) {
-          const lastKnown = await Location.getLastKnownPositionAsync();
-          if (lastKnown) {
-            coords = { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude };
-          }
+        } catch {
+          try {
+            const lastKnown = await Location.getLastKnownPositionAsync();
+            if (lastKnown) {
+              coords = { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude };
+            }
+          } catch {}
         }
 
         setLocation(coords);
+        prevLocationRef.current = coords;
 
         // Reverse geocode to get readable address
         try {
@@ -49,17 +78,19 @@ export function useLocation(tasks: Event[] = []) {
           console.warn('Reverse geocode error:', e);
         }
 
-        // Start real-time location watcher for geofencing triggers
+        // Start real-time location watcher
         subscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Balanced,
             timeInterval: 8000,
-            distanceInterval: 25,
+            distanceInterval: 20,
           },
           async (loc: Location.LocationObject) => {
             const updated = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
             setLocation(updated);
-            checkGeofenceAlerts(updated, tasks);
+            // Always pass the latest tasks from ref
+            await checkGeofenceAlerts(updated);
+            prevLocationRef.current = updated;
           }
         );
       } catch (err: any) {
@@ -70,32 +101,32 @@ export function useLocation(tasks: Event[] = []) {
     initLocation();
 
     return () => {
-      if (subscription) {
-        subscription.remove();
-      }
+      if (subscription) subscription.remove();
     };
-  }, [tasks.length]);
+  // Only re-run if we need to restart the watcher (tasks.length change not needed due to ref)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const checkGeofenceAlerts = async (
-    userCoords: { latitude: number; longitude: number }, 
-    pendingTasks: Event[]
+    userCoords: { latitude: number; longitude: number }
   ) => {
     const now = Date.now();
+    const pendingTasks = tasksRef.current; // always fresh
+
+    const triggered = await loadTriggered();
+    let changed = false;
 
     for (const task of pendingTasks) {
       if (
-        !task.completed && 
-        task.status !== 'completed' && 
+        !task.completed &&
+        task.status !== 'completed' &&
         task.locationReminderEnabled &&
-        task.locationDetails?.latitude && 
+        task.locationDetails?.latitude &&
         task.locationDetails?.longitude
       ) {
-        // If task was created less than 30 seconds ago, mark as already at location to avoid instant alarm on save
+        // Skip tasks created in the last 30s (avoid instant trigger on save)
         const createdAt = task.createdAt ? new Date(task.createdAt).getTime() : now;
-        if (now - createdAt < 30000 && !triggeredGeofences[task.id]) {
-          triggeredGeofences[task.id] = now;
-          continue;
-        }
+        if (now - createdAt < 30000) continue;
 
         const targetRadius = (task.locationDetails as any).radius || task.geofenceRadius || 500;
         const dist = priorityService.getDistance(
@@ -105,35 +136,83 @@ export function useLocation(tasks: Event[] = []) {
           task.locationDetails.longitude
         );
 
-        if (dist <= targetRadius) {
-          const lastTriggered = triggeredGeofences[task.id] || 0;
-          // Cool down: trigger once every 20 minutes per task
-          if (now - lastTriggered > 20 * 60 * 1000) {
-            triggeredGeofences[task.id] = now;
-            setArrivedTask(task);
+        const wasInside = insideGeofences.current[task.id] ?? false;
+        const isInside = dist <= targetRadius;
+        const triggerType = task.triggerType || 'arrive';
 
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        // Detect transition: outside → inside
+        if (!wasInside && isInside) {
+          insideGeofences.current[task.id] = true;
 
-            // Proximity Notification
-            try {
-              const locationLabel = task.location || 'Your Destination';
-              await Notifications.scheduleNotificationAsync({
-                content: {
-                  title: `📍 Arrived Near ${locationLabel}!`,
-                  body: `Task reminder: "${task.title}"`,
-                  data: { eventId: task.id, type: 'geofence', location: locationLabel },
-                  sound: 'default',
-                  priority: Notifications.AndroidNotificationPriority.DEFAULT,
-                  vibrate: [0, 250, 250, 250],
-                } as any,
-                trigger: null
-              });
-            } catch (notifyErr) {
-              console.warn('Geofence notification error:', notifyErr);
+          if (triggerType === 'arrive') {
+            const lastTriggered = triggered[task.id] || 0;
+            // Cooldown: 20 minutes per task
+            if (now - lastTriggered > 20 * 60 * 1000) {
+              triggered[task.id] = now;
+              changed = true;
+              setArrivedTask(task);
+              setArrivedTriggerType('arrive');
+
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
+              try {
+                const locationLabel = task.location || 'Your Destination';
+                await Notifications.scheduleNotificationAsync({
+                  content: {
+                    title: `📍 Arrived Near ${locationLabel}!`,
+                    body: `Location reminder: "${task.title}" — tap to start the task.`,
+                    data: { eventId: task.id, type: 'geofence', triggerType: 'arrive' },
+                    sound: 'default',
+                    priority: Notifications.AndroidNotificationPriority.MAX,
+                    vibrate: [0, 300, 200, 300],
+                  } as any,
+                  trigger: null,
+                });
+              } catch (notifyErr) {
+                console.warn('Geofence arrival notification error:', notifyErr);
+              }
+            }
+          }
+        }
+
+        // Detect transition: inside → outside
+        if (wasInside && !isInside) {
+          insideGeofences.current[task.id] = false;
+
+          if (triggerType === 'leave') {
+            const lastTriggered = triggered[task.id] || 0;
+            if (now - lastTriggered > 20 * 60 * 1000) {
+              triggered[task.id] = now;
+              changed = true;
+              setArrivedTask(task);
+              setArrivedTriggerType('leave');
+
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
+              try {
+                const locationLabel = task.location || 'Your Destination';
+                await Notifications.scheduleNotificationAsync({
+                  content: {
+                    title: `🚶 Leaving ${locationLabel}`,
+                    body: `Don't forget: "${task.title}" is associated with this location!`,
+                    data: { eventId: task.id, type: 'geofence', triggerType: 'leave' },
+                    sound: 'default',
+                    priority: Notifications.AndroidNotificationPriority.MAX,
+                    vibrate: [0, 250, 150, 250],
+                  } as any,
+                  trigger: null,
+                });
+              } catch (notifyErr) {
+                console.warn('Geofence leave notification error:', notifyErr);
+              }
             }
           }
         }
       }
+    }
+
+    if (changed) {
+      await saveTriggered(triggered);
     }
   };
 
@@ -166,8 +245,9 @@ export function useLocation(tasks: Event[] = []) {
     address,
     errorMsg,
     arrivedTask,
+    arrivedTriggerType,
     dismissArrivedTask: () => setArrivedTask(null),
     reverseGeocode,
-    geocodeAddress
+    geocodeAddress,
   };
 }

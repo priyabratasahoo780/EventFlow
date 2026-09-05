@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, Switch, Pressable, ScrollView, Alert, ToastAndroid, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VolumeX, Moon, Bell, Download, Upload, Trash2, Info, Users, Volume2, UserPlus, Sun } from 'lucide-react-native';

@@ -16,7 +16,8 @@ import { Colors } from '../../constants/Colors';
 import { priorityService } from '../../services/priorityService';
 import * as Location from 'expo-location';
 import MapViewWrapper from '../../components/MapViewWrapper';
-import { Video as ExpoVideo, ResizeMode } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
+
 
 const bgCol = Colors.light.background;
 const primaryCol = Colors.light.primary;
@@ -342,13 +343,7 @@ export default function EventDetailsScreen() {
               </Pressable>
             </View>
             {event?.video ? (
-              <ExpoVideo
-                source={{ uri: event.video }}
-                style={{ width: '100%', height: 300 }}
-                useNativeControls
-                resizeMode={ResizeMode.CONTAIN}
-                shouldPlay
-              />
+              <VideoEventPlayer uri={event.video} />
             ) : null}
           </View>
         </Modal>
@@ -549,3 +544,17 @@ const getStyles = (_colors: ColorTheme) => StyleSheet.create({
     color: '#000',
   }
 });
+
+function VideoEventPlayer({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, p => {
+    p.loop = false;
+    p.play();
+  });
+  return (
+    <VideoView
+      style={{ width: '100%', height: 300 }}
+      player={player}
+      nativeControls
+    />
+  );
+}

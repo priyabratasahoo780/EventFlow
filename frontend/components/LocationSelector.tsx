@@ -1,7 +1,7 @@
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert, ScrollView, Modal, Dimensions } from 'react-native';
+import { useState, useRef } from 'react';
+import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, Alert, ScrollView, Modal } from 'react-native';
 import * as Location from 'expo-location';
 import { MapPin, Navigation, Check, School, ShoppingCart, Briefcase, Home, Map as MapIcon, X, Search } from 'lucide-react-native';
 import { LocationDetails } from '../models/Event';

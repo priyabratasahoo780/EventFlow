@@ -1,4 +1,3 @@
-import React from 'react';
 import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Home, Calendar, PieChart, Settings, User, Plus } from 'lucide-react-native';
 import { StyleSheet, View, Pressable } from 'react-native';

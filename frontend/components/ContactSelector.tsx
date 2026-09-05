@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Modal, FlatList, TextInput, Alert } from 'react-native';
 import * as Contacts from 'expo-contacts/legacy';
 import { User, Search, X, Trash2 } from 'lucide-react-native';

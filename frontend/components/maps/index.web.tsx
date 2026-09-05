@@ -51,7 +51,7 @@ export interface MapViewRef {
 export type MapView = MapViewRef;
 
 const MapView = forwardRef<MapViewRef, MapViewProps>(
-  ({ style, initialRegion, showsUserLocation = true, children, onPress }, ref) => {
+  ({ style, initialRegion, children, onPress }, ref) => {
     const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
     const initialLat = initialRegion?.latitude ?? 20.5937;
