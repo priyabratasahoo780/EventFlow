@@ -143,13 +143,13 @@ export default function AddEventScreen() {
   const formik = useFormik<EventFormData>({
     validationSchema: eventSchema,
     initialValues: existingEvent ? {
-      title: existingEvent.title,
-      description: existingEvent.description,
-      category: existingEvent.category,
-      priority: existingEvent.priority,
+      title: existingEvent.title || '',
+      description: existingEvent.description || '',
+      category: existingEvent.category || 'Work',
+      priority: existingEvent.priority || 'medium',
       estimatedDuration: initDurVal.toString(),
-      color: existingEvent.color,
-      icon: existingEvent.icon,
+      color: existingEvent.color || COLORS[0],
+      icon: existingEvent.icon || 'Calendar',
       notes: existingEvent.notes || ''
     } : {
       title: '',
@@ -480,6 +480,7 @@ export default function AddEventScreen() {
                   value={date}
                   mode="date"
                   display="default"
+                  minimumDate={new Date()}
                   onChange={(_, selectedDate) => {
                     setShowDatePicker(Platform.OS === 'ios');
                     if (selectedDate) setDate(selectedDate);
@@ -792,7 +793,13 @@ export default function AddEventScreen() {
               />
             </View>
 
-            <Pressable style={styles.createEventBtnWrapper} onPress={() => formik.handleSubmit()}>
+            <Pressable style={styles.createEventBtnWrapper} onPress={() => {
+              if (Object.keys(formik.errors).length > 0) {
+                const errorFields = Object.keys(formik.errors).join(', ');
+                Alert.alert('Validation Error', `Please check the following fields: ${errorFields}`);
+              }
+              formik.handleSubmit();
+            }}>
               <LinearGradient colors={[colors.secondary, colors.secondary]} style={styles.createEventBtn}>
                 <CalendarIcon color="#FFF" size={20} strokeWidth={2.5} />
                 <Text style={styles.createEventBtnText}>SAVE EVENT</Text>
@@ -920,6 +927,7 @@ export default function AddEventScreen() {
                     value={modalDate}
                     mode="date"
                     display="default"
+                    minimumDate={new Date()}
                     onChange={(_, selectedDate) => {
                       setModalShowDatePicker(Platform.OS === 'ios');
                       if (selectedDate) setModalDate(selectedDate);

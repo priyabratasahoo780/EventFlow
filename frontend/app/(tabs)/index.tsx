@@ -601,7 +601,7 @@ export default function HomeScreen() {
     meeting:  "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=800&auto=format&fit=crop",
   });
 
-  const buildHeroCard = (task: Event) => {
+  const buildHeroCard = (task: Event, customWidth?: number) => {
     const score = priorityService.calculateScore(task, location);
     const prioInfo = priorityService.getPriorityInfo(score);
     const dateStr2 = task.date ? task.date.split('T')[0] : new Date().toISOString().split('T')[0];
@@ -619,7 +619,7 @@ export default function HomeScreen() {
     const cover = task.image || defaults[cat2] || "https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?q=80&w=800&auto=format&fit=crop";
 
     return (
-      <View key={task.id} style={[s.heroCard, { width: CARD_W, padding: 0, marginHorizontal: 0, borderRadius: rs(24) }]}>
+      <View key={task.id} style={[s.heroCard, { width: customWidth || CARD_W, padding: 0, marginHorizontal: 0, borderRadius: rs(24) }]}>
         <View style={{ width: '100%', height: hs(160), borderTopLeftRadius: rs(24), borderTopRightRadius: rs(24), overflow: 'hidden' }}>
           <Image source={{ uri: cover }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
           <LinearGradient colors={['transparent', 'rgba(0,0,0,0.85)']} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end', padding: rs(20) }}>
@@ -795,8 +795,8 @@ export default function HomeScreen() {
     // Single event → plain card, no scroll
     if (heroTasks.length === 1) {
       return (
-        <View style={{ paddingHorizontal: rs(16), paddingBottom: rs(20), paddingTop: rs(10) }}>
-          {buildHeroCard(heroTasks[0])}
+        <View style={{ paddingHorizontal: rs(16), paddingBottom: rs(20), paddingTop: rs(10), alignItems: 'center' }}>
+          {buildHeroCard(heroTasks[0], SCREEN.width - rs(32))}
         </View>
       );
     }
@@ -1551,68 +1551,68 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
-    gap: 10,
-    marginBottom: 12,
+    gap: 12,
+    marginBottom: 16,
   },
   searchBox: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.card,
-    borderRadius: 14,
-    paddingHorizontal: 13,
+    borderRadius: 24,
+    paddingHorizontal: 16,
     borderWidth: 1.5,
     borderColor: colors.border,
     shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
     elevation: 2,
-    gap: 8,
+    gap: 10,
   },
   searchInput: {
     flex: 1,
-    height: 44,
+    height: 48,
     fontFamily: 'Poppins_400Regular',
-    fontSize: 13,
+    fontSize: 14,
     color: colors.text,
   },
   filterBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     overflow: 'hidden',
     shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
   },
   filterBtnGrad: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 14,
+    borderRadius: 24,
   },
 
   // ── Status Pills ──
   statusScroll: {
     paddingHorizontal: 16,
-    gap: 8,
+    gap: 10,
   },
   statusPill: {
-    borderRadius: 24,
+    borderRadius: 30,
     overflow: 'hidden',
   },
   statusPillActive: {},
   statusPillActiveInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
-    borderRadius: 24,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 30,
     backgroundColor: colors.secondaryLight,
     borderWidth: 1.5,
     borderColor: colors.secondary,
@@ -1620,53 +1620,53 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   statusPillInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
-    borderRadius: 24,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 30,
     backgroundColor: colors.card,
     borderWidth: 1.5,
     borderColor: colors.border,
   },
   statusPillText: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11,
+    fontSize: 13,
     color: colors.textSecondary,
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
 
   // ── Category Chips ──
   categoryScroll: {
     paddingHorizontal: 16,
-    gap: 8,
+    gap: 10,
   },
   catChip: {
-    borderRadius: 24,
+    borderRadius: 30,
     overflow: 'hidden',
   },
   catChipActive: {},
   catChipGrad: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 24,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 30,
   },
   catChipInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 24,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 30,
     backgroundColor: colors.card,
     borderWidth: 1.5,
     borderColor: colors.border,
   },
   catChipText: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 12,
+    fontSize: 13,
     color: colors.textSecondary,
   },
 

@@ -186,10 +186,9 @@ export default function MapScreen() {
       <View style={[styles.floatingHeader, { top: Math.max(insets.top, 16) }]}>
         <View style={styles.searchRow}>
           <Pressable style={styles.backBtn} onPress={() => router.back()}>
-            <ArrowLeft color={colors.text} size={22} strokeWidth={2.5} />
+            <ArrowLeft color={colors.text} size={24} strokeWidth={2.5} />
           </Pressable>
           <View style={styles.searchInputContainer}>
-            <Search color={colors.textSecondary} size={18} strokeWidth={2.5} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search tasks or places..."
@@ -210,7 +209,7 @@ export default function MapScreen() {
       </View>
 
       {/* Bottom Task Carousel */}
-      <View style={[styles.carouselContainer, { bottom: Math.max(insets.bottom, 16) }]}>
+      <View style={[styles.carouselContainer, { bottom: (insets.bottom || 0) + 32 }]}>
         <FlatList
           ref={flatListRef}
           horizontal
@@ -250,14 +249,12 @@ export default function MapScreen() {
                         At <Text style={styles.locationHighlight}>{item.location || 'destination'}</Text>
                       </Text>
                     </View>
-                    <View style={styles.chevronBox}>
-                      <ChevronRight color={colors.textSecondary} size={18} strokeWidth={2.5} />
-                    </View>
+                    <ChevronRight color={colors.textSecondary} size={20} strokeWidth={2.5} />
                   </View>
 
                   <View style={styles.cardFooter}>
                     <View style={styles.categoryBadge}>
-                      <Text style={styles.categoryBadgeText}>{item.icon || '📍'} {item.category.toUpperCase()}</Text>
+                      <Text style={styles.categoryBadgeText}>{item.category.toUpperCase()}</Text>
                     </View>
 
                     {distText ? (
@@ -325,42 +322,36 @@ const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    backgroundColor: isDarkMode ? 'rgba(35,35,35,0.95)' : '#FFFFFF',
+    borderRadius: 30,
+    height: 56,
+    paddingHorizontal: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 8,
   },
   backBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: isDarkMode ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.9)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
   },
   searchInputContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: isDarkMode ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.9)',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    height: 48,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  searchIcon: {
-    marginRight: 8,
+    paddingLeft: 4,
+    paddingRight: 16,
+    height: 56,
   },
   searchInput: {
     flex: 1,
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 15,
     color: colors.text,
   },
   floatingControls: {
@@ -399,27 +390,27 @@ const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create
   },
   taskCard: {
     width: CARD_WIDTH,
-    backgroundColor: isDarkMode ? 'rgba(35,35,35,0.95)' : 'rgba(255,255,255,0.98)',
-    borderRadius: 24,
-    padding: 16,
+    backgroundColor: isDarkMode ? 'rgba(35,35,35,0.95)' : '#FFFFFF',
+    borderRadius: 28,
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
     elevation: 8,
     borderWidth: 1,
-    borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.03)',
+    borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.02)',
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
+    gap: 14,
+    marginBottom: 16,
   },
   iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: colors.secondaryLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -428,55 +419,51 @@ const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create
     fontFamily: 'Poppins_700Bold',
     fontSize: 16,
     color: colors.text,
+    lineHeight: 22,
   },
   triggerText: {
     fontFamily: 'Poppins_500Medium',
     fontSize: 13,
     color: colors.textSecondary,
-    marginTop: 2,
+    lineHeight: 18,
+    marginTop: 0,
   },
   locationHighlight: {
     fontFamily: 'Poppins_600SemiBold',
     color: colors.secondary,
   },
-  chevronBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 12,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: isDarkMode ? 'rgba(255,255,255,0.05)' : colors.border,
+    borderTopColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
   },
   categoryBadge: {
-    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : colors.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
+    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : '#F3F4F6',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
   categoryBadgeText: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11,
+    fontSize: 12,
     color: colors.text,
+    letterSpacing: 0.2,
   },
   distanceBadge: {
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
     overflow: 'hidden',
   },
   distanceText: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11,
-    color: '#2E7D32',
+    fontSize: 12,
+    color: '#059669',
+    letterSpacing: 0.2,
   },
   emptyCard: {
     width: CARD_WIDTH,

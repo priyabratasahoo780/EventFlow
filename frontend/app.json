@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "FocusFlow",
-    "slug": "FocusFlow",
+    "name": "EventFlow",
+    "slug": "EventFlow",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon_squared.png",
-    "scheme": "focusflow",
+    "scheme": "eventflow",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
@@ -26,11 +26,11 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
       ],
-      "package": "com.priyabrata.focusflow"
+      "package": "com.priyabrata.eventflow"
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
