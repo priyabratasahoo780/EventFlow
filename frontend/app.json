@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "EventFlow",
-    "slug": "EventFlow",
+    "slug": "FocusFlow",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon_squared.png",

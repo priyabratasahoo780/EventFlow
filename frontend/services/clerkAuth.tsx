@@ -68,7 +68,7 @@ export const useGoogleAuth = () => {
     try {
       const redirectUrl = AuthSession.makeRedirectUri({
         path: 'sso-callback',
-        scheme: 'focusflow',
+        scheme: 'eventflow',
       });
 
       let createdSessionId: string | null = null;
