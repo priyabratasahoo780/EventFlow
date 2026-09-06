@@ -1,6 +1,6 @@
-/**
+﻿/**
  * withAlarmManager.js
- * Expo Config Plugin � ensures AlarmReceiver, AlarmActivity, and all
+ * Expo Config Plugin — ensures AlarmReceiver, AlarmActivity, and all
  * required permissions are in the generated AndroidManifest.xml when
  * running `npx expo run:android` or `eas build`.
  *
@@ -63,6 +63,22 @@ const withAlarmManifest = (config) => {
       });
     }
     application.activity = activities;
+
+    // Add AlarmService
+    const services = application.service || [];
+    const hasAlarmService = services.some(
+      (s) => s.$?.["android:name"] === ".alarm.AlarmService"
+    );
+    if (!hasAlarmService) {
+      services.push({
+        $: {
+          "android:name": ".alarm.AlarmService",
+          "android:exported": "false",
+          "android:foregroundServiceType": "mediaPlayback",
+        },
+      });
+    }
+    application.service = services;
 
     return config;
   });

@@ -29,7 +29,9 @@
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
       "package": "com.priyabrata.eventflow"
     },
