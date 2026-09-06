@@ -23,6 +23,7 @@
       "permissions": [
         "SCHEDULE_EXACT_ALARM",
         "USE_EXACT_ALARM",
+        "USE_FULL_SCREEN_INTENT",
         "POST_NOTIFICATIONS",
         "WAKE_LOCK",
         "VIBRATE",
