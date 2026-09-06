@@ -1,5 +1,5 @@
 export type Priority = 'low' | 'medium' | 'high' | 'critical';
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'overdue' | 'cancelled';
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'late_completed' | 'overdue' | 'cancelled';
 export type ReminderType = 'before' | 'exact' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface LocationDetails {

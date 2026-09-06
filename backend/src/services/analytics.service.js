@@ -4,12 +4,13 @@
 
 function generateAnalytics(tasks) {
   const total = tasks.length;
-  const completed = tasks.filter(t => t.completed || t.status === 'completed').length;
-  const pending = tasks.filter(t => !t.completed && t.status !== 'completed' && t.status !== 'overdue').length;
+  const completed = tasks.filter(t => t.completed || t.status === 'completed' || t.status === 'late_completed').length;
+  const lateCompleted = tasks.filter(t => t.status === 'late_completed').length;
+  const pending = tasks.filter(t => !t.completed && t.status !== 'completed' && t.status !== 'late_completed' && t.status !== 'overdue').length;
   
   const now = new Date();
   const overdue = tasks.filter(t => {
-    if (t.completed || t.status === 'completed') return false;
+    if (t.completed || t.status === 'completed' || t.status === 'late_completed') return false;
     const dateStr = t.date ? t.date.split('T')[0] : '';
     const timeStr = t.time || '23:59';
     if (!dateStr) return false;
@@ -49,6 +50,7 @@ function generateAnalytics(tasks) {
   return {
     total,
     completed,
+    lateCompleted,
     pending,
     overdue,
     completionRate,

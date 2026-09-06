@@ -273,9 +273,10 @@ export default function StatisticsScreen() {
 
   const stats = useMemo(() => {
     const total = filteredEvents.length;
-    let completed = 0, inProgress = 0, overdue = 0, pending = 0;
+    let completed = 0, lateCompleted = 0, inProgress = 0, overdue = 0, pending = 0;
     const now = new Date();
     filteredEvents.forEach(e => {
+      const isLateCompleted = e.status === 'late_completed';
       const isCompleted = e.completed || e.status === 'completed';
       const isInProgress = e.status === 'in_progress';
       const dateStr = e.date ? e.date.split('T')[0] : '';
@@ -285,13 +286,15 @@ export default function StatisticsScreen() {
         const dl = new Date(`${dateStr}T${timeStr.length <= 5 ? timeStr + ':00' : timeStr}`);
         isOverdue = dl < now;
       }
-      if (isCompleted) completed++;
+      
+      if (isLateCompleted) lateCompleted++;
+      else if (isCompleted) completed++;
       else if (isOverdue) overdue++;
       else if (isInProgress) inProgress++;
       else pending++;
     });
 
-    const completionRate = total === 0 ? 0 : Math.round((completed / total) * 100);
+    const completionRate = total === 0 ? 0 : Math.round(((completed + lateCompleted) / total) * 100);
     let totalFocusMins = 0;
     filteredEvents.forEach(e => {
       if (e.completed && e.startedAt && e.completedAt) {
@@ -307,7 +310,7 @@ export default function StatisticsScreen() {
     const fh = Math.floor(totalFocusMins / 60), fm = totalFocusMins % 60;
     const focusTime = totalFocusMins === 0 ? '0 min' : fh > 0 ? `${fh}h ${fm}m` : `${fm}m`;
 
-    return { total, completed, inProgress, pending, overdue, completionRate, focusTime, topCategory };
+    return { total, completed, lateCompleted, inProgress, pending, overdue, completionRate, focusTime, topCategory };
   }, [filteredEvents]);
 
   // Weekly bar chart data (last 7 days)
@@ -340,8 +343,9 @@ export default function StatisticsScreen() {
     if (stats.total === 0) return [{ value: 1, color: colors.border }];
     const d: { value: number; color: string }[] = [];
     if (stats.completed > 0) d.push({ value: stats.completed, color: colors.success });
+    if (stats.lateCompleted > 0) d.push({ value: stats.lateCompleted, color: '#F59E0B' }); // Amber/Orange
     if (stats.inProgress > 0) d.push({ value: stats.inProgress, color: colors.primary });
-    if (stats.pending > 0) d.push({ value: stats.pending, color: '#F59E0B' });
+    if (stats.pending > 0) d.push({ value: stats.pending, color: colors.warning });
     if (stats.overdue > 0) d.push({ value: stats.overdue, color: colors.error });
     return d.length > 0 ? d : [{ value: 1, color: colors.border }];
   }, [stats, colors]);
@@ -519,11 +523,19 @@ export default function StatisticsScreen() {
             <SectionHeader title="Status Breakdown" subtitle="Visual progress per status" accentColor={colors.primary} />
 
             <StatusBar
-              label="Completed" count={stats.completed} total={stats.total}
+              label="Completed (On-time)" count={stats.completed} total={stats.total}
               color={colors.success} bg={colors.successLight}
               icon={<Check color={colors.success} size={20} strokeWidth={3} />}
               textColor={colors.text}
             />
+            {stats.lateCompleted > 0 && (
+              <StatusBar
+                label="Completed (Late)" count={stats.lateCompleted} total={stats.total}
+                color="#F59E0B" bg="rgba(245, 158, 11, 0.15)"
+                icon={<Clock color="#F59E0B" size={20} strokeWidth={3} />}
+                textColor={colors.text}
+              />
+            )}
             <StatusBar
               label="In Progress" count={stats.inProgress} total={stats.total}
               color={colors.primary} bg={colors.primaryLight}
@@ -570,6 +582,7 @@ export default function StatisticsScreen() {
                 <View style={styles.donutLegend}>
                   {[
                     { color: colors.success, label: 'Completed', count: stats.completed },
+                    ...(stats.lateCompleted > 0 ? [{ color: '#F59E0B', label: 'Done (Late)', count: stats.lateCompleted }] : []),
                     { color: colors.primary, label: 'In Progress', count: stats.inProgress },
                     { color: '#F59E0B', label: 'Pending', count: stats.pending },
                     { color: colors.error, label: 'Overdue', count: stats.overdue },

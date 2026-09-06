@@ -1,4 +1,4 @@
-﻿import { useThemeStore } from '../../store/useThemeStore';
+import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { StyleSheet, View, Text, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,7 +26,7 @@ export default function EventCard({ event, onPress, onComplete }: EventCardProps
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  const isCompleted = event.completed || event.status === 'completed';
+  const isCompleted = event.completed || event.status === 'completed' || event.status === 'late_completed';
   const isInProgress = event.status === 'in_progress';
   const PRIORITY_CONFIG = getPriorityConfig(colors);
   const prio = PRIORITY_CONFIG[event.priority?.toLowerCase()] || PRIORITY_CONFIG.medium;
@@ -81,6 +81,12 @@ export default function EventCard({ event, onPress, onComplete }: EventCardProps
               <View style={[styles.priorityBadge, { backgroundColor: prio.bg }]}>
                 <Text style={[styles.priorityBadgeText, { color: prio.text }]}>{prio.label}</Text>
               </View>
+
+              {event.status === 'late_completed' && (
+                <View style={[styles.priorityBadge, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
+                  <Text style={[styles.priorityBadgeText, { color: '#F59E0B' }]}>LATE DONE</Text>
+                </View>
+              )}
 
               {isInProgress && (
                 <View style={styles.inProgressBadge}>

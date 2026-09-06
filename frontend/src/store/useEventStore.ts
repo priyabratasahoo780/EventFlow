@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Event, EventFilters, TaskStatus, ReminderConfig } from '../types/event.types';
 import { storageService } from '../services/storageService';
@@ -273,8 +273,21 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     if (status === 'in_progress' && !startedAt) {
       startedAt = nowIso;
-    } else if (status === 'completed') {
+    }
+    
+    let finalStatus = status;
+    if (status === 'completed') {
       completedAt = nowIso;
+      // Check if it's late
+      if (targetEvent.date && targetEvent.time) {
+        const dateStr = targetEvent.date.split('T')[0];
+        const timeStr = targetEvent.time.length <= 5 ? targetEvent.time + ':00' : targetEvent.time;
+        const deadline = new Date(`${dateStr}T${timeStr}`);
+        if (new Date() > deadline) {
+          finalStatus = 'late_completed';
+        }
+      }
+      
       // Cancel pending alarms & notifications if completed
       const idsToCancel = targetEvent.reminders ? targetEvent.reminders.flatMap(r => r.notificationIds || []) : [];
       await notificationService.cancelEventNotifications(id, idsToCancel);
@@ -283,8 +296,8 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     const updatedEvent: Event = {
       ...targetEvent,
-      status,
-      completed: status === 'completed',
+      status: finalStatus,
+      completed: finalStatus === 'completed' || finalStatus === 'late_completed',
       startedAt,
       completedAt,
       updatedAt: nowIso
@@ -294,7 +307,7 @@ export const useEventStore = create<EventState>((set, get) => ({
     await storageService.saveEvents(newEvents);
 
     // Background status sync
-    api.patch(`/tasks/${id}/status`, { status, startedAt, completedAt }).catch(e => {
+    api.patch(`/tasks/${id}/status`, { status: finalStatus, startedAt, completedAt }).catch(e => {
       console.log('Backend status sync failed, updated locally', e);
     });
 

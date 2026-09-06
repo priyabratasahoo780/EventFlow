@@ -10,7 +10,7 @@ const eventSchema = new mongoose.Schema({
   priority: { type: String, enum: ['low', 'medium', 'high', 'critical'], default: 'medium' },
   priorityScore: { type: Number, default: 0 },
   estimatedDuration: { type: Number, default: 30 }, // in minutes
-  status: { type: String, enum: ['pending', 'in_progress', 'completed', 'overdue', 'cancelled'], default: 'pending' },
+  status: { type: String, enum: ['pending', 'in_progress', 'completed', 'late_completed', 'overdue', 'cancelled'], default: 'pending' },
   completed: { type: Boolean, default: false },
   
   // Location
