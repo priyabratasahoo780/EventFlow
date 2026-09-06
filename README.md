@@ -79,10 +79,12 @@ Built on a **React Native + Expo** frontend and a **Node.js + Express + MongoDB*
 - Auto-ranked task list and **Hero Focus Card** carousel on the home screen
 - Backend `/api/tasks/recommendation` endpoint for server-side priority suggestions
 
-### 🔔 Native Alarm & Notification System
-- **Dual-layer alert system**: `expo-notifications` for push/local banners + native `AlarmManagerModule` (Kotlin) for **exact Android alarms** that wake the device
-- Alarm modal with custom sound, haptic feedback, and snooze-like dismiss
-- Graceful fallback on iOS and Expo Go
+### 🔔 Native Alarm & Notification System (Offline-First)
+- **100% Offline Capable**: Alarms fire precisely on time even if the app is completely closed (killed) or offline.
+- **Dual-layer alert system**: `expo-notifications` for standard push/local banners + custom `AlarmManagerModule` (Kotlin) for **exact Android alarms**.
+- **Deep Sleep Wake-Up**: Leverages Android `PowerManager.WakeLock` to turn the screen on and bypass Doze mode.
+- Alarm modal with continuous looping sound, haptic feedback, and a snooze-like dismiss button.
+- Graceful fallback on iOS and Expo Go.
 
 ### 📍 Geofence Location Reminders
 - Enable a **location trigger** per event: fire a reminder when you **arrive at** or **leave** the event location
@@ -306,7 +308,8 @@ EventFlow/                              # Mono-repo root
     │   └── types/                      # Shared TypeScript types (event.types.ts)
     │
     ├── assets/                         # Fonts, images, icons
-    ├── plugins/                        # Expo config plugins (AlarmManager native)
+    ├── android_backup/                 # Custom Native Android Modules (Kotlin Alarms)
+    ├── plugins/                        # Expo config plugins (Injects android_backup)
     ├── babel.config.js                 # @/* path aliases via module-resolver
     ├── tsconfig.json                   # Strict TS + path aliases
     ├── metro.config.js                 # Metro bundler config + web shims
