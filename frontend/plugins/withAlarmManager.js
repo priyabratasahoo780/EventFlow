@@ -1,6 +1,6 @@
-﻿/**
+/**
  * withAlarmManager.js
- * Expo Config Plugin — ensures AlarmReceiver, AlarmActivity, and all
+ * Expo Config Plugin � ensures AlarmReceiver, AlarmActivity, and all
  * required permissions are in the generated AndroidManifest.xml when
  * running `npx expo run:android` or `eas build`.
  *
@@ -11,7 +11,7 @@ const { withAndroidManifest, withDangerousMod } = require("@expo/config-plugins"
 const path = require("path");
 const fs = require("fs");
 
-// ─── 1. AndroidManifest entries ───────────────────────────────────────────────
+// --- 1. AndroidManifest entries -----------------------------------------------
 const withAlarmManifest = (config) => {
   return withAndroidManifest(config, async (config) => {
     const manifest = config.modResults;
@@ -33,7 +33,7 @@ const withAlarmManifest = (config) => {
         "intent-filter": [
           {
             action: [
-              { $: { "android:name": "com.priyabrata.focusflow.ALARM_FIRE" } },
+              { $: { "android:name": "com.priyabrata.eventflow.ALARM_FIRE" } },
               { $: { "android:name": "android.intent.action.BOOT_COMPLETED" } },
               { $: { "android:name": "android.intent.action.LOCKED_BOOT_COMPLETED" } },
             ],
@@ -58,7 +58,7 @@ const withAlarmManifest = (config) => {
           "android:screenOrientation": "portrait",
           "android:theme": "@style/Theme.AppCompat.NoActionBar",
           "android:excludeFromRecents": "true",
-          "android:taskAffinity": "com.priyabrata.focusflow.alarm",
+          "android:taskAffinity": "com.priyabrata.eventflow.alarm",
         },
       });
     }
@@ -68,18 +68,18 @@ const withAlarmManifest = (config) => {
   });
 };
 
-// ─── 2. Copy Kotlin sources into generated android/ folder ────────────────────
+// --- 2. Copy Kotlin sources into generated android/ folder --------------------
 const withAlarmKotlinFiles = (config) => {
   return withDangerousMod(config, [
     "android",
     async (config) => {
       const packagePath = path.join(
         config.modRequest.platformProjectRoot,
-        "app/src/main/java/com/priyabrata/focusflow/alarm"
+        "app/src/main/java/com/priyabrata/eventflow/alarm"
       );
       fs.mkdirSync(packagePath, { recursive: true });
 
-      const srcDir = path.join(__dirname, "..", "android_backup/app/src/main/java/com/priyabrata/focusflow/alarm");
+      const srcDir = path.join(__dirname, "..", "android_backup/app/src/main/java/com/priyabrata/eventflow/alarm");
       if (fs.existsSync(srcDir)) {
         for (const file of fs.readdirSync(srcDir)) {
           fs.copyFileSync(path.join(srcDir, file), path.join(packagePath, file));
@@ -102,14 +102,14 @@ const withAlarmKotlinFiles = (config) => {
       // Patch MainApplication.kt to register AlarmManagerPackage
       const mainAppPath = path.join(
         config.modRequest.platformProjectRoot,
-        "app/src/main/java/com/priyabrata/focusflow/MainApplication.kt"
+        "app/src/main/java/com/priyabrata/eventflow/MainApplication.kt"
       );
       if (fs.existsSync(mainAppPath)) {
         let src = fs.readFileSync(mainAppPath, "utf8");
         if (!src.includes("AlarmManagerPackage")) {
           src = src.replace(
             "import expo.modules.ApplicationLifecycleDispatcher",
-            "import com.priyabrata.focusflow.alarm.AlarmManagerPackage\nimport expo.modules.ApplicationLifecycleDispatcher"
+            "import com.priyabrata.eventflow.alarm.AlarmManagerPackage\nimport expo.modules.ApplicationLifecycleDispatcher"
           );
           src = src.replace(
             "PackageList(this).packages.apply {",

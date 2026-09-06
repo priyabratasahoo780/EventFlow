@@ -10,6 +10,10 @@
     "ios": {
       "supportsTablet": true
     },
+    "notification": {
+      "icon": "./assets/images/android-icon-monochrome.png",
+      "color": "#6366F1"
+    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
@@ -46,7 +50,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon_squared.png",
+          "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#6366F1"
         }
       ],
@@ -72,7 +76,6 @@
       ],
       "expo-sharing",
       "expo-status-bar",
-      "./plugins/withAlarmManager",
       "expo-video",
       "expo-audio"
     ],

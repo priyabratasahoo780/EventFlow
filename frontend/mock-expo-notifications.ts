@@ -1,41 +1,125 @@
-export const AndroidNotificationPriority = { MAX: 1, DEFAULT: 0 };
-export const AndroidImportance = { MAX: 1 };
-export const AndroidNotificationVisibility = { PUBLIC: 1 };
-export const AndroidAudioUsage = { ALARM: 1 };
-export const AndroidAudioContentType = { SONIFICATION: 1 };
-export const SchedulableTriggerInputTypes = { DATE: 'date' };
+import * as RealNotifications from 'expo-notifications';
+import { Platform } from 'react-native';
+
+export const AndroidNotificationPriority = (RealNotifications as any).AndroidNotificationPriority || { MAX: 'max', HIGH: 'high', DEFAULT: 'default', LOW: 'low', MIN: 'min' };
+export const AndroidImportance = (RealNotifications as any).AndroidImportance || { MAX: 5, HIGH: 4, DEFAULT: 3, LOW: 2, MIN: 1, NONE: 0 };
+export const AndroidNotificationVisibility = (RealNotifications as any).AndroidNotificationVisibility || { PUBLIC: 1, PRIVATE: 0, SECRET: -1 };
+export const AndroidAudioUsage = (RealNotifications as any).AndroidAudioUsage || { ALARM: 4 };
+export const AndroidAudioContentType = (RealNotifications as any).AndroidAudioContentType || { SONIFICATION: 4 };
+export const SchedulableTriggerInputTypes = (RealNotifications as any).SchedulableTriggerInputTypes || { DATE: 'date', DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly', YEARLY: 'yearly', TIME_INTERVAL: 'timeInterval', CALENDAR: 'calendar' };
 
 export type NotificationContentInput = any;
 
-// No-op mocks that accept the same arguments as the real expo-notifications API
-// so TypeScript is satisfied in web/Expo Go environments where the native module
-// is unavailable.  All functions are intentionally no-ops.
+/**
+ * Universal Notifications bridge:
+ * - In standalone APK builds: runs real native expo-notifications (alarms, scheduled notifications, channels, badges).
+ * - In Web or Expo Go: catches any unsupported environment errors gracefully without crashing the app.
+ */
 
-export const setNotificationHandler = (_handler?: any): void => {};
+export const setNotificationHandler = (handler?: any): void => {
+  try {
+    RealNotifications.setNotificationHandler(handler);
+  } catch (e) {
+    console.warn('[Notifications] setNotificationHandler warning:', e);
+  }
+};
 
-export const scheduleNotificationAsync = async (_request?: any): Promise<string> => 'mock-id';
+export const scheduleNotificationAsync = async (request?: any): Promise<string> => {
+  try {
+    return await RealNotifications.scheduleNotificationAsync(request);
+  } catch (e) {
+    console.warn('[Notifications] scheduleNotificationAsync warning:', e);
+    return 'fallback-id';
+  }
+};
 
-export const cancelScheduledNotificationAsync = async (_id?: string): Promise<void> => {};
+export const cancelScheduledNotificationAsync = async (id?: string): Promise<void> => {
+  try {
+    if (id) await RealNotifications.cancelScheduledNotificationAsync(id);
+  } catch (e) {
+    console.warn('[Notifications] cancelScheduledNotificationAsync warning:', e);
+  }
+};
 
-export const cancelAllScheduledNotificationsAsync = async (): Promise<void> => {};
+export const cancelAllScheduledNotificationsAsync = async (): Promise<void> => {
+  try {
+    await RealNotifications.cancelAllScheduledNotificationsAsync();
+  } catch (e) {
+    console.warn('[Notifications] cancelAllScheduledNotificationsAsync warning:', e);
+  }
+};
 
-export const getAllScheduledNotificationsAsync = async (): Promise<any[]> => [];
+export const getAllScheduledNotificationsAsync = async (): Promise<any[]> => {
+  try {
+    return await RealNotifications.getAllScheduledNotificationsAsync();
+  } catch (e) {
+    console.warn('[Notifications] getAllScheduledNotificationsAsync warning:', e);
+    return [];
+  }
+};
 
 export const setNotificationChannelAsync = async (
-  _channelId?: string,
-  _channel?: any,
-): Promise<void> => {};
+  channelId?: string,
+  channel?: any,
+): Promise<void> => {
+  try {
+    if (Platform.OS === 'android' && channelId) {
+      await RealNotifications.setNotificationChannelAsync(channelId, channel);
+    }
+  } catch (e) {
+    console.warn('[Notifications] setNotificationChannelAsync warning:', e);
+  }
+};
 
-export const getPermissionsAsync = async (): Promise<{ status: string }> => ({ status: 'denied' });
+export const getPermissionsAsync = async (): Promise<{ status: string }> => {
+  try {
+    const res = await RealNotifications.getPermissionsAsync();
+    return { status: res.status as string };
+  } catch (e) {
+    return { status: 'granted' };
+  }
+};
 
-export const requestPermissionsAsync = async (): Promise<{ status: string }> => ({ status: 'denied' });
+export const requestPermissionsAsync = async (): Promise<{ status: string }> => {
+  try {
+    const res = await RealNotifications.requestPermissionsAsync();
+    return { status: res.status as string };
+  } catch (e) {
+    return { status: 'granted' };
+  }
+};
 
-export const getExpoPushTokenAsync = async (_options?: any): Promise<{ data: string }> => ({ data: '' });
+export const getExpoPushTokenAsync = async (options?: any): Promise<{ data: string }> => {
+  try {
+    return await RealNotifications.getExpoPushTokenAsync(options);
+  } catch (e) {
+    console.warn('[Notifications] getExpoPushTokenAsync warning:', e);
+    return { data: '' };
+  }
+};
 
 export const addNotificationReceivedListener = (
-  _listener?: (notification: any) => void,
-): { remove: () => void } => ({ remove: () => {} });
+  listener?: (notification: any) => void,
+): { remove: () => void } => {
+  try {
+    if (listener) {
+      return RealNotifications.addNotificationReceivedListener(listener);
+    }
+  } catch (e) {
+    console.warn('[Notifications] addNotificationReceivedListener warning:', e);
+  }
+  return { remove: () => {} };
+};
 
 export const addNotificationResponseReceivedListener = (
-  _listener?: (response: any) => void,
-): { remove: () => void } => ({ remove: () => {} });
+  listener?: (response: any) => void,
+): { remove: () => void } => {
+  try {
+    if (listener) {
+      return RealNotifications.addNotificationResponseReceivedListener(listener);
+    }
+  } catch (e) {
+    console.warn('[Notifications] addNotificationResponseReceivedListener warning:', e);
+  }
+  return { remove: () => {} };
+};

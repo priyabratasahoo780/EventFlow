@@ -299,6 +299,24 @@ exports.deleteTask = async (req, res) => {
     });
     if (!deleted) return res.status(404).json({ error: 'Task not found' });
 
+    // Clean up associated media files from server storage
+    const fs = require('fs');
+    const path = require('path');
+    
+    if (deleted.image && deleted.image.startsWith('/uploads/')) {
+      const imagePath = path.join(__dirname, '../../uploads', path.basename(deleted.image));
+      fs.unlink(imagePath, (err) => {
+        if (err && err.code !== 'ENOENT') console.error('Error deleting image file:', err);
+      });
+    }
+
+    if (deleted.video && deleted.video.startsWith('/uploads/')) {
+      const videoPath = path.join(__dirname, '../../uploads', path.basename(deleted.video));
+      fs.unlink(videoPath, (err) => {
+        if (err && err.code !== 'ENOENT') console.error('Error deleting video file:', err);
+      });
+    }
+
     const io = req.app.get('io');
     if (io) {
       const emitIds = new Set([deleted.ownerId.toString(), ...(deleted.sharedWith || []).map(id => id.toString())]);

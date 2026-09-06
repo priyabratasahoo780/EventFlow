@@ -5,6 +5,11 @@ const path = require('path');
 const connectDB = require('./config/db');
 const errorMiddleware = require('./middleware/error.middleware');
 
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
+const compression = require('compression');
+
 const authRoutes = require('./routes/auth.routes');
 const friendRoutes = require('./routes/friend.routes');
 const eventRoutes = require('./routes/event.routes');
@@ -22,7 +27,20 @@ const app = express();
 connectDB();
 
 // Middleware
+// Set security HTTP headers (crossOriginResourcePolicy disabled to allow external mobile app access to /uploads)
+app.use(helmet({ crossOriginResourcePolicy: false }));
+
 app.use(cors());
+
+// Data sanitization against NoSQL query injection
+app.use(mongoSanitize());
+
+// Prevent HTTP Parameter Pollution
+app.use(hpp());
+
+// Compress API responses
+app.use(compression());
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

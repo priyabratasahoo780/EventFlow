@@ -265,7 +265,7 @@ const MapView = forwardRef<MapViewRef, MapViewProps>(
       attributionControl: false
     });
 
-    L.tileLayer('http://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}', {
+    L.tileLayer('https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}', {
       maxZoom: 20
     }).addTo(map);
 
