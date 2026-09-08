@@ -302,8 +302,8 @@ export default function HomeScreen() {
 
   const handleStartTask = useCallback((task: Event) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    updateTaskStatus(task.id, 'in_progress');
-    router.push(`/event/${task.id}` as any);
+    updateTaskStatus((task.id || task._id) as string, 'in_progress');
+    router.push(`/event/${task.id || task._id}` as any);
   }, [updateTaskStatus, router]);
 
   // ─── Sub-components ───────────────────────────────────────────────────────
@@ -840,7 +840,7 @@ export default function HomeScreen() {
 
     return (
       <Pressable
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/event/${item.id}` as any); }}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/event/${item.id || item._id}` as any); }}
         style={s.taskCard}
       >
         {/* Left orange accent bar */}

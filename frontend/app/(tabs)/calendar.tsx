@@ -244,9 +244,9 @@ export default function CalendarScreen() {
             <EventCard
               event={item}
               index={index}
-              onPress={() => router.push(`/event/${item.id}` as any)}
-              onComplete={() => toggleEventCompletion(item.id)}
-              onDelete={() => deleteEvent(item.id)}
+              onPress={() => router.push(`/event/${item.id || item._id}` as any)}
+              onComplete={() => toggleEventCompletion((item.id || item._id) as string)}
+              onDelete={() => deleteEvent((item.id || item._id) as string)}
             />
           </View>
         )}

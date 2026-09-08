@@ -11,17 +11,52 @@ import android.media.AudioAttributes
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.Build
+import android.os.Bundle
 import android.os.IBinder
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.speech.tts.TextToSpeech
 import androidx.core.app.NotificationCompat
+import java.util.Locale
 
-class AlarmService : Service() {
+class AlarmService : Service(), TextToSpeech.OnInitListener {
 
     private var ringtone: Ringtone? = null
     private var vibrator: Vibrator? = null
+    private var tts: TextToSpeech? = null
+    private var alarmTitle: String = ""
+    private var alarmBody: String = ""
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        tts = TextToSpeech(this, this)
+    }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            tts?.language = Locale.getDefault()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val audioAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+                tts?.setAudioAttributes(audioAttributes)
+            }
+            speakAlarm()
+        }
+    }
+
+    private fun speakAlarm() {
+        if (alarmTitle.isNotEmpty() || alarmBody.isNotEmpty()) {
+            val textToSpeak = "Alarm: $alarmTitle. $alarmBody"
+            // Use QUEUE_ADD to not interrupt other TTS, but here we want to speak over alarm if needed
+            val params = Bundle()
+            params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
+            tts?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, params, "AlarmTTS")
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
@@ -31,8 +66,8 @@ class AlarmService : Service() {
             return START_NOT_STICKY
         }
 
-        val title = intent?.getStringExtra("TITLE") ?: "Event Reminder"
-        val body = intent?.getStringExtra("BODY") ?: "It's time!"
+        alarmTitle = intent?.getStringExtra("TITLE") ?: "Event Reminder"
+        alarmBody = intent?.getStringExtra("BODY") ?: "It's time!"
         val eventId = intent?.getStringExtra("EVENT_ID") ?: ""
         val alarmId = intent?.getStringExtra("ALARM_ID") ?: ""
 
@@ -53,8 +88,8 @@ class AlarmService : Service() {
 
         val alarmIntent = Intent(this, AlarmActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            putExtra("TITLE", title)
-            putExtra("BODY", body)
+            putExtra("TITLE", alarmTitle)
+            putExtra("BODY", alarmBody)
             putExtra("EVENT_ID", eventId)
             putExtra("ALARM_ID", alarmId)
         }
@@ -81,8 +116,8 @@ class AlarmService : Service() {
 
         val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(iconResId)
-            .setContentTitle(title)
-            .setContentText(body)
+            .setContentTitle(alarmTitle)
+            .setContentText(alarmBody)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setFullScreenIntent(pendingIntent, true)
@@ -95,6 +130,11 @@ class AlarmService : Service() {
         
         // Start sound and vibration
         startAlarm()
+
+        // Speak if TTS is already initialized
+        if (tts != null) {
+            speakAlarm()
+        }
 
         return START_STICKY
     }
@@ -128,10 +168,12 @@ class AlarmService : Service() {
     private fun stopAlarm() {
         ringtone?.takeIf { it.isPlaying }?.stop()
         vibrator?.cancel()
+        tts?.stop()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         stopAlarm()
+        tts?.shutdown()
     }
 }

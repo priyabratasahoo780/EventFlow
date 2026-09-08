@@ -35,7 +35,7 @@ export default function EventDetailsScreen() {
   const [timeLeft, setTimeLeft] = useState('');
   const [showMap, setShowMap] = useState(false);
 
-  const event = events.find(e => e.id === id) || friendsEvents.find(e => (e.id || e._id) === id);
+  const event = events.find(e => e.id === id || e._id === id) || friendsEvents.find(e => e.id === id || e._id === id);
   const [previewVideo, setPreviewVideo] = useState(false);
 
   useEffect(() => {

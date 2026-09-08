@@ -1,22 +1,14 @@
 package com.priyabrata.eventflow.alarm
 
-import android.content.Context
-import android.media.AudioAttributes
-import android.media.Ringtone
-import android.media.RingtoneManager
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.os.VibrationEffect
-import android.os.Vibrator
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
 class AlarmActivity : AppCompatActivity() {
-
-    private var ringtone: Ringtone? = null
-    private var vibrator: Vibrator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,44 +40,21 @@ class AlarmActivity : AppCompatActivity() {
         bodyView?.text = body
 
         dismissBtn?.setOnClickListener {
-            stopAlarm()
+            stopAlarmService()
             finish()
         }
-
-        startAlarm()
     }
 
-    private fun startAlarm() {
-        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-        ringtone = RingtoneManager.getRingtone(applicationContext, uri)
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            ringtone?.isLooping = true
+    private fun stopAlarmService() {
+        val stopIntent = Intent(this, AlarmService::class.java).apply {
+            action = "STOP_ALARM"
         }
-        
-        ringtone?.audioAttributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
-            
-        ringtone?.play()
-
-        vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 500), 0))
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(longArrayOf(0, 500, 500), 0)
-        }
-    }
-
-    private fun stopAlarm() {
-        ringtone?.takeIf { it.isPlaying }?.stop()
-        vibrator?.cancel()
+        startService(stopIntent)
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        stopAlarm()
+        // If the activity is destroyed (e.g. user swiped it away), we should ensure the alarm stops
+        stopAlarmService()
     }
 }

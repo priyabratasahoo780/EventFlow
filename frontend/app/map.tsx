@@ -237,7 +237,7 @@ export default function MapScreen() {
             }
 
             return (
-              <Pressable onPress={() => router.push(`/event/${item.id}` as any)}>
+              <Pressable onPress={() => router.push(`/event/${item.id || item._id}` as any)}>
                 <View style={styles.taskCard}>
                   <View style={styles.cardHeader}>
                     <View style={styles.iconCircle}>

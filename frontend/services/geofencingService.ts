@@ -30,7 +30,7 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
       if (!eventsStr) return;
       
       const events: Event[] = JSON.parse(eventsStr);
-      const event = events.find((e: Event) => e.id === taskId);
+      const event = events.find((e: Event) => e.id === taskId || e._id === taskId);
       
       if (!event || !event.locationReminderEnabled) return;
 
@@ -41,16 +41,26 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
       if (eventType === expectedTrigger) {
         // Check if we already notified for this state
         if (!triggeredTasks[taskId]) {
-          // Trigger Notification
+          // 1. Trigger Notification
           await Notifications.scheduleNotificationAsync({
             content: {
               title: `📍 Location Reminder`,
               body: `You're ${expectedTrigger === Location.GeofencingEventType.Enter ? 'near' : 'leaving'} ${event.location || 'the location'}.\n\nTask: ${event.title}\nDon't forget to complete this task.`,
               sound: true,
-              data: { eventId: event.id },
+              data: { eventId: event.id || event._id },
             },
             trigger: null,
           });
+
+          // 2. Trigger Full-Screen Native Alarm (fires in 1 second)
+          const alarmService = require('./alarmService').alarmService;
+          await alarmService.scheduleAlarm(
+            `geo_${taskId}_${Date.now()}`,
+            Date.now() + 1000,
+            "📍 Location Alarm",
+            `Task: ${event.title}\nLocation: ${event.location || 'Unknown'}`,
+            (event.id || event._id) as string
+          );
 
           // Mark as triggered
           triggeredTasks[taskId] = true;
@@ -87,10 +97,11 @@ class GeofencingService {
 
       const regionsStr = await AsyncStorage.getItem('geofencing_regions');
       const regions: Location.LocationRegion[] = regionsStr ? JSON.parse(regionsStr) : [];
-      const updatedRegions = regions.filter(r => r.identifier !== event.id);
+      const eventId = (event.id || event._id) as string;
+      const updatedRegions = regions.filter(r => r.identifier !== eventId);
       
       updatedRegions.push({
-        identifier: event.id,
+        identifier: eventId,
         latitude: event.locationDetails.latitude,
         longitude: event.locationDetails.longitude,
         radius: event.geofenceRadius || 500,
