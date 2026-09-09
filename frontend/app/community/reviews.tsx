@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, FlatList, Pressable, Modal, TextInput, ActivityIndicator, Image, ToastAndroid, Platform, Alert } from 'react-native';
+import { StyleSheet, View, Text, FlatList, Pressable, Modal, TextInput, ActivityIndicator, Image, ToastAndroid, Platform, Alert, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { useAuthStore } from '../../store/useAuthStore';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeStore } from '../../store/useThemeStore';
@@ -205,59 +205,85 @@ export default function CommunityReviewsScreen() {
       </Pressable>
 
       {/* ── WRITE REVIEW MODAL ── */}
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <View style={s.modalOverlay}>
-          <View style={s.modalContent}>
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Write a Review</Text>
-              <Pressable onPress={() => setModalVisible(false)} style={s.closeBtn}>
-                <X color={colors.text} size={24} />
-              </Pressable>
-            </View>
+      <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={s.modalOverlay} onPress={() => setModalVisible(false)}>
+            <Pressable onPress={() => {}} style={{ width: '100%' }}>
+              <View style={[s.modalContent, { paddingBottom: Math.max(insets.bottom, 24) + 16 }]}>
+                {/* Drag handle */}
+                <View style={s.dragHandle} />
 
-            <Text style={s.modalLabel}>Tap a star to rate</Text>
-            <View style={s.ratingInteractiveRow}>
-              {[1, 2, 3, 4, 5].map(i => (
-                <Pressable key={i} onPress={() => { Haptics.selectionAsync(); setRating(i); }} style={s.starBtn}>
-                  <Star
-                    color={i <= rating ? '#F59E0B' : colors.border}
-                    fill={i <= rating ? '#F59E0B' : 'transparent'}
-                    size={36}
-                    strokeWidth={i <= rating ? 2 : 1.5}
-                  />
-                </Pressable>
-              ))}
-            </View>
+                <View style={s.modalHeader}>
+                  <Text style={s.modalTitle}>Write a Review</Text>
+                  <Pressable
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setModalVisible(false); }}
+                    style={s.closeBtn}
+                    hitSlop={12}
+                  >
+                    <X color={colors.text} size={20} strokeWidth={2.5} />
+                  </Pressable>
+                </View>
 
-            <Text style={s.modalLabel}>Share your experience</Text>
-            <TextInput
-              style={s.textArea}
-              placeholder="How is EventFlow helping you stay productive?"
-              placeholderTextColor={colors.textSecondary}
-              multiline
-              textAlignVertical="top"
-              value={text}
-              onChangeText={setText}
-            />
+                <Text style={s.modalLabel}>Tap a star to rate</Text>
+                <View style={s.ratingInteractiveRow}>
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <Pressable
+                      key={i}
+                      onPress={() => { Haptics.selectionAsync(); setRating(i); }}
+                      style={({ pressed }) => [s.starBtn, pressed && { transform: [{ scale: 1.2 }] }]}
+                    >
+                      <Star
+                        color={i <= rating ? '#F59E0B' : colors.border}
+                        fill={i <= rating ? '#F59E0B' : 'transparent'}
+                        size={38}
+                        strokeWidth={i <= rating ? 2 : 1.5}
+                      />
+                    </Pressable>
+                  ))}
+                </View>
 
-            <Pressable 
-              style={({pressed}) => [s.submitBtn, pressed && { opacity: 0.8 }, submitting && { opacity: 0.5 }]}
-              onPress={handleSubmit}
-              disabled={submitting}
-            >
-              <LinearGradient colors={[colors.secondary, colors.secondary]} style={s.submitGrad}>
-                {submitting ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <>
-                    <Send color="#FFF" size={18} strokeWidth={2.5} />
-                    <Text style={s.submitText}>Submit Review</Text>
-                  </>
+                {rating > 0 && (
+                  <Text style={s.ratingLabel}>
+                    {['', 'Poor 😕', 'Fair 😐', 'Good 😊', 'Great 😄', 'Excellent 🤩'][rating]}
+                  </Text>
                 )}
-              </LinearGradient>
+
+                <Text style={[s.modalLabel, { marginTop: 20 }]}>Share your experience</Text>
+                <TextInput
+                  style={s.textArea}
+                  placeholder="How is EventFlow helping you stay productive?"
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                  textAlignVertical="top"
+                  value={text}
+                  onChangeText={setText}
+                  maxLength={500}
+                />
+                <Text style={s.charCount}>{text.length}/500</Text>
+
+                <Pressable
+                  style={({ pressed }) => [s.submitBtn, pressed && { transform: [{ scale: 0.98 }] }, submitting && { opacity: 0.6 }]}
+                  onPress={handleSubmit}
+                  disabled={submitting}
+                >
+                  <LinearGradient colors={['#F59E0B', '#EA580C']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.submitGrad}>
+                    {submitting ? (
+                      <ActivityIndicator color="#FFF" />
+                    ) : (
+                      <>
+                        <Send color="#FFF" size={18} strokeWidth={2.5} />
+                        <Text style={s.submitText}>Submit Review</Text>
+                      </>
+                    )}
+                  </LinearGradient>
+                </Pressable>
+              </View>
             </Pressable>
-          </View>
-        </View>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
     </SafeAreaView>
@@ -440,12 +466,20 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
+  dragHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
   modalContent: {
     backgroundColor: colors.card,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
-    padding: 24,
-    paddingBottom: 40,
+    paddingHorizontal: 24,
+    paddingTop: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
@@ -464,9 +498,22 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     color: colors.text,
   },
   closeBtn: {
-    padding: 4,
-    backgroundColor: colors.border,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  ratingLabel: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 14,
+    color: '#F59E0B',
+    textAlign: 'center',
+    marginTop: -16,
+    marginBottom: 8,
   },
   modalLabel: {
     fontFamily: 'Poppins_700Bold',
@@ -493,10 +540,18 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     fontFamily: 'Poppins_500Medium',
     fontSize: 15,
     color: colors.text,
-    minHeight: 120,
-    borderWidth: 1,
+    minHeight: 110,
+    maxHeight: 160,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    marginBottom: 24,
+    marginBottom: 6,
+  },
+  charCount: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'right',
+    marginBottom: 20,
   },
   submitBtn: {
     shadowColor: colors.secondary,

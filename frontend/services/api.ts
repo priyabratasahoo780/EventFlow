@@ -3,39 +3,49 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-const getApiUrl = () => {
+// ─────────────────────────────────────────────────────────────────────────────
+// API URL Resolution
+// Priority: EXPO_PUBLIC_API_URL (set in eas.json) > emulator fallback > dev host
+// In production APK, EXPO_PUBLIC_API_URL is always set via eas.json env block.
+// ─────────────────────────────────────────────────────────────────────────────
+const getApiUrl = (): string => {
+  // 1. Production APK: always use the env variable set in eas.json
   if (process.env.EXPO_PUBLIC_API_URL) {
-    // If the old IP is still in the process.env due to lack of restart, override it
-    const url = process.env.EXPO_PUBLIC_API_URL;
-    if (url.includes('192.168.1.97')) return url.replace('192.168.1.97', '192.168.1.73');
-    return url;
+    return process.env.EXPO_PUBLIC_API_URL;
   }
-  
-  let hostIp = '192.168.1.73';
-  const debuggerHost = Constants.expoConfig?.hostUri || (Constants as any).manifest?.debuggerHost || (Constants as any).manifest2?.extra?.expoGo?.debuggerHost;
-  
+
+  // 2. Dev fallback: try to detect Metro host
+  const debuggerHost =
+    Constants.expoConfig?.hostUri ||
+    (Constants as any).manifest?.debuggerHost ||
+    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost;
+
   if (debuggerHost) {
-    hostIp = debuggerHost.split(':')[0];
-  } else if (Platform.OS === 'android') {
-    hostIp = '10.0.2.2'; // Default Android Emulator host IP
+    const hostIp = debuggerHost.split(':')[0];
+    return `http://${hostIp}:5000/api`;
   }
-  
-  // If we got localhost/127.0.0.1 on Android, redirect to host
-  if (Platform.OS === 'android' && (hostIp === '127.0.0.1' || hostIp === 'localhost')) {
-    hostIp = '10.0.2.2';
+
+  // 3. Android emulator default
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:5000/api';
   }
-  
-  return `http://${hostIp}:5000/api`;
+
+  // 4. iOS simulator default
+  return 'http://localhost:5000/api';
 };
 
 const API_URL = getApiUrl();
-console.log('Using API URL:', API_URL);
+
+if (__DEV__) {
+  console.log('[API] Using URL:', API_URL);
+}
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 10000,
+  timeout: 15000, // increased for slower mobile connections
 });
 
+// ─── Request interceptor: attach auth token ───────────────────────────────────
 api.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem('token');
@@ -45,6 +55,33 @@ api.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+// ─── Response interceptor: handle 401 & network errors ───────────────────────
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      // Token expired or invalid — clear auth state so the auth guard
+      // in _layout.tsx redirects the user back to the login screen.
+      try {
+        await AsyncStorage.multiRemove(['token', 'user']);
+      } catch (e) {
+        // ignore storage errors during logout
+      }
+      // We don't import the router here to avoid circular deps —
+      // the useAuthStore's checkAuth effect will handle the redirect.
+    }
+
+    if (!error.response && error.message === 'Network Error') {
+      // Surface a friendlier error for callers to catch
+      return Promise.reject(
+        new Error('Unable to connect to the server. Please check your internet connection.')
+      );
+    }
+
+    return Promise.reject(error);
+  }
 );
 
 export default api;

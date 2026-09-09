@@ -7,8 +7,13 @@
     "icon": "./assets/images/icon_squared.png",
     "scheme": "eventflow",
     "userInterfaceStyle": "automatic",
+    "androidStatusBar": {
+      "barStyle": "light-content",
+      "translucent": true
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.priyabrata.eventflow"
     },
     "notification": {
       "icon": "./assets/images/android-icon-monochrome.png",
@@ -16,10 +21,11 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff",
+        "backgroundColor": "#1a1a2e",
         "foregroundImage": "./assets/images/icon_squared.png"
       },
       "predictiveBackGestureEnabled": false,
+      "newArchEnabled": true,
       "permissions": [
         "SCHEDULE_EXACT_ALARM",
         "USE_EXACT_ALARM",
@@ -51,7 +57,7 @@
         {
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#0A0817"
         }
       ],
       [
@@ -95,9 +101,7 @@
         "projectId": "6e1d8280-cb77-4673-8219-1b36142d7a90"
       }
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "updates": {
       "url": "https://u.expo.dev/6e1d8280-cb77-4673-8219-1b36142d7a90"
     }

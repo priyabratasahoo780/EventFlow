@@ -1,14 +1,15 @@
 import { useFonts } from 'expo-font';
-import { 
+import {
   Poppins_400Regular,
   Poppins_500Medium,
   Poppins_600SemiBold,
   Poppins_700Bold,
-  Poppins_800ExtraBold
+  Poppins_800ExtraBold,
 } from '@expo-google-fonts/poppins';
 import { Stack, DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import SplashScreenView from '../components/SplashScreenView';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -22,6 +23,7 @@ import { ClerkProvider } from '../services/clerkAuth';
 import { tokenCache } from '../services/tokenCache';
 import '../services/geofencingService'; // Initialize Geofencing Background Task
 import * as Location from 'expo-location';
+import { alarmService } from '../services/alarmService';
 
 LogBox.ignoreLogs([
   'expo-notifications: Android Push notifications',
@@ -34,17 +36,18 @@ LogBox.ignoreLogs([
 try {
   // Configure foreground local notification handler for both Expo Go and standalone builds
   Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-      }),
-    });
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
 } catch (e) {
   console.warn('Failed to set notification handler:', e);
 }
+
 export {
   // Catch any errors thrown by the Layout component.
   ErrorBoundary,
@@ -58,7 +61,9 @@ export const unstable_settings = {
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_cmFwaWQtd2FscnVzLTU2ODYuY2xlcmsuYWNjb3VudHMuZGV2JA';
+const CLERK_PUBLISHABLE_KEY =
+  process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+  'pk_test_cmFwaWQtd2FscnVzLTU2ODYuY2xlcmsuYWNjb3VudHMuZGV2JA';
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -70,28 +75,40 @@ export default function RootLayout() {
     Poppins_800ExtraBold,
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
+  // Controls the in-app animated splash overlay
+  const [showSplash, setShowSplash] = useState(true);
+
+  const fontsReady = loaded || !!error;
+
   useEffect(() => {
     if (error) {
       console.warn('Font load error:', error);
-      SplashScreen.hideAsync().catch(() => {});
     }
   }, [error]);
 
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync().catch(() => {});
-    }
-  }, [loaded]);
-
-  if (!loaded && !error) {
-    return null;
-  }
+  // When SplashScreenView finishes its exit animation, hide the native splash too
+  const handleSplashFinish = () => {
+    setShowSplash(false);
+    SplashScreen.hideAsync().catch(() => {});
+  };
 
   return (
-    <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
-      <RootLayoutNav />
-    </ClerkProvider>
+    <>
+      {/* Real app — always mounted so auth store can init while splash plays */}
+      {fontsReady && (
+        <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
+          <RootLayoutNav />
+        </ClerkProvider>
+      )}
+
+      {/* Animated in-app splash overlay */}
+      {showSplash && (
+        <SplashScreenView
+          isReady={fontsReady}
+          onFinish={handleSplashFinish}
+        />
+      )}
+    </>
   );
 }
 
@@ -99,16 +116,19 @@ function RootLayoutNav() {
   const { token, isLoading: authLoading, checkAuth } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
+  // Keep a ref to the last notification response so we only navigate once
+  const lastNotificationId = useRef<string | null>(null);
 
   useEffect(() => {
     checkAuth();
   }, []);
 
+  // ── Auth guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (authLoading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
-    
+
     if (!token && !inAuthGroup) {
       router.replace('/(auth)/welcome');
     } else if (token && inAuthGroup) {
@@ -116,18 +136,51 @@ function RootLayoutNav() {
     }
   }, [token, authLoading, segments]);
 
+  // ── Notification tap → navigate to event ────────────────────────────────────
   useEffect(() => {
-    async function checkNotifications() {
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response: any) => {
+        try {
+          const notifId = response?.notification?.request?.identifier;
+          if (notifId && notifId === lastNotificationId.current) return; // dedupe
+          lastNotificationId.current = notifId ?? null;
+
+          const data = response?.notification?.request?.content?.data;
+          const eventId = data?.eventId;
+
+          if (eventId && token) {
+            // Navigate to the event detail page
+            router.push(`/event/${eventId}` as any);
+          }
+        } catch (e) {
+          console.warn('[Notifications] Response listener error:', e);
+        }
+      }
+    );
+    return () => {
       try {
+        subscription?.remove();
+      } catch (_) {}
+    };
+  }, [token]);
+
+  // ── Permissions & services bootstrap ────────────────────────────────────────
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    async function bootstrap() {
+      try {
+        // 1. Set up Android notification channel
         if (Platform.OS === 'android') {
           await Notifications.setNotificationChannelAsync('focusflow_alarm_v2', {
-            name: 'FocusFlow Loud Alarms & Reminders',
+            name: 'EventFlow Alarms & Reminders',
             importance: Notifications.AndroidImportance.MAX,
             vibrationPattern: [0, 500, 250, 500, 250, 500],
             lightColor: '#6366F1',
             sound: 'default',
             enableVibrate: true,
             showBadge: true,
+            bypassDnd: true,
             lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
             audioAttributes: {
               usage: Notifications.AndroidAudioUsage.ALARM,
@@ -136,6 +189,7 @@ function RootLayoutNav() {
           });
         }
 
+        // 2. Request notification permission
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
         let finalStatus = existingStatus;
         if (existingStatus !== 'granted') {
@@ -144,42 +198,43 @@ function RootLayoutNav() {
         }
         if (finalStatus !== 'granted') {
           Alert.alert(
-            "Notifications Disabled",
-            "Please allow notifications in settings so FocusFlow can remind you before task deadlines!",
-            [{ text: "OK" }]
+            'Notifications Disabled',
+            'Please allow notifications in Settings so EventFlow can remind you before event deadlines!',
+            [{ text: 'OK' }]
           );
         }
-        
-        // Request Background Location for Geofencing
+
+        // 3. Request exact alarm permission (Android 12+)
+        // Do this early so users aren't surprised later when scheduling alarms.
+        if (Platform.OS === 'android') {
+          await alarmService.ensureExactAlarmPermission();
+        }
+
+        // 4. Request foreground location
         const { status: fgStatus } = await Location.getForegroundPermissionsAsync();
         if (fgStatus !== 'granted') {
           await Location.requestForegroundPermissionsAsync();
         }
+
+        // 5. Request background location (needed for geofencing)
         const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
         if (bgStatus !== 'granted') {
           await Location.requestBackgroundPermissionsAsync();
         }
 
-        // Start Activity Recognition (Underground GPS Fallback)
+        // 6. Start activity recognition for smart context
         try {
           const { activityRecognitionService } = require('../services/activityRecognitionService');
           await activityRecognitionService.start();
         } catch (actError) {
           console.warn('[Smart Context] Failed to start activity recognition:', actError);
         }
-
-        // EC5: Request Notification Policy Access for DND override
-        try {
-          const Intent = require('react-native').Intent; // Not cleanly imported, let's use an expo way or just tell the user. 
-        } catch(e) {}
       } catch (e) {
-        console.warn('Notification/Location permission check error:', e);
+        console.warn('[Bootstrap] Permission/service init error:', e);
       }
     }
-    
-    if (Platform.OS !== 'web') {
-      checkNotifications();
-    }
+
+    bootstrap();
   }, []);
 
   const { isDark } = useThemeStore();

@@ -161,7 +161,7 @@ export default function SettingsScreen() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const fileUri = (FileSystem.documentDirectory || '') + 'focusflow_backup.json';
-      await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(events, null, 2), { encoding: 'utf8' });
+      await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(events, null, 2), { encoding: 'utf8' as any });
       
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {
@@ -188,7 +188,7 @@ export default function SettingsScreen() {
       });
       
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const fileContent = await FileSystem.readAsStringAsync(result.assets[0].uri, { encoding: 'utf8' });
+        const fileContent = await FileSystem.readAsStringAsync(result.assets[0].uri, { encoding: 'utf8' as any });
         const importedData = JSON.parse(fileContent);
         
         if (Array.isArray(importedData)) {

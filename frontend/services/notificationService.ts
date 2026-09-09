@@ -55,42 +55,55 @@ export const notificationService = {
     }
   },
 
-  async registerForPushNotificationsAsync() {
+  async registerForPushNotificationsAsync(): Promise<string | null> {
     await this.ensureNotificationChannel();
 
+    // Expo Go does not support remote push tokens — skip silently
     if (isExpoGo) {
-      console.log('Skipping push token registration in Expo Go to avoid projectId errors, using local only.');
+      if (__DEV__) console.log('[Push] Skipping push token in Expo Go — local notifications still work.');
       return null;
     }
 
-    if (Device.isDevice) {
-      try {
-        const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        let finalStatus = existingStatus;
-        if (existingStatus !== 'granted') {
-          const { status } = await Notifications.requestPermissionsAsync();
-          finalStatus = status;
-        }
-        if (finalStatus !== 'granted') {
-          console.log('Failed to get push token for push notification!');
-          return null;
-        }
-
-        const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
-        const token = (await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined)).data;
-        return token;
-      } catch (error: any) {
-        if (error?.message?.includes('Expo Go') || String(error).includes('Expo Go')) {
-          console.log('Skipping remote push token in Expo Go. Local notifications will still work.');
-        } else {
-          console.log('Expo Push Token error:', error);
-        }
-      }
-    } else {
-      console.log('Must use physical device for Push Notifications');
+    // Push tokens require a physical device
+    if (!Device.isDevice) {
+      if (__DEV__) console.log('[Push] Skipping push token on simulator/emulator.');
+      return null;
     }
 
-    return null;
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') {
+        console.warn('[Push] Notification permission denied — push token not registered.');
+        return null;
+      }
+
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId ||
+        (Constants as any).easConfig?.projectId;
+
+      if (!projectId) {
+        console.warn('[Push] No EAS projectId found in app config — cannot get push token.');
+        return null;
+      }
+
+      const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+      const token = tokenData?.data;
+      if (__DEV__) console.log('[Push] Expo push token registered:', token);
+      return token || null;
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      if (msg.includes('Expo Go') || msg.includes('standalone')) {
+        console.log('[Push] Push token not available in this environment:', msg);
+      } else {
+        console.error('[Push] Unexpected push token error:', msg);
+      }
+      return null;
+    }
   },
 
   async scheduleEventNotifications(event: Event, reminders: ReminderConfig[]): Promise<ReminderConfig[]> {
