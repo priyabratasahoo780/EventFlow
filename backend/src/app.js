@@ -32,8 +32,13 @@ app.use(helmet({ crossOriginResourcePolicy: false }));
 
 app.use(cors());
 
-// Data sanitization against NoSQL query injection
-app.use(mongoSanitize());
+// Data sanitization against NoSQL query injection (Express 5 safe in-place sanitization)
+app.use((req, _res, next) => {
+  if (req.body) mongoSanitize.sanitize(req.body);
+  if (req.params) mongoSanitize.sanitize(req.params);
+  if (req.query) mongoSanitize.sanitize(req.query);
+  next();
+});
 
 // Prevent HTTP Parameter Pollution
 app.use(hpp());
@@ -45,6 +50,11 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/api', apiLimiter);
+
+// Health check
+app.get(['/', '/api', '/api/health'], (_req, res) => {
+  res.status(200).json({ status: 'ok', message: 'EventFlow API is running 🚀' });
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
