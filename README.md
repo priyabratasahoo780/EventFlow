@@ -42,6 +42,8 @@
 
 - [Overview](#overview)
 - [Key Features](#key-features)
+- [Complete Feature Overview](#-complete-feature-overview)
+- [EventFlow vs. The Market](#️-eventflow-vs-the-market)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Project Structure](#project-structure)
@@ -107,6 +109,152 @@ Built on a **React Native + Expo** frontend and a **Node.js + Express + MongoDB*
 - Dark/Light theme via `useThemeStore`
 - Smooth animations (Reanimated 4), haptic feedback on every interaction
 - Hero card carousel with auto-scroll, category chips, status filter pills
+
+---
+
+## 🗂️ Complete Feature Overview
+
+> Every feature shipped in the current production build.
+
+### 📅 Event & Task Management
+
+| Feature | Description | Status |
+|:---|:---|:---:|
+| Rich event creation | Category, priority, duration, color, icon, linked contact, media (image/video) | ✅ |
+| Multi-reminder system | Per-event reminders: `before`, `exact`, `daily`, `weekly`, `monthly`, `yearly` | ✅ |
+| Smart status lifecycle | `pending → in_progress → completed → overdue` with visual indicators | ✅ |
+| Event detail screen | Full-page dynamic screen (`/event/[id]`) with edit & delete | ✅ |
+| Add Event screen | Full-form screen with all fields, validation, and media upload | ✅ |
+| Task Triage view | Bulk-manage overdue/pending tasks from a dedicated triage screen | ✅ |
+| Calendar view | Monthly/weekly visual calendar with event dots and filters | ✅ |
+| Category chips & filters | Filter events by category, status, or priority on the home screen | ✅ |
+| Hero Focus Card carousel | Auto-scrolling top 3 AI-ranked events as full-bleed hero cards | ✅ |
+
+---
+
+### 🧠 AI Priority Engine
+
+| Feature | Description | Status |
+|:---|:---|:---:|
+| Dynamic priority scoring | Weighs **deadline proximity**, **user-defined importance**, and **location distance** | ✅ |
+| Server-side recommendation | `/api/tasks/recommendation` returns top-ranked task | ✅ |
+| Client-side ranking | Instant re-rank on Zustand state changes without API call | ✅ |
+| Overdue auto-detection | Backend cron-style check; status flips to `overdue` automatically | ✅ |
+
+---
+
+### 🔔 Alarm & Notification System
+
+| Feature | Description | Status |
+|:---|:---|:---:|
+| Local push notifications | `expo-notifications` banners with sound (all platforms, foreground + background) | ✅ |
+| Native Android exact alarms | Custom `AlarmManagerModule` (Kotlin) — fires precisely on time even if app is killed | ✅ |
+| Deep sleep wake-up | `PowerManager.WakeLock` bypasses Android Doze mode; screen turns on | ✅ |
+| Alarm modal UI | Looping alarm sound, haptics, animated dismiss button | ✅ |
+| Multi-reminder support | Schedule multiple alarm times per single event | ✅ |
+| Expo Go graceful fallback | Fallback to standard notifications when native module unavailable | ✅ |
+
+---
+
+### 📍 Geofence & Location
+
+| Feature | Description | Status |
+|:---|:---|:---:|
+| Location trigger per event | Enable arrive-at / leave-location reminders | ✅ |
+| Background geofencing | `expo-location` background task + custom geofencing engine | ✅ |
+| Location Arrival Modal | In-app overlay with map shortcut when you enter the event zone | ✅ |
+| Full-screen map view | `/map` screen with event pins and geofence radius circles | ✅ |
+| Location selector | Pick event location from map directly inside the Add Event flow | ✅ |
+
+---
+
+### 👥 Social & Friends
+
+| Feature | Description | Status |
+|:---|:---|:---:|
+| Friend discovery | Search by username or email | ✅ |
+| Request → Accept → Connect | Full friend request lifecycle with reject support | ✅ |
+| Event sharing | Share events with visibility: `onlyMe`, `friends`, `selectedFriends` | ✅ |
+| Real-time friend event feed | Friends' shared events streamed via Socket.io | ✅ |
+| In-app DM messaging | Direct messages between connected friends | ✅ |
+| Remove friend | Unfriend with confirmation | ✅ |
+
+---
+
+### 💬 Community
+
+| Feature | Description | Status |
+|:---|:---|:---:|
+| Public reviews feed | Users post reviews visible to the whole community | ✅ |
+| Like / toggle reactions | Tap to like or unlike any community review | ✅ |
+| Review creation | Rich text review submission from the Community screen | ✅ |
+
+---
+
+### 📊 Analytics Dashboard
+
+| Feature | Description | Status |
+|:---|:---|:---:|
+| Weekly productivity chart | Bar chart of events completed per day (gifted-charts) | ✅ |
+| Category breakdown | Pie/segment breakdown by event category | ✅ |
+| Completion trend | Historical trend of task completion rate | ✅ |
+| Daily momentum bar | Home screen progress bar showing today's completion % | ✅ |
+| Dashboard API | `/api/analytics/dashboard`, `/weekly`, `/categories` endpoints | ✅ |
+
+---
+
+### 🎨 UI & Experience
+
+| Feature | Description | Status |
+|:---|:---|:---:|
+| Animated Splash Screen | Custom `SplashScreenView` with branded animation sequence | ✅ |
+| Dark / Light theme | System-aware + manual toggle via `useThemeStore` | ✅ |
+| Haptic feedback | Every tap triggers haptic via `expo-haptics` | ✅ |
+| Smooth animations | Reanimated 4 — shared values, layout transitions, spring physics | ✅ |
+| BrutalCard / BrutalButton | Custom design-system primitives used across all screens | ✅ |
+| Responsive layout | Scales cleanly across phone sizes (portrait only) | ✅ |
+| Media picker | Image & video picker with preview (Expo ImagePicker) | ✅ |
+| Offline-first alarms | Alarms work 100% without internet | ✅ |
+
+---
+
+## ⚔️ EventFlow vs. The Market
+
+> How EventFlow stacks up against the most popular event & calendar apps available today.
+
+| Feature | **EventFlow** | Google Calendar | Apple Calendar | Todoist | TickTick | Any.do |
+|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Smart AI Priority Ranking** | ✅ Built-in | ❌ | ❌ | ✅ Basic | ✅ Basic | ❌ |
+| **Native Exact Alarms (bypasses Doze)** | ✅ Custom Kotlin module | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Deep-sleep Screen Wake-up** | ✅ WakeLock | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Multi-type reminders per event** | ✅ 6 types | ✅ 3 types | ✅ 2 types | ✅ (premium) | ✅ (premium) | ✅ (premium) |
+| **Geofence Location Reminders** | ✅ Arrive & Leave | ✅ Arrive only | ❌ | ❌ | ✅ (premium) | ✅ (premium) |
+| **Real-time Social Event Feed** | ✅ Socket.io | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **In-app Friend Messaging (DM)** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Friend Request System** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Community Reviews Feed** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Event Media (Image / Video)** | ✅ | ❌ | ❌ | ✅ image only | ✅ image only | ❌ |
+| **Weekly Analytics Dashboard** | ✅ Custom charts | ✅ Basic | ❌ | ✅ (premium) | ✅ (premium) | ❌ |
+| **Task Triage Screen** | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| **Hero Focus Card (top event)** | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ (premium) |
+| **Full-screen Map with Event Pins** | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Open Source & Self-hostable** | ✅ MIT | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Zero Subscription / Free Forever** | ✅ | ✅ (basic) | ✅ | ❌ (freemium) | ❌ (freemium) | ❌ (freemium) |
+| **Offline-first Alarm Engine** | ✅ | ⚠️ partial | ⚠️ partial | ⚠️ partial | ⚠️ partial | ⚠️ partial |
+
+### 🏆 What Makes EventFlow Unique
+
+> These capabilities **do not exist** in any mainstream calendar or productivity app on the market today:
+
+| Unique Capability | Why It Matters |
+|:---|:---|
+| 🔋 **Native Android WakeLock Alarm** | Most apps rely on OS notifications which can be silenced by battery optimization. EventFlow wakes the screen and plays sound even when the app is force-killed — like a real alarm clock. |
+| 🤝 **Social Event Sharing with Real-time Feed** | No other calendar app has a friend-based event feed with Socket.io live updates. Share your events with specific friends the way you'd share a post. |
+| 💬 **In-app DM between friends** | Combined in a single event app — no need to switch to WhatsApp to coordinate plans. |
+| 🧠 **Multi-factor AI Priority Engine** | Priority is calculated from 3 signals simultaneously: time to deadline, user importance, and physical distance to location. |
+| 🌍 **Arrive AND Leave geofence triggers** | TickTick and Any.do only support arrive; EventFlow fires reminders on both arrival and departure. |
+| 💬 **Public Community Reviews** | A social review feed inside a productivity app — first of its kind in this category. |
+| 🆓 **100% Free, Open Source, Self-hostable** | Todoist, TickTick, and Any.do all charge for premium features. EventFlow is MIT-licensed with no paywalls. |
 
 ---
 
