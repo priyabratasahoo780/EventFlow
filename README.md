@@ -92,7 +92,7 @@ Building a reliable alarm and productivity app comes with complex edge cases, es
 
 5. **The "Forgot to check-in/out" Location Problem:**
    - **Problem:** You need to be reminded of something specifically when you *leave* a location, not just when you arrive.
-   - **Solution:** EventFlow uses background geofencing with both **Arrive** and **Leave** triggers. The background task evaluator parses location boundaries and fires notifications precisely when you cross the geofence radius, even with the app in the background.
+   - **Solution:** EventFlow combines bidirectional location triggers (arrive & leave) with AI priority ranking, native screen-waking alarms, and social buddy alerts in one unified platform. The background evaluator filters out high-speed highway drive-bys (3-minute dwell check) and alerts you precisely when your location context changes.
 
 ---
 
@@ -269,19 +269,19 @@ Building a reliable alarm and productivity app comes with complex edge cases, es
 | **Zero Subscription / Free Forever** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> (basic) | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> (freemium) | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> (freemium) | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> (freemium) |
 | **Offline-first Alarm Engine** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/alert-triangle.svg?color=%23f59e0b" width="20" align="top" /> partial | <img src="https://api.iconify.design/lucide/alert-triangle.svg?color=%23f59e0b" width="20" align="top" /> partial | <img src="https://api.iconify.design/lucide/alert-triangle.svg?color=%23f59e0b" width="20" align="top" /> partial | <img src="https://api.iconify.design/lucide/alert-triangle.svg?color=%23f59e0b" width="20" align="top" /> partial | <img src="https://api.iconify.design/lucide/alert-triangle.svg?color=%23f59e0b" width="20" align="top" /> partial |
 
-### <img src="https://api.iconify.design/lucide/trophy.svg" width="20" align="top" /> What Makes EventFlow Unique
+### <img src="https://api.iconify.design/lucide/trophy.svg" width="20" align="top" /> What Differentiates EventFlow
 
-> These capabilities **do not exist** in any mainstream calendar or productivity app on the market today:
+> EventFlow is designed as a unified context-aware productivity system that combines AI task prioritization, physical location, travel-aware scheduling, native alarm infrastructure, social coordination, and real-time event updates in a single mobile experience.
 
-| Unique Capability | Why It Matters |
+| Differentiator | Why It Matters |
 |:---|:---|
 | <img src="https://api.iconify.design/lucide/battery-charging.svg" width="20" align="top" /> **Native Android WakeLock Alarm** | Most apps rely on OS notifications which can be silenced by battery optimization. EventFlow wakes the screen and plays sound even when the app is force-killed — like a real alarm clock. |
-| <img src="https://api.iconify.design/lucide/handshake.svg" width="20" align="top" /> **Social Event Sharing with Real-time Feed** | No other calendar app has a friend-based event feed with Socket.io live updates. Share your events with specific friends the way you'd share a post. |
+| <img src="https://api.iconify.design/lucide/handshake.svg" width="20" align="top" /> **Social Event Sharing with Real-time Feed** | Built-in friend-based event feed with Socket.io live updates. Share your events with specific friends and coordinate without third-party messaging tools. |
 | <img src="https://api.iconify.design/lucide/message-square.svg" width="20" align="top" /> **In-app DM between friends** | Combined in a single event app — no need to switch to WhatsApp to coordinate plans. |
-| <img src="https://api.iconify.design/lucide/brain.svg" width="20" align="top" /> **Multi-factor AI Priority Engine** | Priority is calculated from 3 signals simultaneously: time to deadline, user importance, and physical distance to location. |
-| <img src="https://api.iconify.design/lucide/globe.svg" width="20" align="top" /> **Arrive AND Leave geofence triggers** | TickTick and Any.do only support arrive; EventFlow fires reminders on both arrival and departure. |
-| <img src="https://api.iconify.design/lucide/message-square.svg" width="20" align="top" /> **Public Community Reviews** | A social review feed inside a productivity app — first of its kind in this category. |
-| <img src="https://api.iconify.design/lucide/unlock.svg" width="20" align="top" /> **100% Free, Open Source, Self-hostable** | Todoist, TickTick, and Any.do all charge for premium features. EventFlow is MIT-licensed with no paywalls. |
+| <img src="https://api.iconify.design/lucide/brain.svg" width="20" align="top" /> **Context-Aware Multi-Factor Priority Engine** | Priority combines deadline proximity, user-defined urgency, duration risk, and physical distance to determine what needs action next. |
+| <img src="https://api.iconify.design/lucide/globe.svg" width="20" align="top" /> **Bidirectional Geofencing & Buddy Proximity** | Combines arrive/leave geofences with speed/dwell-time anti-spam filters, native alarms, and automated buddy alerts when friends arrive near shared task venues. |
+| <img src="https://api.iconify.design/lucide/message-square.svg" width="20" align="top" /> **Public Community Reviews** | A social review feed inside a productivity app — sharing experiences and productivity tips. |
+| <img src="https://api.iconify.design/lucide/unlock.svg" width="20" align="top" /> **100% Free, Open Source, Self-hostable** | Todoist, TickTick, and Any.do charge for location reminders and analytics. EventFlow is MIT-licensed with no paywalls. |
 
 ---
 
