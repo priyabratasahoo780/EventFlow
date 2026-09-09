@@ -13,4 +13,7 @@ router.put('/:id', taskController.updateTask);
 router.patch('/:id/status', taskController.updateStatus);
 router.delete('/:id', taskController.deleteTask);
 
+// Geofence Buddy Alert: friend's phone calls this when they enter the task's geofence
+router.post('/:id/buddy-near', taskController.buddyNearLocation);
+
 module.exports = router;

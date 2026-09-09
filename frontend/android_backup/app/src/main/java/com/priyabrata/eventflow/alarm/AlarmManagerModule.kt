@@ -16,6 +16,15 @@ class AlarmManagerModule(reactContext: ReactApplicationContext) : ReactContextBa
 
     @ReactMethod
     fun scheduleAlarm(alarmId: String, triggerMs: Double, title: String, body: String, eventId: String, promise: Promise) {
+        scheduleAlarmInternal(alarmId, triggerMs, title, body, eventId, false, promise)
+    }
+
+    @ReactMethod
+    fun scheduleAlarmCritical(alarmId: String, triggerMs: Double, title: String, body: String, eventId: String, isCritical: Boolean, promise: Promise) {
+        scheduleAlarmInternal(alarmId, triggerMs, title, body, eventId, isCritical, promise)
+    }
+
+    private fun scheduleAlarmInternal(alarmId: String, triggerMs: Double, title: String, body: String, eventId: String, isCritical: Boolean, promise: Promise) {
         try {
             val context = reactApplicationContext
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -26,6 +35,7 @@ class AlarmManagerModule(reactContext: ReactApplicationContext) : ReactContextBa
                 putExtra("TITLE", title)
                 putExtra("BODY", body)
                 putExtra("EVENT_ID", eventId)
+                putExtra("IS_CRITICAL", isCritical)
             }
 
             val pendingIntent = PendingIntent.getBroadcast(
@@ -51,6 +61,7 @@ class AlarmManagerModule(reactContext: ReactApplicationContext) : ReactContextBa
             promise.reject("ERROR", e.message)
         }
     }
+
 
     @ReactMethod
     fun cancelAlarm(alarmId: String, promise: Promise) {

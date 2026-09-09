@@ -222,7 +222,14 @@ exports.updateTask = async (req, res) => {
 exports.updateStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    const completed = status === 'completed';
+
+    // Edge Case Fix: Validate status enum before touching DB
+    const VALID_STATUSES = ['pending', 'in_progress', 'completed', 'late_completed', 'overdue', 'cancelled', 'pending_exit'];
+    if (!status || !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `Invalid status value "${status}". Must be one of: ${VALID_STATUSES.join(', ')}` });
+    }
+
+    const completed = status === 'completed' || status === 'late_completed';
     
     const setQuery = { status, completed, completedAt: completed ? new Date() : null };
     if (status === 'in_progress') setQuery.startedAt = new Date();
@@ -332,3 +339,91 @@ exports.deleteTask = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// ─── Geofence Buddy Alert ─────────────────────────────────────────────────────
+// Called by a friend's phone when they enter the geofence of a shared task.
+// Emits a real-time 'buddy_near_location' socket event to the task owner & other members.
+// Sends a push notification as background fallback.
+exports.buddyNearLocation = async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    const friendId = req.userId; // The friend who triggered the geofence (caller)
+
+    // Find the shared task — friend must be in sharedWith or be the owner
+    const task = await Event.findOne({
+      id: taskId,
+      $or: [{ ownerId: friendId }, { sharedWith: friendId }]
+    });
+    if (!task) return res.status(404).json({ error: 'Task not found or not shared with you' });
+
+    // Load the friend (the one near the location)
+    const friend = await User.findById(friendId).select('name username profilePhoto');
+    if (!friend) return res.status(404).json({ error: 'User not found' });
+
+    // Recipients: everyone EXCEPT the friend who just entered (they already know they're there)
+    const allMemberIds = new Set([
+      task.ownerId.toString(),
+      ...(task.sharedWith || []).map(id => id.toString())
+    ]);
+    allMemberIds.delete(friendId.toString());
+    const recipientIds = Array.from(allMemberIds);
+
+    const buddyPayload = {
+      type: 'buddy_near_location',
+      taskId: task.id || task._id,
+      taskTitle: task.title,
+      taskLocation: task.location || 'the location',
+      taskChecklist: task.checklist || [],
+      friendId: friendId,
+      friendName: friend.name,
+      friendUsername: friend.username,
+      friendPhoto: friend.profilePhoto || '',
+    };
+
+    // 1. Emit real-time socket event to all recipients
+    const io = req.app.get('io');
+    if (io) {
+      recipientIds.forEach(id => {
+        io.to(id).emit('buddy_near_location', buddyPayload);
+      });
+    }
+
+    // 2. Send Expo Push Notification as fallback (for when app is in background)
+    try {
+      const { Expo } = require('expo-server-sdk');
+      const expo = new Expo();
+
+      const recipientUsers = await User.find({
+        _id: { $in: recipientIds },
+        expoPushToken: { $exists: true, $ne: '' }
+      });
+
+      const messages = [];
+      for (const recipient of recipientUsers) {
+        if (Expo.isExpoPushToken(recipient.expoPushToken)) {
+          messages.push({
+            to: recipient.expoPushToken,
+            sound: 'default',
+            title: `🛒 ${friend.name} is near ${task.location || 'the location'}!`,
+            body: `Want to add anything to "${task.title}" before they leave?`,
+            data: { ...buddyPayload },
+            priority: 'high',
+            channelId: 'focusflow_alarm_v2',
+          });
+        }
+      }
+
+      if (messages.length > 0) {
+        await expo.sendPushNotificationsAsync(messages);
+      }
+    } catch (pushErr) {
+      console.error('[Buddy Alert] Push notification error:', pushErr);
+    }
+
+    console.log(`[Buddy Alert] 📍 ${friend.name} is near "${task.location}" for task "${task.title}". Notified ${recipientIds.length} members.`);
+    res.json({ success: true, notified: recipientIds.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+

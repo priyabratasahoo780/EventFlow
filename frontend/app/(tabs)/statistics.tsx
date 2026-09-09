@@ -276,7 +276,7 @@ export default function StatisticsScreen() {
     let completed = 0, lateCompleted = 0, inProgress = 0, overdue = 0, pending = 0;
     const now = new Date();
     filteredEvents.forEach(e => {
-      const isLateCompleted = e.status === 'late_completed';
+      const isLateCompleted = (e.status as string) === 'late_completed';
       const isCompleted = e.completed || e.status === 'completed';
       const isInProgress = e.status === 'in_progress';
       const dateStr = e.date ? e.date.split('T')[0] : '';
@@ -467,9 +467,16 @@ export default function StatisticsScreen() {
           />
           <StatPill
             icon={<Check color={colors.success} size={20} strokeWidth={3} />}
-            label="Completed" value={stats.completed}
+            label="Completed (On Time)" value={stats.completed}
             color={colors.success} bg={colors.successLight}
           />
+          {stats.lateCompleted > 0 && (
+            <StatPill
+              icon={<Clock color="#F59E0B" size={20} strokeWidth={2.5} />}
+              label="Completed (Late)" value={stats.lateCompleted}
+              color="#F59E0B" bg="rgba(245, 158, 11, 0.12)"
+            />
+          )}
           <StatPill
             icon={<PlayCircle color={colors.primary} size={20} strokeWidth={2.5} />}
             label="In Progress" value={stats.inProgress}

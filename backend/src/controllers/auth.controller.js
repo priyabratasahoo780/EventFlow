@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const emailService = require('../services/email.service');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey_eventflow2026';
 
@@ -148,6 +149,17 @@ exports.login = async (req, res) => {
       return res.status(400).json({ error: 'Incorrect password. Please check and try again.' });
     }
 
+    if (user.twoFactorEnabled) {
+      // Create a temporary token valid for 10 minutes
+      const tempToken = jwt.sign({ _id: user._id, isTemp: true }, JWT_SECRET, { expiresIn: '10m' });
+      
+      return res.json({
+        requires2FA: true,
+        email: user.email,
+        tempToken
+      });
+    }
+
     const token = jwt.sign({ _id: user._id, uniqueId: user.uniqueId }, JWT_SECRET, { expiresIn: '30d' });
     res.json({
       token,
@@ -158,7 +170,8 @@ exports.login = async (req, res) => {
         username: user.username,
         email: user.email,
         city: user.city,
-        profilePhoto: user.profilePhoto
+        profilePhoto: user.profilePhoto,
+        twoFactorEnabled: user.twoFactorEnabled
       }
     });
   } catch (err) {
@@ -326,6 +339,127 @@ exports.refreshUniqueId = async (req, res) => {
   } catch (err) {
     console.error('refreshUniqueId error:', err);
     res.status(500).json({ error: 'Failed to generate new unique ID' });
+  }
+};
+
+// ── Two-Factor Authentication Methods ──────────────────────────────────────
+
+exports.toggle2FA = async (req, res) => {
+  try {
+    const userId = req.userId || (req.user && req.user._id);
+    const { enabled } = req.body;
+    
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'Invalid enabled status.' });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { twoFactorEnabled: enabled },
+      { new: true }
+    ).select('-password');
+
+    res.json({ message: `2FA has been ${enabled ? 'enabled' : 'disabled'}.`, user: updatedUser });
+  } catch (err) {
+    console.error('toggle2FA error:', err);
+    res.status(500).json({ error: 'Failed to toggle 2FA status.' });
+  }
+};
+
+exports.send2FA = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    // Generate a 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const salt = await bcrypt.genSalt(10);
+    const hashedOtp = await bcrypt.hash(otp, salt);
+
+    user.twoFactorOtp = hashedOtp;
+    user.twoFactorOtpExpiry = new Date(Date.now() + 10 * 60000); // 10 minutes
+    await user.save();
+
+    await emailService.send2FAEmail(user.email, otp);
+
+    res.json({ message: '2FA code sent successfully.' });
+  } catch (err) {
+    console.error('send2FA error:', err);
+    res.status(500).json({ error: 'Failed to send 2FA code.' });
+  }
+};
+
+exports.verify2FA = async (req, res) => {
+  try {
+    const { email, otp, tempToken } = req.body;
+    
+    if (!email || !otp || !tempToken) {
+      return res.status(400).json({ error: 'Email, OTP, and tempToken are required.' });
+    }
+
+    // Verify temp token
+    let decoded;
+    try {
+      decoded = jwt.verify(tempToken, JWT_SECRET);
+      if (!decoded.isTemp) {
+        throw new Error('Invalid token type');
+      }
+    } catch (tokenErr) {
+      return res.status(401).json({ error: 'Temporary token expired or invalid. Please login again.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail, _id: decoded._id });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    if (!user.twoFactorOtp || !user.twoFactorOtpExpiry) {
+      return res.status(400).json({ error: 'No 2FA code generated. Please request a new code.' });
+    }
+
+    if (new Date() > user.twoFactorOtpExpiry) {
+      return res.status(400).json({ error: '2FA code expired. Please request a new code.' });
+    }
+
+    const validOtp = await bcrypt.compare(otp, user.twoFactorOtp);
+    if (!validOtp) {
+      return res.status(400).json({ error: 'Invalid 2FA code.' });
+    }
+
+    // Clear OTP fields
+    user.twoFactorOtp = null;
+    user.twoFactorOtpExpiry = null;
+    await user.save();
+
+    // Issue real token
+    const token = jwt.sign({ _id: user._id, uniqueId: user.uniqueId }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({
+      token,
+      user: {
+        _id: user._id,
+        uniqueId: user.uniqueId,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        city: user.city,
+        profilePhoto: user.profilePhoto,
+        twoFactorEnabled: user.twoFactorEnabled
+      }
+    });
+  } catch (err) {
+    console.error('verify2FA error:', err);
+    res.status(500).json({ error: 'Failed to verify 2FA code.' });
   }
 };
 

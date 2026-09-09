@@ -1,12 +1,14 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, Pressable, Animated, Easing,
 } from 'react-native';
-import { MapPin, Navigation, CheckCircle2, X, Clock, Zap } from 'lucide-react-native';
+import { MapPin, Navigation, CheckCircle2, X, Clock, Zap, AlarmClock, Square, CheckSquare } from 'lucide-react-native';
 import { Event } from '../models/Event';
 import { useThemeStore } from '../store/useThemeStore';
+import { useEventStore } from '../store/useEventStore';
 import { ColorTheme } from '../constants/theme';
 import * as Haptics from 'expo-haptics';
+
 
 interface Props {
   visible: boolean;
@@ -14,14 +16,17 @@ interface Props {
   triggerType?: 'arrive' | 'leave';
   onDismiss: () => void;
   onStartTask: (event: Event) => void;
+  onSmartSnooze?: (event: Event, mode: 'exit_reentry' | 'time') => void;
 }
 
+
 export default function LocationArrivalModal({
-  visible, event, triggerType = 'arrive', onDismiss, onStartTask,
+  visible, event, triggerType = 'arrive', onDismiss, onStartTask, onSmartSnooze,
 }: Props) {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
+  const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
 
   // Pulse animation for the pin icon
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -153,6 +158,36 @@ export default function LocationArrivalModal({
             </View>
           </View>
 
+          {/* Tier 2: Location Checklist */}
+          {event.checklist && event.checklist.length > 0 && (
+            <View style={styles.checklistContainer}>
+              <Text style={styles.checklistTitle}>LOCATION CHECKLIST</Text>
+              {event.checklist.map((item) => (
+                <Pressable 
+                  key={item.id} 
+                  style={styles.checklistItem}
+                  onPress={async () => {
+                    Haptics.selectionAsync();
+                    const updatedChecklist = event.checklist!.map(c => 
+                      c.id === item.id ? { ...c, completed: !c.completed } : c
+                    );
+                    const updatedEvent = { ...event, checklist: updatedChecklist };
+                    await useEventStore.getState().updateEvent(updatedEvent);
+                  }}
+                >
+                  {item.completed ? (
+                    <CheckSquare color={colors.primary} size={20} />
+                  ) : (
+                    <Square color={colors.textSecondary} size={20} />
+                  )}
+                  <Text style={[styles.checklistItemText, item.completed && styles.checklistItemCompleted]}>
+                    {item.text}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
           {/* Buttons */}
           <View style={styles.btnCol}>
             <Pressable
@@ -166,19 +201,73 @@ export default function LocationArrivalModal({
               <Text style={styles.startBtnText}>START TASK NOW</Text>
             </Pressable>
 
-            <Pressable
-              style={({ pressed }) => [styles.dismissBtn, { opacity: pressed ? 0.7 : 1 }]}
-              onPress={handleDismiss}
-            >
-              <X color={colors.textSecondary} size={18} strokeWidth={2.5} />
-              <Text style={styles.dismissBtnText}>Dismiss Reminder</Text>
-            </Pressable>
+            {/* EC4: Smart Snooze Button */}
+            {!showSnoozeMenu ? (
+              <Pressable
+                style={({ pressed }) => [styles.snoozeBtn, { opacity: pressed ? 0.7 : 1 }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowSnoozeMenu(true);
+                }}
+              >
+                <AlarmClock color={colors.textSecondary} size={18} strokeWidth={2.5} />
+                <Text style={styles.snoozeBtnText}>SNOOZE</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.snoozeMenu}>
+                <Text style={styles.snoozeMenuTitle}>⏱ Snooze until...</Text>
+
+                {/* Option 1: Exit-reentry snooze (EC4) */}
+                <Pressable
+                  style={({ pressed }) => [styles.snoozeOption, { opacity: pressed ? 0.8 : 1 }]}
+                  onPress={() => {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                    setShowSnoozeMenu(false);
+                    if (onSmartSnooze && event) onSmartSnooze(event, 'exit_reentry');
+                    onDismiss();
+                  }}
+                >
+                  <Text style={styles.snoozeOptionIcon}>🚶</Text>
+                  <View style={styles.snoozeOptionText}>
+                    <Text style={styles.snoozeOptionTitle}>I leave this area</Text>
+                    <Text style={styles.snoozeOptionSub}>Re-reminds when you return</Text>
+                  </View>
+                </Pressable>
+
+                {/* Option 2: Classic 15-min time snooze */}
+                <Pressable
+                  style={({ pressed }) => [styles.snoozeOption, { opacity: pressed ? 0.8 : 1 }]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setShowSnoozeMenu(false);
+                    if (onSmartSnooze && event) onSmartSnooze(event, 'time');
+                    onDismiss();
+                  }}
+                >
+                  <Text style={styles.snoozeOptionIcon}>⏱</Text>
+                  <View style={styles.snoozeOptionText}>
+                    <Text style={styles.snoozeOptionTitle}>15 minutes</Text>
+                    <Text style={styles.snoozeOptionSub}>Time-based reminder</Text>
+                  </View>
+                </Pressable>
+
+                {/* Cancel snooze menu */}
+                <Pressable
+                  style={({ pressed }) => [styles.dismissBtn, { marginTop: 4, opacity: pressed ? 0.7 : 1 }]}
+                  onPress={() => setShowSnoozeMenu(false)}
+                >
+                  <X color={colors.textSecondary} size={16} strokeWidth={2.5} />
+                  <Text style={styles.dismissBtnText}>Cancel</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         </Animated.View>
       </Animated.View>
     </Modal>
   );
 }
+
 
 const getStyles = (colors: ColorTheme) => StyleSheet.create({
   overlay: {
@@ -334,4 +423,95 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
   },
+  // EC4: Smart Snooze styles
+  snoozeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+  },
+  snoozeBtnText: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 14,
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
+  },
+  snoozeMenu: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  snoozeMenuTitle: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  snoozeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  snoozeOptionIcon: {
+    fontSize: 22,
+  },
+  snoozeOptionText: {
+    flex: 1,
+  },
+  snoozeOptionTitle: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 14,
+    color: colors.text,
+  },
+  snoozeOptionSub: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  // Checklist styles
+  checklistContainer: {
+    marginTop: 16,
+    marginBottom: 8,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  checklistTitle: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  checklistItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+  },
+  checklistItemText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
+    color: colors.text,
+    flex: 1,
+  },
+  checklistItemCompleted: {
+    color: colors.textSecondary,
+    textDecorationLine: 'line-through',
+  },
 });
+
+

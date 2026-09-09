@@ -5,6 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import api from '../../services/api';
+import LoadingScreen from '../../components/LoadingScreen';
 import { ArrowLeft, Star, MessageCircle, Send, X, Heart, Quote } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -173,9 +174,7 @@ export default function CommunityReviewsScreen() {
       </View>
 
       {loading ? (
-        <View style={s.loadingBox}>
-          <ActivityIndicator size="large" color={colors.secondary} />
-        </View>
+        <LoadingScreen fullScreen={false} message="Loading feedback..." />
       ) : (
         <FlatList
           data={reviews}

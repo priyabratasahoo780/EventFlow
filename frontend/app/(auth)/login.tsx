@@ -29,6 +29,10 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [tempToken, setTempToken] = useState('');
+  const [emailFor2FA, setEmailFor2FA] = useState('');
+  const [otp, setOtp] = useState('');
   const login = useAuthStore(state => state.login);
   const router = useRouter();
   const { signInWithGoogle } = useGoogleAuth();
@@ -43,8 +47,15 @@ export default function LoginScreen() {
 
       try {
         const res = await api.post('/auth/login', { email: cleanEmail, password: values.password });
-        await login(res.data.token, res.data.user);
-        router.replace('/(tabs)');
+        
+        if (res.data.requires2FA) {
+          setRequires2FA(true);
+          setTempToken(res.data.tempToken);
+          setEmailFor2FA(res.data.email);
+        } else {
+          await login(res.data.token, res.data.user);
+          router.replace('/(tabs)');
+        }
       } catch (err: any) {
         const isNotFound = err.response?.data?.accountNotFound || err.response?.status === 404;
         const serverError = err.response?.data?.error || err.response?.data?.message;
@@ -68,6 +79,29 @@ export default function LoginScreen() {
       }
     },
   });
+
+  const handleVerify2FA = async () => {
+    if (!otp || otp.length !== 6) {
+      Alert.alert('Invalid OTP', 'Please enter a valid 6-digit code.');
+      return;
+    }
+    setLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const res = await api.post('/auth/2fa/verify', {
+        email: emailFor2FA,
+        otp,
+        tempToken
+      });
+      await login(res.data.token, res.data.user);
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      const serverError = err.response?.data?.error || err.response?.data?.message;
+      Alert.alert('Verification Failed', serverError || 'Invalid 2FA code.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
@@ -141,98 +175,143 @@ export default function LoginScreen() {
           <Text style={styles.title}>Welcome Back</Text>
           <Text style={styles.subtitle}>Sign in to continue where you left off</Text>
 
-          {/* Email Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>EMAIL OR USERNAME</Text>
-            <View style={[styles.inputWrapper, formik.touched.email && formik.errors.email && { borderColor: colors.error }]}>
-              <Mail color={colors.textSecondary} size={18} strokeWidth={2} />
-              <TextInput
-                style={styles.input}
-                placeholder="your.email@example.com"
-                placeholderTextColor={colors.textSecondary}
-                value={formik.values.email}
-                onChangeText={formik.handleChange('email')}
-                onBlur={formik.handleBlur('email')}
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
-            </View>
-            {formik.touched.email && formik.errors.email && (
-              <Text style={styles.errorText}>{formik.errors.email}</Text>
-            )}
-          </View>
+          {requires2FA ? (
+            <>
+              {/* OTP Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>ENTER 6-DIGIT CODE</Text>
+                <View style={styles.inputWrapper}>
+                  <Lock color={colors.textSecondary} size={18} strokeWidth={2} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="123456"
+                    placeholderTextColor={colors.textSecondary}
+                    value={otp}
+                    onChangeText={setOtp}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                  />
+                </View>
+              </View>
 
-          {/* Password Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>PASSWORD</Text>
-            <View style={[styles.inputWrapper, formik.touched.password && formik.errors.password && { borderColor: colors.error }]}>
-              <Lock color={colors.textSecondary} size={18} strokeWidth={2} />
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor={colors.textSecondary}
-                value={formik.values.password}
-                onChangeText={formik.handleChange('password')}
-                onBlur={formik.handleBlur('password')}
-                secureTextEntry={!showPassword}
-              />
-              <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                {showPassword
-                  ? <EyeOff color={colors.textSecondary} size={18} />
-                  : <Eye color={colors.textSecondary} size={18} />
-                }
+              <Pressable
+                onPress={handleVerify2FA}
+                disabled={loading}
+                style={({ pressed }) => [pressed && { opacity: 0.88 }]}
+              >
+                <LinearGradient
+                  colors={loading ? ['#FFB86A', '#FF9840'] : [colors.secondary, colors.secondary]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.loginBtn}
+                >
+                  {loading
+                    ? <ActivityIndicator size="small" color="#FFF" />
+                    : <Text style={styles.loginBtnText}>Verify Code</Text>
+                  }
+                </LinearGradient>
               </Pressable>
-            </View>
-            {formik.touched.password && formik.errors.password && (
-              <Text style={styles.errorText}>{formik.errors.password}</Text>
-            )}
-          </View>
+              
+              <Pressable onPress={() => { setRequires2FA(false); setOtp(''); }} style={styles.signupRow}>
+                <Text style={styles.signupText}>Back to Login</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              {/* Email Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>EMAIL OR USERNAME</Text>
+                <View style={[styles.inputWrapper, formik.touched.email && formik.errors.email && { borderColor: colors.error }]}>
+                  <Mail color={colors.textSecondary} size={18} strokeWidth={2} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="your.email@example.com"
+                    placeholderTextColor={colors.textSecondary}
+                    value={formik.values.email}
+                    onChangeText={formik.handleChange('email')}
+                    onBlur={formik.handleBlur('email')}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                  />
+                </View>
+                {formik.touched.email && formik.errors.email && (
+                  <Text style={styles.errorText}>{formik.errors.email}</Text>
+                )}
+              </View>
 
-          {/* Forgot Password */}
-          <Pressable
-            onPress={() => router.push('/(auth)/forgot-password')}
-            style={styles.forgotBtn}
-          >
-            <Text style={styles.forgotText}>Forgot password?</Text>
-          </Pressable>
+              {/* Password Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>PASSWORD</Text>
+                <View style={[styles.inputWrapper, formik.touched.password && formik.errors.password && { borderColor: colors.error }]}>
+                  <Lock color={colors.textSecondary} size={18} strokeWidth={2} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="••••••••"
+                    placeholderTextColor={colors.textSecondary}
+                    value={formik.values.password}
+                    onChangeText={formik.handleChange('password')}
+                    onBlur={formik.handleBlur('password')}
+                    secureTextEntry={!showPassword}
+                  />
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                    {showPassword
+                      ? <EyeOff color={colors.textSecondary} size={18} />
+                      : <Eye color={colors.textSecondary} size={18} />
+                    }
+                  </Pressable>
+                </View>
+                {formik.touched.password && formik.errors.password && (
+                  <Text style={styles.errorText}>{formik.errors.password}</Text>
+                )}
+              </View>
 
-          {/* Login Button */}
-          <Pressable
-            onPress={() => formik.handleSubmit()}
-            disabled={loading}
-            style={({ pressed }) => [pressed && { opacity: 0.88 }]}
-          >
-            <LinearGradient
-              colors={loading ? ['#FFB86A', '#FF9840'] : [colors.secondary, colors.secondary]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.loginBtn}
-            >
-              {loading
-                ? <ActivityIndicator size="small" color="#FFF" />
-                : <Text style={styles.loginBtnText}>Continue</Text>
-              }
-            </LinearGradient>
-          </Pressable>
+              {/* Forgot Password */}
+              <Pressable
+                onPress={() => router.push('/(auth)/forgot-password')}
+                style={styles.forgotBtn}
+              >
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </Pressable>
 
-          {/* Divider */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
+              {/* Login Button */}
+              <Pressable
+                onPress={() => formik.handleSubmit()}
+                disabled={loading}
+                style={({ pressed }) => [pressed && { opacity: 0.88 }]}
+              >
+                <LinearGradient
+                  colors={loading ? ['#FFB86A', '#FF9840'] : [colors.secondary, colors.secondary]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.loginBtn}
+                >
+                  {loading
+                    ? <ActivityIndicator size="small" color="#FFF" />
+                    : <Text style={styles.loginBtnText}>Continue</Text>
+                  }
+                </LinearGradient>
+              </Pressable>
 
-          {/* Google */}
-          <GoogleButton onPress={handleGoogleLogin} loading={googleLoading} />
+              {/* Divider */}
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
 
-          {/* Sign Up Link */}
-          <Pressable
-            onPress={() => router.push('/(auth)/register')}
-            style={styles.signupRow}
-          >
-            <Text style={styles.signupText}>Don't have an account? </Text>
-            <Text style={styles.signupLink}>Sign up</Text>
-          </Pressable>
+              {/* Google */}
+              <GoogleButton onPress={handleGoogleLogin} loading={googleLoading} />
+
+              {/* Sign Up Link */}
+              <Pressable
+                onPress={() => router.push('/(auth)/register')}
+                style={styles.signupRow}
+              >
+                <Text style={styles.signupText}>Don't have an account? </Text>
+                <Text style={styles.signupLink}>Sign up</Text>
+              </Pressable>
+            </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

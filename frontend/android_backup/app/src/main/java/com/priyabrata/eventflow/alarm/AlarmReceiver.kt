@@ -24,8 +24,9 @@ class AlarmReceiver : BroadcastReceiver() {
             val body = intent.getStringExtra("BODY") ?: "Time to focus!"
             val eventId = intent.getStringExtra("EVENT_ID") ?: ""
             val alarmId = intent.getStringExtra("ALARM_ID") ?: ""
+            val isCritical = intent.getBooleanExtra("IS_CRITICAL", false)
 
-            Log.d("AlarmReceiver", "Alarm fired for: $title")
+            Log.d("AlarmReceiver", "Alarm fired for: $title (critical=$isCritical)")
 
             // Acquire WakeLock to wake up device from sleep
             val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -41,6 +42,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 putExtra("BODY", body)
                 putExtra("EVENT_ID", eventId)
                 putExtra("ALARM_ID", alarmId)
+                putExtra("IS_CRITICAL", isCritical)
             }
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -52,4 +54,5 @@ class AlarmReceiver : BroadcastReceiver() {
             wakeLock.release()
         }
     }
+
 }

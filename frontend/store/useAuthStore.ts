@@ -10,6 +10,7 @@ export interface UserProfile {
   username: string;
   email: string;
   profilePhoto: string;
+  twoFactorEnabled?: boolean;
 }
 
 interface AuthState {

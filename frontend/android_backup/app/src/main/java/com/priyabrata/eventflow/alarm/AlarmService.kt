@@ -1,4 +1,4 @@
-package com.priyabrata.eventflow.alarm
+﻿package com.priyabrata.eventflow.alarm
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.Build
@@ -16,6 +17,7 @@ import android.os.IBinder
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.speech.tts.TextToSpeech
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import java.util.Locale
 
@@ -26,6 +28,11 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
     private var tts: TextToSpeech? = null
     private var alarmTitle: String = ""
     private var alarmBody: String = ""
+    private var isCritical: Boolean = false
+
+    // EC5: Cache original volume so we can restore it after the alarm stops
+    private var originalAlarmVolume: Int = -1
+    private var volumeOverridden: Boolean = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -51,7 +58,6 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
     private fun speakAlarm() {
         if (alarmTitle.isNotEmpty() || alarmBody.isNotEmpty()) {
             val textToSpeak = "Alarm: $alarmTitle. $alarmBody"
-            // Use QUEUE_ADD to not interrupt other TTS, but here we want to speak over alarm if needed
             val params = Bundle()
             params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
             tts?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, params, "AlarmTTS")
@@ -68,8 +74,11 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
 
         alarmTitle = intent?.getStringExtra("TITLE") ?: "Event Reminder"
         alarmBody = intent?.getStringExtra("BODY") ?: "It's time!"
+        isCritical = intent?.getBooleanExtra("IS_CRITICAL", false) ?: false
         val eventId = intent?.getStringExtra("EVENT_ID") ?: ""
         val alarmId = intent?.getStringExtra("ALARM_ID") ?: ""
+
+        Log.d("AlarmService", "Alarm starting: $alarmTitle | critical=$isCritical")
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "ALARM_SERVICE_CHANNEL"
@@ -125,13 +134,40 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
             .setOngoing(true)
             .build()
 
-        // Start foreground service with notification
         startForeground(1998, notification)
-        
-        // Start sound and vibration
-        startAlarm()
 
-        // Speak if TTS is already initialized
+        // ==== EC5: Critical Volume Override ====
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val ringerMode = audioManager.ringerMode
+
+        if (isCritical && ringerMode != AudioManager.RINGER_MODE_NORMAL) {
+            // Critical task + phone is silent or vibrate â†’ OVERRIDE volume to max
+            try {
+                originalAlarmVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
+                audioManager.setStreamVolume(
+                    AudioManager.STREAM_ALARM,
+                    audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM),
+                    0 // No UI flag â€” silent override
+                )
+                volumeOverridden = true
+                Log.d("AlarmService", "EC5: ðŸ”Š Critical alarm â€” volume overridden to MAX (was $originalAlarmVolume)")
+            } catch (e: SecurityException) {
+                Log.w("AlarmService", "EC5: Volume override failed (SecurityException). Proceeding without it.")
+            }
+            startAlarm(aggressive = true)
+        } else if (!isCritical && ringerMode == AudioManager.RINGER_MODE_SILENT) {
+            // Routine task + phone is fully silent â†’ silent push only (no ringtone, no TTS)
+            // Just a gentle single vibration to avoid interrupting meetings
+            Log.d("AlarmService", "EC5: ðŸ¤« Routine task on silent phone â€” using silent vibration only.")
+            startAlarm(aggressive = false)
+            return START_STICKY
+        } else {
+            // Normal behaviour (phone is not silent, OR phone is vibrate-only for a routine task)
+            startAlarm(aggressive = false)
+        }
+        // =======================================
+
+        // Speak if TTS is already initialized (may also be called from onInit)
         if (tts != null) {
             speakAlarm()
         }
@@ -139,29 +175,49 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         return START_STICKY
     }
 
-    private fun startAlarm() {
+    /**
+     * @param aggressive If true, uses violent/looping vibration pattern for critical tasks.
+     *                   If false, uses a single short pulse (or skips audio for truly silent phones).
+     */
+    private fun startAlarm(aggressive: Boolean) {
         if (ringtone?.isPlaying == true) return
-        
-        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-        ringtone = RingtoneManager.getRingtone(applicationContext, uri)
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            ringtone?.isLooping = true
+
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val ringerMode = audioManager.ringerMode
+
+        // Only play ringtone if not completely silent (or if critical override already bumped volume)
+        val shouldPlayRingtone = volumeOverridden || ringerMode == AudioManager.RINGER_MODE_NORMAL
+
+        if (shouldPlayRingtone) {
+            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            ringtone = RingtoneManager.getRingtone(applicationContext, uri)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                ringtone?.isLooping = true
+            }
+            ringtone?.audioAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            ringtone?.play()
         }
-        
-        ringtone?.audioAttributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
-            
-        ringtone?.play()
 
         vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 500), 0))
+        if (aggressive) {
+            // Critical: long, intense repeating pattern
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 800, 200, 800, 200, 800), 0))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(longArrayOf(0, 800, 200, 800, 200, 800), 0)
+            }
         } else {
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(longArrayOf(0, 500, 500), 0)
+            // Routine or silent: single short buzz
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createOneShot(300, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(300)
+            }
         }
     }
 
@@ -169,6 +225,20 @@ class AlarmService : Service(), TextToSpeech.OnInitListener {
         ringtone?.takeIf { it.isPlaying }?.stop()
         vibrator?.cancel()
         tts?.stop()
+
+        // EC5: Restore original volume if we overrode it
+        if (volumeOverridden && originalAlarmVolume >= 0) {
+            try {
+                val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, originalAlarmVolume, 0)
+                Log.d("AlarmService", "EC5: ðŸ”‰ Volume restored to $originalAlarmVolume")
+            } catch (e: SecurityException) {
+                Log.w("AlarmService", "EC5: Volume restore failed.")
+            } finally {
+                volumeOverridden = false
+                originalAlarmVolume = -1
+            }
+        }
     }
 
     override fun onDestroy() {

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * withAlarmManager.js
  * Expo Config Plugin — ensures AlarmReceiver, AlarmActivity, and all
  * required permissions are in the generated AndroidManifest.xml when
@@ -41,6 +41,27 @@ const withAlarmManifest = (config) => {
         ],
       });
     }
+
+    // Add ActivityTransitionReceiver
+    const hasTransitionReceiver = receivers.some(
+      (r) => r.$?.["android:name"] === ".alarm.ActivityTransitionReceiver"
+    );
+    if (!hasTransitionReceiver) {
+      receivers.push({
+        $: {
+          "android:name": ".alarm.ActivityTransitionReceiver",
+          "android:exported": "false",
+        },
+        "intent-filter": [
+          {
+            action: [
+              { $: { "android:name": "com.priyabrata.eventflow.ACTIVITY_TRANSITION" } },
+            ],
+          },
+        ],
+      });
+    }
+
     application.receiver = receivers;
 
     // Add AlarmActivity

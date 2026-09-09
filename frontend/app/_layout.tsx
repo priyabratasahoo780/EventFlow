@@ -159,6 +159,19 @@ function RootLayoutNav() {
         if (bgStatus !== 'granted') {
           await Location.requestBackgroundPermissionsAsync();
         }
+
+        // Start Activity Recognition (Underground GPS Fallback)
+        try {
+          const { activityRecognitionService } = require('../services/activityRecognitionService');
+          await activityRecognitionService.start();
+        } catch (actError) {
+          console.warn('[Smart Context] Failed to start activity recognition:', actError);
+        }
+
+        // EC5: Request Notification Policy Access for DND override
+        try {
+          const Intent = require('react-native').Intent; // Not cleanly imported, let's use an expo way or just tell the user. 
+        } catch(e) {}
       } catch (e) {
         console.warn('Notification/Location permission check error:', e);
       }

@@ -16,6 +16,7 @@ import { ColorTheme } from '../../constants/theme';
 import { useLocation } from '../../hooks/useLocation';
 import AlarmModal from '../../components/AlarmModal';
 import LocationArrivalModal from '../../components/LocationArrivalModal';
+import BuddyAlertModal from '../../components/BuddyAlertModal';
 import * as Notifications from '../../mock-expo-notifications';
 import {
   Search, Filter, CheckCircle2, Clock, X,
@@ -29,6 +30,9 @@ import { Event } from '../../models/Event';
 import { priorityService } from '../../services/priorityService';
 import { useAuthStore } from '../../store/useAuthStore';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import ZenModePermissionModal from '../../components/ZenModePermissionModal';
+import { zenModeService } from '../../services/zenModeService';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -70,13 +74,19 @@ export default function HomeScreen() {
   const colors = getColors();
   const s = getStyles(colors);
   const { user } = useAuthStore();
-  const { events, friendsEvents, loadEvents, syncFriendSharedEvents, updateTaskStatus, filters, setFilters, getFilteredEvents, getTopRecommendation, initSocket } = useEventStore();
+  const { events, friendsEvents, loadEvents, syncFriendSharedEvents, updateTaskStatus, filters, setFilters, getFilteredEvents, getTopRecommendation, initSocket, buddyAlert, clearBuddyAlert } = useEventStore();
   const { location, arrivedTask, arrivedTriggerType, dismissArrivedTask } = useLocation(events);
   const [refreshing, setRefreshing] = useState(false);
   const [activeAlarmEvent, setActiveAlarmEvent] = useState<Event | null>(null);
   const [showAlarmModal, setShowAlarmModal] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const appState = useRef(AppState.currentState);
+
+  // ── Zen Mode modal state ─────────────────────────────────────────────────
+  const [zenModalVisible, setZenModalVisible] = useState(false);
+  const [zenPendingTask, setZenPendingTask] = useState<Event | null>(null);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const slideAnim = useRef(new Animated.Value(-Dimensions.get('window').width)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -191,8 +201,8 @@ export default function HomeScreen() {
     });
 
     return () => {
-      sub.remove();
-      resSub.remove();
+      sub?.remove?.();
+      resSub?.remove?.();
     };
   }, [events, friendsEvents]);
 
@@ -232,6 +242,10 @@ export default function HomeScreen() {
         // 2. Add reminder times
         if (e.reminders && e.reminders.length > 0) {
           e.reminders.forEach((r: any) => {
+            // Only trigger full-screen alarm modal if preference includes alarm or is undefined/both
+            const pref = r.alarmPreference || 'both';
+            if (pref === 'notification') return;
+
             if (r.type === 'exact' && r.time && (!r.date || r.date.startsWith(todayStr))) {
               let [h, m] = r.time.split(':').map(Number);
               triggerTimes.push({ h, m });
@@ -282,13 +296,27 @@ export default function HomeScreen() {
 
   const filteredEvents = useMemo(() => getFilteredEvents(location), [getFilteredEvents, location, events, filters]);
   const topTask = useMemo(() => getTopRecommendation(location), [getTopRecommendation, location, events]);
+  
+  const overdueTasks = useMemo(() => {
+    const now = new Date();
+    return events.filter(e => {
+      if (e.status === 'overdue') return true;
+      if (e.completed || e.status === 'completed' || e.status === 'in_progress') return false;
+      if (!e.date) return false;
+      const dateStr = e.date.split('T')[0];
+      const timeStr = e.time || '23:59';
+      const dl = new Date(`${dateStr}T${timeStr.length <= 5 ? timeStr + ':00' : timeStr}`);
+      return dl < now;
+    });
+  }, [events]);
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const todayEvents = useMemo(() => events.filter(e => e.date?.startsWith(todayStr)), [events, todayStr]);
-  const todayDueCount = useMemo(() => todayEvents.filter(e => !e.completed && e.status !== 'completed').length, [todayEvents]);
-  const todayCompletedCount = useMemo(() => todayEvents.filter(e => e.completed || e.status === 'completed').length, [todayEvents]);
-  const totalPendingCount = useMemo(() => events.filter(e => !e.completed && e.status !== 'completed').length, [events]);
-  const totalCompletedCount = useMemo(() => events.filter(e => e.completed || e.status === 'completed').length, [events]);
+  const todayDueCount = useMemo(() => todayEvents.filter(e => !e.completed && e.status !== 'completed' && e.status !== 'late_completed').length, [todayEvents]);
+  // Edge Case Fix #4: Include late_completed in completion counts
+  const todayCompletedCount = useMemo(() => todayEvents.filter(e => e.completed || e.status === 'completed' || e.status === 'late_completed').length, [todayEvents]);
+  const totalPendingCount = useMemo(() => events.filter(e => !e.completed && e.status !== 'completed' && e.status !== 'late_completed').length, [events]);
+  const totalCompletedCount = useMemo(() => events.filter(e => e.completed || e.status === 'completed' || e.status === 'late_completed').length, [events]);
   const totalCount = events.length;
 
   const totalTasks = todayEvents.length > 0 ? todayEvents.length : totalCount;
@@ -300,11 +328,49 @@ export default function HomeScreen() {
     updateTaskStatus(task.id, 'completed');
   }, [updateTaskStatus]);
 
-  const handleStartTask = useCallback((task: Event) => {
+  const handleStartTask = useCallback(async (task: Event) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const isCritical = task.priority?.toLowerCase() === 'critical';
+
+    if (isCritical) {
+      // ── Zen Mode: Check if user has been asked permission yet ─────────
+      const permStatus = await zenModeService.getPermissionStatus();
+      if (permStatus === null) {
+        // Pehli baar — rich modal dikhao, task ke sath hold karo
+        setZenPendingTask(task);
+        setZenModalVisible(true);
+        return; // Modal callbacks mein task start hoga
+      }
+      // Permission pehle se decide ho chuka hai — directly start
+    }
+
     updateTaskStatus((task.id || task._id) as string, 'in_progress');
     router.push(`/event/${task.id || task._id}` as any);
   }, [updateTaskStatus, router]);
+
+  const handleSmartSnooze = useCallback(async (task: Event, type: 'time' | 'exit_reentry') => {
+    const taskId = (task.id || task._id) as string;
+    if (type === 'exit_reentry') {
+      try {
+        const pendingExitStr = await AsyncStorage.getItem('geofencing_pending_exit_tasks');
+        const pendingExitTasks = pendingExitStr ? JSON.parse(pendingExitStr) : {};
+        pendingExitTasks[taskId] = true;
+        await AsyncStorage.setItem('geofencing_pending_exit_tasks', JSON.stringify(pendingExitTasks));
+        console.log(`[Smart Context] EC4: Task "${task.title}" marked as pending_exit. Will re-trigger when they leave and re-enter.`);
+      } catch (e) {
+        console.error('Failed to set pending_exit_task:', e);
+      }
+    } else {
+      // Classic 15-min snooze
+      const newTime = new Date(Date.now() + 15 * 60000);
+      const h = String(newTime.getHours()).padStart(2, '0');
+      const m = String(newTime.getMinutes()).padStart(2, '0');
+      console.log(`[Smart Context] Standard 15-min snooze for "${task.title}". Reminding at ${h}:${m}`);
+      // Assuming a generic update to triggers would happen here for a pure time snooze.
+      // For now, it just dismisses and stops annoying the user until geofence changes.
+    }
+  }, []);
 
   // ─── Sub-components ───────────────────────────────────────────────────────
 
@@ -391,6 +457,107 @@ export default function HomeScreen() {
 
       {renderHeroFocusCard()}
 
+      {/* ── TIER 2: BATCH TRIAGE BUTTON (Between Hero Card & Daily Momentum) ── */}
+      {overdueTasks.length > 0 ? (
+        <Pressable 
+          style={({ pressed }) => [
+            s.triageCard,
+            { 
+              transform: [{ scale: pressed ? 0.985 : 1 }],
+              opacity: pressed ? 0.92 : 1
+            }
+          ]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            router.push('/triage' as any);
+          }}
+        >
+          <View style={s.triageCardInner}>
+            {/* Left Icon with subtle gradient glow */}
+            <LinearGradient
+              colors={['#FF5252', '#DC2626']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={s.triageIconWrap}
+            >
+              <AlertTriangle color="#FFFFFF" size={20} strokeWidth={2.5} />
+            </LinearGradient>
+
+            {/* Center Information */}
+            <View style={s.triageInfo}>
+              <View style={s.triageBadgeRow}>
+                <View style={s.triageOverdueBadge}>
+                  <View style={s.triagePulseDot} />
+                  <Text style={s.triageOverdueText}>OVERDUE</Text>
+                </View>
+                <Text style={s.triageCountHint}>
+                  {overdueTasks.length} {overdueTasks.length === 1 ? 'task needs action' : 'tasks need action'}
+                </Text>
+              </View>
+
+              <Text style={s.triageTitle} numberOfLines={1}>
+                Triage Overdue Tasks
+              </Text>
+              <Text style={s.triageSubtitle} numberOfLines={1}>
+                Swipe to reschedule or resolve in seconds
+              </Text>
+            </View>
+
+            {/* Right Action CTA */}
+            <View style={s.triageActionCircle}>
+              <ChevronRight color={colors.error} size={18} strokeWidth={2.5} />
+            </View>
+          </View>
+        </Pressable>
+      ) : (
+        <Pressable
+          style={({ pressed }) => [
+            s.triageCard,
+            {
+              transform: [{ scale: pressed ? 0.985 : 1 }],
+              opacity: pressed ? 0.92 : 1,
+              borderColor: '#22C55E',
+            }
+          ]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push('/triage' as any);
+          }}
+        >
+          <View style={s.triageCardInner}>
+            <LinearGradient
+              colors={['#22C55E', '#16A34A']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={s.triageIconWrap}
+            >
+              <CheckCircle2 color="#FFFFFF" size={20} strokeWidth={2.5} />
+            </LinearGradient>
+
+            <View style={s.triageInfo}>
+              <View style={s.triageBadgeRow}>
+                <View style={[s.triageOverdueBadge, { backgroundColor: '#DCFCE7', borderColor: '#22C55E' }]}>
+                  <View style={[s.triagePulseDot, { backgroundColor: '#22C55E' }]} />
+                  <Text style={[s.triageOverdueText, { color: '#16A34A' }]}>ALL CLEAR</Text>
+                </View>
+                <Text style={s.triageCountHint}>{totalPendingCount} active tasks</Text>
+              </View>
+
+              <Text style={s.triageTitle} numberOfLines={1}>
+                Task Triage Centre
+              </Text>
+              <Text style={s.triageSubtitle} numberOfLines={1}>
+                No overdue tasks · Tap to review all tasks
+              </Text>
+            </View>
+
+            <View style={[s.triageActionCircle, { borderColor: '#DCFCE7', backgroundColor: '#DCFCE7' }]}>
+              <ChevronRight color="#16A34A" size={18} strokeWidth={2.5} />
+            </View>
+          </View>
+        </Pressable>
+      )}
+
       {/* ── DAILY MOMENTUM CARD ── */}
       <View style={s.momentumCard}>
         <View style={s.momentumTop}>
@@ -452,23 +619,98 @@ export default function HomeScreen() {
 
       {/* ── SEARCH + FILTER ── */}
       <View style={s.searchRow}>
-        <View style={s.searchBox}>
-          <Search color={colors.textSecondary} size={17} strokeWidth={2} />
-          <TextInput
-            style={s.searchInput}
-            placeholder="Search tasks, categories, tags..."
-            placeholderTextColor={colors.textSecondary}
-            value={filters.searchQuery}
-            onChangeText={(text) => setFilters({ searchQuery: text })}
-          />
-          {filters.searchQuery ? (
-            <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFilters({ searchQuery: '' }); }}>
-              <X color={colors.textSecondary} size={15} strokeWidth={2.5} />
-            </Pressable>
-          ) : null}
+        <View style={{ flex: 1 }}>
+          <View style={s.searchBox}>
+            <Search color={filters.searchQuery ? colors.primary : colors.textSecondary} size={17} strokeWidth={2} />
+            <TextInput
+              style={s.searchInput}
+              placeholder="Search tasks, categories, tags..."
+              placeholderTextColor={colors.textSecondary}
+              value={filters.searchQuery}
+              onChangeText={(text) => {
+                setFilters({ searchQuery: text });
+                setShowSearchSuggestions(text.length > 0);
+              }}
+              onFocus={() => setShowSearchSuggestions(filters.searchQuery.length > 0 || true)}
+              onBlur={() => setTimeout(() => setShowSearchSuggestions(false), 180)}
+              returnKeyType="search"
+              onSubmitEditing={() => setShowSearchSuggestions(false)}
+            />
+            {filters.searchQuery ? (
+              <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFilters({ searchQuery: '' }); setShowSearchSuggestions(false); }}>
+                <X color={colors.textSecondary} size={15} strokeWidth={2.5} />
+              </Pressable>
+            ) : null}
+          </View>
+
+          {/* ── SMART SEARCH SUGGESTIONS DROPDOWN ── */}
+          {showSearchSuggestions && (
+            <View style={s.suggestionsPanel}>
+              {/* Quick filter chips — always shown when focused */}
+              {!filters.searchQuery && (
+                <>
+                  <Text style={s.suggestionsHeader}>Quick Filters</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, paddingBottom: 10 }}>
+                    {[
+                      { label: '🔥 Today', action: () => { setFilters({ status: 'today' as any }); setShowSearchSuggestions(false); } },
+                      { label: '⚠️ Overdue', action: () => { setFilters({ status: 'overdue' as any }); setShowSearchSuggestions(false); } },
+                      { label: '🚀 Critical', action: () => { setFilters({ priority: 'critical' as any }); setShowSearchSuggestions(false); } },
+                      { label: '🔄 In Progress', action: () => { setFilters({ status: 'in_progress' as any }); setShowSearchSuggestions(false); } },
+                      { label: '✅ Completed', action: () => { setFilters({ status: 'completed' as any }); setShowSearchSuggestions(false); } },
+                      ...CATEGORIES.filter(c => c.id !== 'all').map(c => ({ label: c.label, action: () => { setFilters({ category: c.label, searchQuery: '' }); setShowSearchSuggestions(false); } }))
+                    ].map((chip, idx) => (
+                      <Pressable
+                        key={idx}
+                        style={s.suggestionChip}
+                        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); chip.action(); }}
+                      >
+                        <Text style={s.suggestionChipText}>{chip.label}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
+
+              {/* Task title matches — shown while typing */}
+              {filters.searchQuery.length > 0 && (() => {
+                const q = filters.searchQuery.toLowerCase();
+                const matched = events
+                  .filter(e => e.title.toLowerCase().includes(q) || e.category?.toLowerCase().includes(q) || e.description?.toLowerCase().includes(q))
+                  .slice(0, 6);
+                return matched.length > 0 ? (
+                  <>
+                    <Text style={s.suggestionsHeader}>Tasks</Text>
+                    {matched.map((ev) => (
+                      <Pressable
+                        key={ev.id || ev._id}
+                        style={s.suggestionItem}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setFilters({ searchQuery: ev.title });
+                          setShowSearchSuggestions(false);
+                        }}
+                      >
+                        <View style={[s.suggestionDot, { backgroundColor: ev.color || colors.primary }]} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.suggestionItemTitle} numberOfLines={1}>{ev.title}</Text>
+                          <Text style={s.suggestionItemSub} numberOfLines={1}>{ev.category} · {ev.status}</Text>
+                        </View>
+                        <Text style={s.suggestionItemDate}>{ev.date?.split('T')[0]}</Text>
+                      </Pressable>
+                    ))}
+                  </>
+                ) : (
+                  <View style={{ padding: 16, alignItems: 'center' }}>
+                    <Text style={[s.suggestionsHeader, { marginBottom: 0 }]}>No tasks found for "{filters.searchQuery}"</Text>
+                  </View>
+                );
+              })()}
+            </View>
+          )}
         </View>
+
         <Pressable
-          style={s.filterBtn}
+          style={[s.filterBtn, { marginLeft: 10 }]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             router.push('/map' as any);
@@ -1004,7 +1246,55 @@ export default function HomeScreen() {
         triggerType={arrivedTriggerType}
         onDismiss={dismissArrivedTask}
         onStartTask={(ev) => { dismissArrivedTask(); handleStartTask(ev); }}
+        onSmartSnooze={handleSmartSnooze}
       />
+
+      {buddyAlert && (
+        <BuddyAlertModal
+          alert={buddyAlert}
+          onDismiss={clearBuddyAlert}
+        />
+      )}
+
+      {/* ── ZEN MODE PERMISSION MODAL ─────────────────────────────────────── */}
+      {/* Shows ONCE when user starts their first Critical task.               */}
+      {/* After user decides, their choice is saved and modal never shows again */}
+      <ZenModePermissionModal
+        visible={zenModalVisible}
+        taskTitle={zenPendingTask?.title || 'Critical Task'}
+        onAllow={async () => {
+          // Save permission granted
+          await zenModeService.savePermissionChoice(true);
+          setZenModalVisible(false);
+          // Now open Android DND settings
+          try {
+            const { Linking } = require('react-native');
+            await Linking.openURL('android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS').catch(() =>
+              Linking.openSettings()
+            );
+          } catch { /* ignore */ }
+          // Start the pending task
+          if (zenPendingTask) {
+            const taskId = (zenPendingTask.id || zenPendingTask._id) as string;
+            updateTaskStatus(taskId, 'in_progress');
+            router.push(`/event/${taskId}` as any);
+            setZenPendingTask(null);
+          }
+        }}
+        onDeny={async () => {
+          // Save user's denial — won't ask again
+          await zenModeService.savePermissionChoice(false);
+          setZenModalVisible(false);
+          // Still start the task, just without DND
+          if (zenPendingTask) {
+            const taskId = (zenPendingTask.id || zenPendingTask._id) as string;
+            updateTaskStatus(taskId, 'in_progress');
+            router.push(`/event/${taskId}` as any);
+            setZenPendingTask(null);
+          }
+        }}
+      />
+      {/* ─────────────────────────────────────────────────────────────────── */}
 
       {/* ── HAMBURGER MENU MODAL (SIDE NAVBAR) ── */}
       <Modal visible={isMenuOpen} transparent animationType="none" onRequestClose={() => closeMenu()}>
@@ -1390,6 +1680,101 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 8,
+  },
+  // Triage UI
+  triageCard: {
+    marginHorizontal: rs(16),
+    marginBottom: rs(16),
+    backgroundColor: colors.card,
+    borderRadius: rs(20),
+    borderWidth: 1.5,
+    borderColor: colors.error + '25',
+    shadowColor: colors.error,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
+    shadowRadius: 10,
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  triageCardInner: {
+    paddingVertical: rs(13),
+    paddingHorizontal: rs(14),
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  triageIconWrap: {
+    width: rs(44),
+    height: rs(44),
+    borderRadius: rs(14),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: rs(13),
+    shadowColor: colors.error,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  triageInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  triageBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: rs(6),
+    marginBottom: rs(3),
+  },
+  triageOverdueBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.dangerLight,
+    paddingHorizontal: rs(7),
+    paddingVertical: rs(2),
+    borderRadius: rs(6),
+    gap: rs(4),
+  },
+  triagePulseDot: {
+    width: rs(6),
+    height: rs(6),
+    borderRadius: rs(3),
+    backgroundColor: colors.error,
+  },
+  triageOverdueText: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: ms(9.5),
+    color: colors.error,
+    letterSpacing: 0.5,
+  },
+  triageCountHint: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: ms(11),
+    color: colors.textSecondary,
+  },
+  triageTitle: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: ms(15),
+    color: colors.text,
+    lineHeight: ms(20),
+  },
+  triageSubtitle: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: ms(11.5),
+    color: colors.textSecondary,
+    marginTop: rs(1),
+  },
+  triageActionCircle: {
+    width: rs(34),
+    height: rs(34),
+    borderRadius: rs(17),
+    backgroundColor: colors.dangerLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: rs(8),
+  },
+  aiBadge: {
+    paddingVertical: 4,
+    borderRadius: 8,
     alignSelf: 'flex-start',
   },
   aiBadgeText: {
@@ -1549,10 +1934,11 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   // ── Search Row ──
   searchRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginHorizontal: 16,
     gap: 12,
     marginBottom: 16,
+    zIndex: 100,
   },
   searchBox: {
     flex: 1,
@@ -1594,6 +1980,80 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 24,
+  },
+
+  // ── Search Suggestions Dropdown ──
+  suggestionsPanel: {
+    position: 'absolute',
+    top: 54,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 12,
+    zIndex: 999,
+    overflow: 'hidden',
+    maxHeight: 320,
+  },
+  suggestionsHeader: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 10,
+    color: colors.textSecondary,
+    letterSpacing: 0.8,
+    marginLeft: 14,
+    marginTop: 12,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  suggestionChip: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  suggestionChipText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    color: colors.text,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  suggestionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    flexShrink: 0,
+  },
+  suggestionItemTitle: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13,
+    color: colors.text,
+  },
+  suggestionItemSub: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  suggestionItemDate: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11,
+    color: colors.textSecondary,
   },
 
   // ── Status Pills ──

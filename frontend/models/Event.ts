@@ -1,6 +1,15 @@
 export type Priority = 'low' | 'medium' | 'high' | 'critical';
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'overdue' | 'cancelled';
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'late_completed' | 'overdue' | 'cancelled' | 'pending_exit';
 export type ReminderType = 'before' | 'exact' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+// Edge Case 2: Time-Gated Locations
+// Alarm only fires if current time/day falls inside this gate
+export interface LocationTimeGate {
+  startHour: number;   // 0–23, e.g. 9 for 9 AM
+  endHour: number;     // 0–23, e.g. 17 for 5 PM
+  days: string[];      // e.g. ['Monday','Tuesday','Wednesday','Thursday','Friday']
+}
+
 
 export interface LocationDetails {
   latitude?: number;
@@ -8,11 +17,18 @@ export interface LocationDetails {
   address?: string;
 }
 
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
 export interface LinkedContact {
   name: string;
   phone?: string;
   email?: string;
 }
+
 
 export interface ReminderConfig {
   id: string; // Unique ID for the reminder
@@ -78,11 +94,27 @@ export interface Event {
   video?: string;
   linkedContact?: LinkedContact;
   completed: boolean;
+  // Edge Case Fix #7: All-day tasks have no specific deadline time.
+  // When true, the task is only "overdue" after the calendar day ends (next midnight).
+  isAllDay?: boolean;
   // Location Reminder Feature
   locationReminderEnabled?: boolean;
   geofenceRadius?: number;
   triggerType?: 'arrive' | 'leave';
   locationReminderTriggered?: boolean;
+  checklist?: ChecklistItem[];
+
+  // Edge Case 2: Time-Gated Locations
+  locationTimeGate?: LocationTimeGate;
+
+
+  // Edge Case 4: Contextual Snooze — task enters this state when user snoozes by geofence exit
+  pendingExitGeofenceId?: string;
+
+  // Edge Case 5: Critical Task — overrides phone silent mode and maxes alarm volume
+  isCritical?: boolean;
+
+
   
   // Timestamps
   startedAt?: string;

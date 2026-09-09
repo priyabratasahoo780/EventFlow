@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, Pressable, Alert, FlatList, Image, ActivityIndi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
+import { useEventStore } from '../../store/useEventStore';
+import LoadingScreen from '../../components/LoadingScreen';
 import BrutalCard from '../../components/BrutalCard';
 import api from '../../services/api';
 import * as Haptics from 'expo-haptics';
@@ -83,9 +85,7 @@ export default function FriendRequestsScreen() {
       </View>
       
       {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.secondary} />
-        </View>
+        <LoadingScreen fullScreen={false} message="Loading requests..." />
       ) : requests.length === 0 ? (
         <View style={styles.emptyContainer}>
           <View style={styles.emptyIconCircle}>

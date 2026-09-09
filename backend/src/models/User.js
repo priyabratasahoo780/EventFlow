@@ -9,7 +9,11 @@ const userSchema = new mongoose.Schema({
   city: { type: String, default: '' },
   profilePhoto: { type: String, default: '' },
   expoPushToken: { type: String, default: '' },
-  friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+  friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  // ── Two-Factor Authentication ──────────────────────────────────────────
+  twoFactorEnabled: { type: Boolean, default: false },
+  twoFactorOtp: { type: String, default: null },         // hashed OTP
+  twoFactorOtpExpiry: { type: Date, default: null },     // 10-min TTL
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

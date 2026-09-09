@@ -15,5 +15,8 @@ class AlarmManagerPackage : ReactPackage {
 
     override fun createNativeModules(
         reactContext: ReactApplicationContext
-    ): MutableList<NativeModule> = mutableListOf(AlarmManagerModule(reactContext))
+    ): MutableList<NativeModule> = mutableListOf(
+        AlarmManagerModule(reactContext),
+        ActivityTransitionModule(reactContext)
+    )
 }

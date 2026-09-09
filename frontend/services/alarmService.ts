@@ -1,4 +1,4 @@
-﻿/**
+/**
  * alarmService.ts
  * ────────────────────────────────────────────────────────────────────────────
  * JavaScript API over the native AlarmManagerModule (Kotlin).
@@ -20,11 +20,20 @@ const { AlarmManagerModule } = NativeModules as {
       body: string,
       eventId: string
     ): Promise<string>;
+    scheduleAlarmCritical(
+      alarmId: string,
+      triggerMs: number,
+      title: string,
+      body: string,
+      eventId: string,
+      isCritical: boolean
+    ): Promise<string>;
     cancelAlarm(alarmId: string): Promise<string>;
     canScheduleExactAlarms(): Promise<boolean>;
     openExactAlarmSettings(): Promise<string>;
   };
 };
+
 
 const isAvailable = Platform.OS === "android" && !!AlarmManagerModule;
 
@@ -64,30 +73,32 @@ export const alarmService = {
    * @param title     Alarm screen / notification title
    * @param body      Alarm screen / notification body
    * @param eventId   The event._id to deep-link back
+   * @param isCritical EC5 — if true, native layer overrides phone silent mode and maxes volume
    */
   async scheduleAlarm(
     alarmId: string,
     triggerMs: number,
     title: string,
     body: string,
-    eventId: string
+    eventId: string,
+    isCritical: boolean = false
   ): Promise<void> {
     if (!isAvailable) return;
     if (triggerMs <= Date.now()) return; // skip past times
 
     try {
-      await AlarmManagerModule!.scheduleAlarm(
-        alarmId,
-        triggerMs,
-        title,
-        body,
-        eventId
-      );
-      console.log("[AlarmService] Scheduled:", alarmId, new Date(triggerMs).toLocaleString());
+      if (isCritical) {
+        // EC5: Route critical tasks to the overloaded native method
+        await AlarmManagerModule!.scheduleAlarmCritical(alarmId, triggerMs, title, body, eventId, true);
+      } else {
+        await AlarmManagerModule!.scheduleAlarm(alarmId, triggerMs, title, body, eventId);
+      }
+      console.log("[AlarmService] Scheduled:", alarmId, new Date(triggerMs).toLocaleString(), isCritical ? "🚨 CRITICAL" : "");
     } catch (e) {
       console.error("[AlarmService] scheduleAlarm error:", e);
     }
   },
+
 
   /** Cancel a previously scheduled alarm. */
   async cancelAlarm(alarmId: string): Promise<void> {
@@ -129,7 +140,8 @@ export const alarmService = {
         eventDateTime.getTime(),
         `⏰ Starting Now: ${event.title}`,
         `Your task "${event.title}" is due now. Tap to start!`,
-        eventId
+        eventId,
+        event.isCritical ?? false
       );
       scheduledIds.push(mainId);
     }
@@ -170,10 +182,12 @@ export const alarmService = {
         body = `Deadline at ${reminder.time}. Ready to focus?`;
       }
 
-      if (triggerDate && triggerDate.getTime() > now.getTime()) {
-        await this.scheduleAlarm(remId, triggerDate.getTime(), title, body, eventId);
+      const shouldFireAlarm = !reminder.alarmPreference || reminder.alarmPreference === 'alarm' || reminder.alarmPreference === 'both';
+      if (shouldFireAlarm && triggerDate && triggerDate.getTime() > now.getTime()) {
+        await this.scheduleAlarm(remId, triggerDate.getTime(), title, body, eventId, event.isCritical ?? false);
         scheduledIds.push(remId);
       }
+
     }
 
     return scheduledIds;

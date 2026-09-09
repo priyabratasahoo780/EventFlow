@@ -10,7 +10,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
 import { useEventStore } from '../store/useEventStore';
-import { Event, ReminderConfig } from '../models/Event';
+import { Event, ReminderConfig, ChecklistItem } from '../models/Event';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format, subMinutes, subHours, subDays, subWeeks } from 'date-fns';
 import { 
@@ -89,6 +89,22 @@ export default function AddEventScreen() {
   const [locationReminderEnabled, setLocationReminderEnabled] = useState<boolean>(existingEvent?.locationReminderEnabled || false);
   const [geofenceRadius, setGeofenceRadius] = useState<number>(existingEvent?.geofenceRadius || 500);
   const [triggerType, setTriggerType] = useState<'arrive' | 'leave'>(existingEvent?.triggerType || 'arrive');
+
+  // EC5: Critical task overrides phone silent mode and maxes alarm volume
+  const [isCritical, setIsCritical] = useState<boolean>(existingEvent?.isCritical || false);
+
+  // EC2: Time-gated location reminder — only fires during these hours/days
+  const [timeGateEnabled, setTimeGateEnabled] = useState<boolean>(!!existingEvent?.locationTimeGate);
+  const [timeGateStartHour, setTimeGateStartHour] = useState<number>(existingEvent?.locationTimeGate?.startHour ?? 9);
+  const [timeGateEndHour, setTimeGateEndHour] = useState<number>(existingEvent?.locationTimeGate?.endHour ?? 17);
+  const [timeGateDays, setTimeGateDays] = useState<string[]>(
+    existingEvent?.locationTimeGate?.days ?? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+  );
+
+  // Checklist (Tier 2)
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(existingEvent?.checklist || []);
+  const [newChecklistItem, setNewChecklistItem] = useState('');
+
 
   const [imageUri, setImageUri] = useState<string | undefined>(existingEvent?.image);
   const [videoUri, setVideoUri] = useState<string | undefined>(existingEvent?.video);
@@ -179,6 +195,13 @@ export default function AddEventScreen() {
             locationReminderEnabled: locationReminderEnabled,
             geofenceRadius: geofenceRadius,
             triggerType: triggerType,
+            isCritical: isCritical,
+            locationTimeGate: timeGateEnabled ? {
+              startHour: timeGateStartHour,
+              endHour: timeGateEndHour,
+              days: timeGateDays,
+            } : undefined,
+            checklist: checklist,
             image: imageUri,
             video: videoUri,
             linkedContact: linkedContact,
@@ -189,6 +212,7 @@ export default function AddEventScreen() {
             sharedWith: visibility === 'selectedFriends' ? sharedWith : [],
             updatedAt: new Date().toISOString(),
           };
+
           await updateEvent(updatedEvent as Event);
           if (Platform.OS === 'android') ToastAndroid.show('TASK UPDATED 🔥', ToastAndroid.SHORT);
         } else {
@@ -204,6 +228,13 @@ export default function AddEventScreen() {
             locationReminderEnabled: locationReminderEnabled,
             geofenceRadius: geofenceRadius,
             triggerType: triggerType,
+            isCritical: isCritical,
+            locationTimeGate: timeGateEnabled ? {
+              startHour: timeGateStartHour,
+              endHour: timeGateEndHour,
+              days: timeGateDays,
+            } : undefined,
+            checklist: checklist,
             image: imageUri,
             video: videoUri,
             linkedContact: linkedContact,
@@ -216,11 +247,16 @@ export default function AddEventScreen() {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
+
           await addEvent(newEvent as Event);
           if (Platform.OS === 'android') ToastAndroid.show('TASK CREATED 🔥', ToastAndroid.SHORT);
         }
         
-        router.back();
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/(tabs)');
+        }
       } catch (err: any) {
         console.error('Submit Error:', err);
         Alert.alert('Error Saving Event', err?.message || 'An unexpected error occurred. Check console logs.');
@@ -231,6 +267,30 @@ export default function AddEventScreen() {
   const removeReminder = (idToRemove: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setReminders(prev => prev.filter(r => r.id !== idToRemove));
+  };
+
+  const openEditReminder = (r: ReminderConfig) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setEditingReminderId(r.id);
+    setModalType(r.type);
+    if (r.value) setModalValue(r.value.toString());
+    if (r.unit) setModalUnit(r.unit);
+    if (r.alarmPreference) setModalAlarmPref(r.alarmPreference);
+    if (r.snooze) setModalSnooze(r.snooze);
+    if (r.sound) setModalSound(r.sound);
+    if (r.time) {
+      const [h, m] = r.time.split(':').map(Number);
+      const d = new Date();
+      d.setHours(h, m, 0, 0);
+      setModalTime(d);
+    }
+    if (r.date) {
+      const parts = r.date.split('-');
+      if (parts.length === 3) {
+        setModalDate(new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
+      }
+    }
+    setShowReminderModal(true);
   };
 
   const toggleModalDay = (day: string) => {
@@ -317,13 +377,17 @@ export default function AddEventScreen() {
   };
 
   const formatReminderString = (r: ReminderConfig) => {
-    if (r.type === 'before') return `${r.value} ${r.unit} before`;
-    if (r.type === 'daily') return `Every day at ${r.time}`;
-    if (r.type === 'weekly') return `Weekly on ${r.days?.map(d => d.slice(0,3)).join(', ')} at ${r.time}`;
-    if (r.type === 'exact') return `${r.date} at ${r.time}`;
-    if (r.type === 'monthly') return `Monthly on the ${r.dayOfMonth} at ${r.time}`;
-    if (r.type === 'yearly') return `Yearly on ${r.date} at ${r.time}`;
-    return `Custom ${r.type}`;
+    let base = '';
+    if (r.type === 'before') base = `${r.value} ${r.unit} before`;
+    else if (r.type === 'daily') base = `Every day at ${r.time}`;
+    else if (r.type === 'weekly') base = `Weekly on ${r.days?.map(d => d.slice(0,3)).join(', ')} at ${r.time}`;
+    else if (r.type === 'exact') base = `${r.date} at ${r.time}`;
+    else if (r.type === 'monthly') base = `Monthly on the ${r.dayOfMonth} at ${r.time}`;
+    else if (r.type === 'yearly') base = `Yearly on ${r.date} at ${r.time}`;
+    else base = `Custom ${r.type}`;
+
+    const method = r.alarmPreference === 'both' ? '🔔+⏰ Both' : r.alarmPreference === 'alarm' ? '⏰ Alarm' : '🔔 Notification';
+    return `${base} (${method})`;
   };
 
   const onSubmit = async (data: EventFormData) => {
@@ -344,6 +408,13 @@ export default function AddEventScreen() {
           locationReminderEnabled: locationReminderEnabled,
           geofenceRadius: geofenceRadius,
           triggerType: triggerType,
+          isCritical: isCritical,
+          locationTimeGate: timeGateEnabled ? {
+            startHour: timeGateStartHour,
+            endHour: timeGateEndHour,
+            days: timeGateDays,
+          } : undefined,
+          checklist: checklist,
           image: imageUri,
           video: videoUri,
           linkedContact: linkedContact,
@@ -369,6 +440,13 @@ export default function AddEventScreen() {
           locationReminderEnabled: locationReminderEnabled,
           geofenceRadius: geofenceRadius,
           triggerType: triggerType,
+          isCritical: isCritical,
+          locationTimeGate: timeGateEnabled ? {
+            startHour: timeGateStartHour,
+            endHour: timeGateEndHour,
+            days: timeGateDays,
+          } : undefined,
+          checklist: checklist,
           image: imageUri,
           video: videoUri,
           linkedContact: linkedContact,
@@ -480,7 +558,6 @@ export default function AddEventScreen() {
                   value={date}
                   mode="date"
                   display="default"
-                  minimumDate={new Date()}
                   onChange={(_, selectedDate) => {
                     setShowDatePicker(Platform.OS === 'ios');
                     if (selectedDate) setDate(selectedDate);
@@ -652,10 +729,10 @@ export default function AddEventScreen() {
                 <Text style={styles.label}>REMINDERS</Text>
                 {reminders.map(r => (
                   <View key={r.id} style={styles.reminderCard}>
-                    <View style={styles.reminderContent}>
+                    <Pressable onPress={() => openEditReminder(r)} style={[styles.reminderContent, { flex: 1 }]}>
                       <Bell color={colors.secondary} size={16} strokeWidth={2.5} />
                       <Text style={styles.reminderText}>{formatReminderString(r)}</Text>
-                    </View>
+                    </Pressable>
                     <Pressable onPress={() => removeReminder(r.id)} style={styles.reminderDelete}>
                       <X color={colors.textSecondary} size={16} strokeWidth={2.5} />
                     </Pressable>
@@ -764,7 +841,7 @@ export default function AddEventScreen() {
                       </View>
 
                       <Text style={[styles.label, { fontSize: 12, marginBottom: 8 }]}>RADIUS</Text>
-                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
                         {[100, 250, 500, 1000].map(r => (
                           <Pressable 
                             key={r}
@@ -775,8 +852,134 @@ export default function AddEventScreen() {
                           </Pressable>
                         ))}
                       </View>
+
+                      {/* EC2: Time Gate — only fire alarm during these hours/days */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <Text style={[styles.label, { fontSize: 12 }]}>⏰ TIME-GATE THIS REMINDER</Text>
+                        <Switch
+                          value={timeGateEnabled}
+                          onValueChange={setTimeGateEnabled}
+                          trackColor={{ false: '#E2E8F0', true: colors.secondary }}
+                          thumbColor="#FFF"
+                        />
+                      </View>
+                      {timeGateEnabled && (
+                        <View style={{ backgroundColor: colors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 16, gap: 10 }}>
+                          <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: colors.textSecondary }}>Alarm will only fire if triggered within this time window.</Text>
+
+                          {/* Start/End Hour */}
+                          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: colors.textSecondary, marginBottom: 4 }}>FROM (hour)</Text>
+                              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                                {[6,7,8,9,10,11,12].map(h => (
+                                  <Pressable key={h} style={[{paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: colors.border}, timeGateStartHour === h && {backgroundColor: colors.secondary, borderColor: colors.secondary}]} onPress={() => setTimeGateStartHour(h)}>
+                                    <Text style={[{fontFamily: 'Poppins_500Medium', fontSize: 11, color: colors.textSecondary}, timeGateStartHour === h && {color: '#FFF'}]}>{h}:00</Text>
+                                  </Pressable>
+                                ))}
+                              </View>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: colors.textSecondary, marginBottom: 4 }}>UNTIL (hour)</Text>
+                              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                                {[13,14,15,16,17,18,19,20].map(h => (
+                                  <Pressable key={h} style={[{paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: colors.border}, timeGateEndHour === h && {backgroundColor: colors.secondary, borderColor: colors.secondary}]} onPress={() => setTimeGateEndHour(h)}>
+                                    <Text style={[{fontFamily: 'Poppins_500Medium', fontSize: 11, color: colors.textSecondary}, timeGateEndHour === h && {color: '#FFF'}]}>{h}:00</Text>
+                                  </Pressable>
+                                ))}
+                              </View>
+                            </View>
+                          </View>
+
+                          {/* Days selection */}
+                          <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>ACTIVE DAYS</Text>
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                            {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(day => {
+                              const isActive = timeGateDays.includes(day);
+                              return (
+                                <Pressable
+                                  key={day}
+                                  style={[{paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colors.border}, isActive && {backgroundColor: colors.secondary, borderColor: colors.secondary}]}
+                                  onPress={() => {
+                                    Haptics.selectionAsync();
+                                    setTimeGateDays(prev => isActive ? prev.filter(d => d !== day) : [...prev, day]);
+                                  }}
+                                >
+                                  <Text style={[{fontFamily: 'Poppins_500Medium', fontSize: 11, color: colors.textSecondary}, isActive && {color: '#FFF'}]}>{day.slice(0,3)}</Text>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      )}
+
+                      {/* EC5: Critical Task toggle */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border, marginBottom: 12 }}>
+                        <View style={{ flex: 1, marginRight: 12 }}>
+                          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: colors.text }}>🚨 Critical Task</Text>
+                          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: colors.textSecondary }}>Override silent mode & max volume when alarm fires.</Text>
+                        </View>
+                        <Switch
+                          value={isCritical}
+                          onValueChange={setIsCritical}
+                          trackColor={{ false: '#E2E8F0', true: colors.error || '#EF4444' }}
+                          thumbColor="#FFF"
+                        />
+                      </View>
+
+                      {/* Tier 2: Location-Triggered Checklist */}
+                      <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
+                        <Text style={[styles.label, { fontSize: 12, marginBottom: 8 }]}>📋 LOCATION CHECKLIST (OPTIONAL)</Text>
+                        <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: colors.textSecondary, marginBottom: 12 }}>
+                          Items to show when you arrive at this location (e.g. Shopping List)
+                        </Text>
+                        
+                        {checklist.map((item, index) => (
+                          <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, padding: 10, borderRadius: 10, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
+                            <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.secondary, marginRight: 10 }} />
+                            <Text style={{ flex: 1, fontFamily: 'Poppins_500Medium', fontSize: 13, color: colors.text }}>{item.text}</Text>
+                            <Pressable 
+                              onPress={() => setChecklist(prev => prev.filter(c => c.id !== item.id))}
+                              style={{ padding: 4 }}
+                            >
+                              <X color={colors.textSecondary} size={16} />
+                            </Pressable>
+                          </View>
+                        ))}
+
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <View style={[styles.inputWrapper, { flex: 1, height: 44, paddingVertical: 0 }]}>
+                            <TextInput
+                              style={[styles.input, { height: 44 }]}
+                              placeholder="Add checklist item..."
+                              placeholderTextColor={colors.textSecondary}
+                              value={newChecklistItem}
+                              onChangeText={setNewChecklistItem}
+                              onSubmitEditing={() => {
+                                if (newChecklistItem.trim()) {
+                                  setChecklist(prev => [...prev, { id: Date.now().toString(), text: newChecklistItem.trim(), completed: false }]);
+                                  setNewChecklistItem('');
+                                }
+                              }}
+                            />
+                          </View>
+                          <Pressable
+                            style={{ backgroundColor: colors.secondary, height: 44, paddingHorizontal: 16, borderRadius: 12, justifyContent: 'center', alignItems: 'center' }}
+                            onPress={() => {
+                              if (newChecklistItem.trim()) {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setChecklist(prev => [...prev, { id: Date.now().toString(), text: newChecklistItem.trim(), completed: false }]);
+                                setNewChecklistItem('');
+                              }
+                            }}
+                          >
+                            <Plus color="#FFF" size={20} strokeWidth={2.5} />
+                          </Pressable>
+                        </View>
+                      </View>
                     </View>
                   )}
+
                 </View>
               ) : null}
 

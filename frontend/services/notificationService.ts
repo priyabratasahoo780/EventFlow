@@ -167,6 +167,11 @@ export const notificationService = {
         body = `Today is the day! Don't forget your scheduled task for ${event.time}.`;
       }
 
+      // If user selected 'alarm' only (not 'notification' and not 'both'), skip push notification
+      if (reminder.alarmPreference === 'alarm') {
+        continue;
+      }
+
       const isSilent = reminder.sound === 'silent' || reminder.notificationPreference === 'silent';
 
       const content: Notifications.NotificationContentInput = {

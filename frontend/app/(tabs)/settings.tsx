@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, Switch, Pressable, ScrollView, Alert, ToastAndroid, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { VolumeX, Moon, Bell, Download, Upload, Trash2, Info, Users, Volume2, UserPlus, Sun } from 'lucide-react-native';
+import { VolumeX, Moon, Bell, Download, Upload, Trash2, Info, Users, Volume2, UserPlus, Sun, Lock } from 'lucide-react-native';
 import { useEventStore } from '../../store/useEventStore';
 import { useThemeStore } from '../../store/useThemeStore';
+import { useAuthStore } from '../../store/useAuthStore';
+import api from '../../services/api';
 import { ColorTheme } from '../../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -27,6 +29,9 @@ export default function SettingsScreen() {
   const [showTestAlarmModal, setShowTestAlarmModal] = useState(false);
   const router = useRouter();
   
+  const { user, updateUserProfile } = useAuthStore();
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(user?.twoFactorEnabled || false);
+
   const { events, clearCompletedEvents, addEvent, loadEvents } = useEventStore();
 
   useEffect(() => {
@@ -102,6 +107,24 @@ export default function SettingsScreen() {
   const testAlarmChime = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowTestAlarmModal(true);
+  };
+
+  const toggle2FA = async (val: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setTwoFactorEnabled(val); // optimistic update
+    try {
+      const res = await api.post('/auth/2fa/toggle', { enabled: val });
+      if (res.data?.user) {
+        updateUserProfile({ twoFactorEnabled: res.data.user.twoFactorEnabled });
+      }
+      if (Platform.OS === 'android') {
+        ToastAndroid.show(val ? '2FA Enabled 🔒' : '2FA Disabled 🔓', ToastAndroid.SHORT);
+      }
+    } catch (err) {
+      console.error('Failed to toggle 2FA', err);
+      setTwoFactorEnabled(!val); // revert on failure
+      Alert.alert('Error', 'Failed to update 2FA settings.');
+    }
   };
 
   const handleClearCompleted = () => {
@@ -367,6 +390,25 @@ export default function SettingsScreen() {
                 <Text style={[styles.settingText, { color: colors.error }]}>Clear Completed Tasks</Text>
               </View>
             </Pressable>
+          </View>
+
+          <Text style={styles.sectionTitle}>SECURITY</Text>
+          
+          <View style={styles.premiumCard}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.iconBadge, { backgroundColor: colors.warningLight }]}>
+                  <Lock color={colors.warning} size={18} strokeWidth={2.5} />
+                </View>
+                <Text style={styles.settingText}>Two-Factor Auth (2FA)</Text>
+              </View>
+              <Switch
+                value={twoFactorEnabled}
+                onValueChange={toggle2FA}
+                trackColor={{ false: colors.border, true: colors.warning }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
           </View>
 
           <Text style={styles.sectionTitle}>ABOUT</Text>

@@ -11,4 +11,9 @@ router.post('/sync', authController.syncUser);
 router.post('/forgot-password', authLimiter, authController.forgotPassword);
 router.get('/profile', auth, authController.getProfile);
 
+// 2FA Routes
+router.post('/2fa/toggle', auth, authController.toggle2FA);
+router.post('/2fa/send', authController.send2FA);
+router.post('/2fa/verify', authController.verify2FA);
+
 module.exports = router;
