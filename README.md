@@ -41,6 +41,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Real-World Problems Solved](#-real-world-problems--edge-cases-solved)
 - [Key Features](#key-features)
 - [Complete Feature Overview](#-complete-feature-overview)
 - [EventFlow vs. The Market](#️-eventflow-vs-the-market)
@@ -66,6 +67,32 @@
 **EventFlow** is a production-grade mobile application that goes far beyond a simple to-do list. It combines **smart event scheduling**, a **priority scoring engine**, **native Android alarm management**, **geofence-based location reminders**, and **real-time social features** into a single cohesive experience.
 
 Built on a **React Native + Expo** frontend and a **Node.js + Express + MongoDB** backend, with a clean domain-driven folder architecture and zero TypeScript errors.
+
+---
+
+## <img src="https://api.iconify.design/lucide/target.svg?color=%233b82f6" width="20" align="top" /> Real-World Problems & Edge Cases Solved
+
+Building a reliable alarm and productivity app comes with complex edge cases, especially on modern mobile operating systems. Here is how EventFlow solves them:
+
+1. **The "Silent Alarm" Problem (Android Doze Mode):**
+   - **Problem:** Modern Android OS aggressively kills background apps and silences notifications to save battery (Doze mode). Standard React Native scheduling fails to wake the device.
+   - **Solution:** We built a custom Kotlin `AlarmManagerModule` that uses `AlarmManager.setExactAndAllowWhileIdle`. Coupled with `PowerManager.WakeLock`, EventFlow literally turns on your phone screen from deep sleep, bypasses Doze, and rings audibly—even if the app was swiped away and killed weeks ago.
+
+2. **The "Notification Clutter" Problem:**
+   - **Problem:** Getting multiple standard notifications for both minor and major tasks leads to swipe-fatigue, causing users to ignore critical events.
+   - **Solution:** Our multi-tier reminder system separates *gentle nudges* (standard push notifications) from *critical exact alarms* (full-screen modal with continuous ringing and haptics). You only get aggressive, screen-waking alarms for events that truly matter.
+
+3. **The "Stale Data" Problem in Social Calendars:**
+   - **Problem:** When sharing events with friends, polling the database for updates drains battery and often results in out-of-sync schedules.
+   - **Solution:** We implemented a persistent **Socket.io** connection authenticated via JWT. When a friend updates an event you're invited to, your app receives the payload instantly and updates the global Zustand store in real-time without needing a manual refresh.
+
+4. **The "Overwhelming To-Do List" Paralysis:**
+   - **Problem:** Users abandon productivity apps when their overdue tasks pile up and everything looks equally important.
+   - **Solution:** The **AI Priority Engine** constantly recalculates task importance based on deadline proximity and location. The Hero Focus Card isolates the *single most important thing* you should be doing right now, eliminating choice paralysis.
+
+5. **The "Forgot to check-in/out" Location Problem:**
+   - **Problem:** You need to be reminded of something specifically when you *leave* a location, not just when you arrive.
+   - **Solution:** EventFlow uses background geofencing with both **Arrive** and **Leave** triggers. The background task evaluator parses location boundaries and fires notifications precisely when you cross the geofence radius, even with the app in the background.
 
 ---
 
@@ -120,15 +147,15 @@ Built on a **React Native + Expo** frontend and a **Node.js + Express + MongoDB*
 
 | Feature | Description | Status |
 |:---|:---|:---:|
-| Rich event creation | Category, priority, duration, color, icon, linked contact, media (image/video) | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Multi-reminder system | Per-event reminders: `before`, `exact`, `daily`, `weekly`, `monthly`, `yearly` | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Smart status lifecycle | `pending → in_progress → completed → overdue` with visual indicators | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Event detail screen | Full-page dynamic screen (`/event/[id]`) with edit & delete | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Add Event screen | Full-form screen with all fields, validation, and media upload | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Task Triage view | Bulk-manage overdue/pending tasks from a dedicated triage screen | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Calendar view | Monthly/weekly visual calendar with event dots and filters | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Category chips & filters | Filter events by category, status, or priority on the home screen | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Hero Focus Card carousel | Auto-scrolling top 3 AI-ranked events as full-bleed hero cards | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
+| Rich event creation | Category, priority, duration, color, icon, linked contact, media (image/video) | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Multi-reminder system | Per-event reminders: `before`, `exact`, `daily`, `weekly`, `monthly`, `yearly` | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Smart status lifecycle | `pending → in_progress → completed → overdue` with visual indicators | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Event detail screen | Full-page dynamic screen (`/event/[id]`) with edit & delete | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Add Event screen | Full-form screen with all fields, validation, and media upload | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Task Triage view | Bulk-manage overdue/pending tasks from a dedicated triage screen | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Calendar view | Monthly/weekly visual calendar with event dots and filters | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Category chips & filters | Filter events by category, status, or priority on the home screen | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Hero Focus Card carousel | Auto-scrolling top 3 AI-ranked events as full-bleed hero cards | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
 
 ---
 
@@ -136,10 +163,10 @@ Built on a **React Native + Expo** frontend and a **Node.js + Express + MongoDB*
 
 | Feature | Description | Status |
 |:---|:---|:---:|
-| Dynamic priority scoring | Weighs **deadline proximity**, **user-defined importance**, and **location distance** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Server-side recommendation | `/api/tasks/recommendation` returns top-ranked task | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Client-side ranking | Instant re-rank on Zustand state changes without API call | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Overdue auto-detection | Backend cron-style check; status flips to `overdue` automatically | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
+| Dynamic priority scoring | Weighs **deadline proximity**, **user-defined importance**, and **location distance** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Server-side recommendation | `/api/tasks/recommendation` returns top-ranked task | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Client-side ranking | Instant re-rank on Zustand state changes without API call | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Overdue auto-detection | Backend cron-style check; status flips to `overdue` automatically | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
 
 ---
 
@@ -147,12 +174,12 @@ Built on a **React Native + Expo** frontend and a **Node.js + Express + MongoDB*
 
 | Feature | Description | Status |
 |:---|:---|:---:|
-| Local push notifications | `expo-notifications` banners with sound (all platforms, foreground + background) | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Native Android exact alarms | Custom `AlarmManagerModule` (Kotlin) — fires precisely on time even if app is killed | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Deep sleep wake-up | `PowerManager.WakeLock` bypasses Android Doze mode; screen turns on | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Alarm modal UI | Looping alarm sound, haptics, animated dismiss button | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Multi-reminder support | Schedule multiple alarm times per single event | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Expo Go graceful fallback | Fallback to standard notifications when native module unavailable | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
+| Local push notifications | `expo-notifications` banners with sound (all platforms, foreground + background) | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Native Android exact alarms | Custom `AlarmManagerModule` (Kotlin) — fires precisely on time even if app is killed | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Deep sleep wake-up | `PowerManager.WakeLock` bypasses Android Doze mode; screen turns on | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Alarm modal UI | Looping alarm sound, haptics, animated dismiss button | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Multi-reminder support | Schedule multiple alarm times per single event | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Expo Go graceful fallback | Fallback to standard notifications when native module unavailable | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
 
 ---
 
@@ -160,11 +187,11 @@ Built on a **React Native + Expo** frontend and a **Node.js + Express + MongoDB*
 
 | Feature | Description | Status |
 |:---|:---|:---:|
-| Location trigger per event | Enable arrive-at / leave-location reminders | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Background geofencing | `expo-location` background task + custom geofencing engine | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Location Arrival Modal | In-app overlay with map shortcut when you enter the event zone | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Full-screen map view | `/map` screen with event pins and geofence radius circles | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Location selector | Pick event location from map directly inside the Add Event flow | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
+| Location trigger per event | Enable arrive-at / leave-location reminders | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Background geofencing | `expo-location` background task + custom geofencing engine | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Location Arrival Modal | In-app overlay with map shortcut when you enter the event zone | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Full-screen map view | `/map` screen with event pins and geofence radius circles | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Location selector | Pick event location from map directly inside the Add Event flow | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
 
 ---
 
@@ -172,12 +199,12 @@ Built on a **React Native + Expo** frontend and a **Node.js + Express + MongoDB*
 
 | Feature | Description | Status |
 |:---|:---|:---:|
-| Friend discovery | Search by username or email | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Request → Accept → Connect | Full friend request lifecycle with reject support | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Event sharing | Share events with visibility: `onlyMe`, `friends`, `selectedFriends` | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Real-time friend event feed | Friends' shared events streamed via Socket.io | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| In-app DM messaging | Direct messages between connected friends | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Remove friend | Unfriend with confirmation | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
+| Friend discovery | Search by username or email | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Request → Accept → Connect | Full friend request lifecycle with reject support | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Event sharing | Share events with visibility: `onlyMe`, `friends`, `selectedFriends` | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Real-time friend event feed | Friends' shared events streamed via Socket.io | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| In-app DM messaging | Direct messages between connected friends | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Remove friend | Unfriend with confirmation | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
 
 ---
 
@@ -185,9 +212,9 @@ Built on a **React Native + Expo** frontend and a **Node.js + Express + MongoDB*
 
 | Feature | Description | Status |
 |:---|:---|:---:|
-| Public reviews feed | Users post reviews visible to the whole community | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Like / toggle reactions | Tap to like or unlike any community review | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Review creation | Rich text review submission from the Community screen | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
+| Public reviews feed | Users post reviews visible to the whole community | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Like / toggle reactions | Tap to like or unlike any community review | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Review creation | Rich text review submission from the Community screen | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
 
 ---
 
@@ -195,11 +222,11 @@ Built on a **React Native + Expo** frontend and a **Node.js + Express + MongoDB*
 
 | Feature | Description | Status |
 |:---|:---|:---:|
-| Weekly productivity chart | Bar chart of events completed per day (gifted-charts) | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Category breakdown | Pie/segment breakdown by event category | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Completion trend | Historical trend of task completion rate | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Daily momentum bar | Home screen progress bar showing today's completion % | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Dashboard API | `/api/analytics/dashboard`, `/weekly`, `/categories` endpoints | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
+| Weekly productivity chart | Bar chart of events completed per day (gifted-charts) | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Category breakdown | Pie/segment breakdown by event category | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Completion trend | Historical trend of task completion rate | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Daily momentum bar | Home screen progress bar showing today's completion % | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Dashboard API | `/api/analytics/dashboard`, `/weekly`, `/categories` endpoints | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
 
 ---
 
@@ -207,14 +234,14 @@ Built on a **React Native + Expo** frontend and a **Node.js + Express + MongoDB*
 
 | Feature | Description | Status |
 |:---|:---|:---:|
-| Animated Splash Screen | Custom `SplashScreenView` with branded animation sequence | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Dark / Light theme | System-aware + manual toggle via `useThemeStore` | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Haptic feedback | Every tap triggers haptic via `expo-haptics` | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Smooth animations | Reanimated 4 — shared values, layout transitions, spring physics | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| BrutalCard / BrutalButton | Custom design-system primitives used across all screens | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Responsive layout | Scales cleanly across phone sizes (portrait only) | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Media picker | Image & video picker with preview (Expo ImagePicker) | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| Offline-first alarms | Alarms work 100% without internet | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
+| Animated Splash Screen | Custom `SplashScreenView` with branded animation sequence | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Dark / Light theme | System-aware + manual toggle via `useThemeStore` | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Haptic feedback | Every tap triggers haptic via `expo-haptics` | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Smooth animations | Reanimated 4 — shared values, layout transitions, spring physics | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| BrutalCard / BrutalButton | Custom design-system primitives used across all screens | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Responsive layout | Scales cleanly across phone sizes (portrait only) | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Media picker | Image & video picker with preview (Expo ImagePicker) | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| Offline-first alarms | Alarms work 100% without internet | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
 
 ---
 
@@ -224,23 +251,23 @@ Built on a **React Native + Expo** frontend and a **Node.js + Express + MongoDB*
 
 | Feature | **EventFlow** | Google Calendar | Apple Calendar | Todoist | TickTick | Any.do |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Smart AI Priority Ranking** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> Built-in | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> Basic | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> Basic | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> |
-| **Native Exact Alarms (bypasses Doze)** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> Custom Kotlin module | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> |
-| **Deep-sleep Screen Wake-up** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> WakeLock | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> |
-| **Multi-type reminders per event** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> 6 types | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> 3 types | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> 2 types | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> (premium) | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> (premium) | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> (premium) |
-| **Geofence Location Reminders** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> Arrive & Leave | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> Arrive only | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> (premium) | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> (premium) |
-| **Real-time Social Event Feed** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> Socket.io | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> |
-| **In-app Friend Messaging (DM)** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> |
-| **Friend Request System** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> |
-| **Community Reviews Feed** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> |
-| **Event Media (Image / Video)** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> image only | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> image only | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> |
-| **Weekly Analytics Dashboard** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> Custom charts | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> Basic | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> (premium) | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> (premium) | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> |
-| **Task Triage Screen** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> |
-| **Hero Focus Card (top event)** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> (premium) |
-| **Full-screen Map with Event Pins** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> |
-| **Open Source & Self-hostable** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> MIT | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> |
-| **Zero Subscription / Free Forever** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> (basic) | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> (freemium) | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> (freemium) | <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> (freemium) |
-| **Offline-first Alarm Engine** | <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/alert-triangle.svg" width="20" align="top" /> partial | <img src="https://api.iconify.design/lucide/alert-triangle.svg" width="20" align="top" /> partial | <img src="https://api.iconify.design/lucide/alert-triangle.svg" width="20" align="top" /> partial | <img src="https://api.iconify.design/lucide/alert-triangle.svg" width="20" align="top" /> partial | <img src="https://api.iconify.design/lucide/alert-triangle.svg" width="20" align="top" /> partial |
+| **Smart AI Priority Ranking** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> Built-in | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> Basic | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> Basic | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> |
+| **Native Exact Alarms (bypasses Doze)** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> Custom Kotlin module | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> |
+| **Deep-sleep Screen Wake-up** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> WakeLock | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> |
+| **Multi-type reminders per event** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> 6 types | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> 3 types | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> 2 types | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> (premium) | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> (premium) | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> (premium) |
+| **Geofence Location Reminders** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> Arrive & Leave | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> Arrive only | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> (premium) | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> (premium) |
+| **Real-time Social Event Feed** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> Socket.io | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> |
+| **In-app Friend Messaging (DM)** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> |
+| **Friend Request System** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> |
+| **Community Reviews Feed** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> |
+| **Event Media (Image / Video)** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> image only | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> image only | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> |
+| **Weekly Analytics Dashboard** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> Custom charts | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> Basic | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> (premium) | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> (premium) | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> |
+| **Task Triage Screen** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> |
+| **Hero Focus Card (top event)** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> (premium) |
+| **Full-screen Map with Event Pins** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> |
+| **Open Source & Self-hostable** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> MIT | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> |
+| **Zero Subscription / Free Forever** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> (basic) | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> (freemium) | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> (freemium) | <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> (freemium) |
+| **Offline-first Alarm Engine** | <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> | <img src="https://api.iconify.design/lucide/alert-triangle.svg?color=%23f59e0b" width="20" align="top" /> partial | <img src="https://api.iconify.design/lucide/alert-triangle.svg?color=%23f59e0b" width="20" align="top" /> partial | <img src="https://api.iconify.design/lucide/alert-triangle.svg?color=%23f59e0b" width="20" align="top" /> partial | <img src="https://api.iconify.design/lucide/alert-triangle.svg?color=%23f59e0b" width="20" align="top" /> partial | <img src="https://api.iconify.design/lucide/alert-triangle.svg?color=%23f59e0b" width="20" align="top" /> partial |
 
 ### <img src="https://api.iconify.design/lucide/trophy.svg" width="20" align="top" /> What Makes EventFlow Unique
 
@@ -674,11 +701,11 @@ EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your_clerk_key
 The frontend uses Babel `module-resolver` so imports are clean and refactor-safe:
 
 ```typescript
-// <img src="https://api.iconify.design/lucide/x-circle.svg" width="20" align="top" /> Before (brittle relative paths)
+// <img src="https://api.iconify.design/lucide/x-circle.svg?color=%23ef4444" width="20" align="top" /> Before (brittle relative paths)
 import { useEventStore } from '../../../../store/useEventStore';
 import BrutalButton from '../../components/BrutalButton';
 
-// <img src="https://api.iconify.design/lucide/check-circle-2.svg" width="20" align="top" /> After (clean path aliases)
+// <img src="https://api.iconify.design/lucide/check-circle-2.svg?color=%2322c55e" width="20" align="top" /> After (clean path aliases)
 import { useEventStore } from '@/store';
 import { BrutalButton } from '@/components/ui';
 ```
