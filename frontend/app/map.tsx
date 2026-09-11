@@ -30,7 +30,7 @@ export default function MapScreen() {
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const [placeSuggestions, setPlaceSuggestions] = useState<any[]>([]);
   const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const insets = useSafeAreaInsets();
 
   const mapRef = useRef<MapViewRef>(null);

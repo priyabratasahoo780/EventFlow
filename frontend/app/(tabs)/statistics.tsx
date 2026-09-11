@@ -248,7 +248,8 @@ const shStyles = StyleSheet.create({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function StatisticsScreen() {
-  const { getColors } = useThemeStore();
+  const { getColors, isDark } = useThemeStore();
+  const isDarkMode = isDark();
   const colors = getColors();
   const styles = getStyles(colors);
   const { events } = useEventStore();
