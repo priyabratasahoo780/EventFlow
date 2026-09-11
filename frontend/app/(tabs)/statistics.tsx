@@ -16,6 +16,8 @@ import {
 } from 'lucide-react-native';
 import { PieChart, BarChart } from 'react-native-gifted-charts';
 import * as Haptics from 'expo-haptics';
+import { behaviorService } from '../../services/behaviorService';
+
 
 type TimeFilter = 'week' | 'month' | 'year' | 'all';
 const { width: SW } = Dimensions.get('window');
@@ -252,6 +254,73 @@ export default function StatisticsScreen() {
   const { events } = useEventStore();
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('week');
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [aiInsights, setAiInsights] = useState<string[]>([]);
+
+  // Load AI productivity insights from behavior records
+  useEffect(() => {
+    let cancelled = false;
+    behaviorService.getAllRecords().then(records => {
+      if (cancelled || records.length === 0) return;
+
+      const insights: string[] = [];
+      const now = Date.now();
+      const weekMs = 7 * 24 * 60 * 60 * 1000;
+
+      // Insight 1: On-time vs late overall
+      const onTime = records.filter(r => r.delayMins <= 15).length;
+      const pct = Math.round((onTime / records.length) * 100);
+      if (pct < 50) insights.push(`🚨 You complete ${100 - pct}% of tasks late. Consider scheduling 20% extra buffer time.`);
+      else if (pct >= 80) insights.push(`✅ Great habit! You complete ${pct}% of tasks on time. Keep it up.`);
+      else insights.push(`⏱️ You complete ${pct}% of tasks on time. Small optimizations can push this above 80%.`);
+
+      // Insight 2: Worst delay category
+      const catDelays: Record<string, number[]> = {};
+      records.forEach(r => {
+        if (!catDelays[r.category]) catDelays[r.category] = [];
+        catDelays[r.category].push(r.delayMins);
+      });
+      const worstCat = Object.entries(catDelays)
+        .map(([cat, delays]) => ({ cat, avg: delays.reduce((a, b) => a + b, 0) / delays.length }))
+        .filter(x => x.avg > 30)
+        .sort((a, b) => b.avg - a.avg)[0];
+      if (worstCat) insights.push(`📌 ${worstCat.cat.charAt(0).toUpperCase() + worstCat.cat.slice(1)} tasks run ${Math.round(worstCat.avg)} min late on average. Schedule them earlier in the day.`);
+
+      // Insight 3: Best productive hour
+      const hourCounts: Record<number, number> = {};
+      records.filter(r => r.delayMins <= 15).forEach(r => {
+        const h = new Date(r.completedMs).getHours();
+        hourCounts[h] = (hourCounts[h] || 0) + 1;
+      });
+      const bestHour = Object.entries(hourCounts).sort((a, b) => +b[1] - +a[1])[0];
+      if (bestHour) {
+        const h = parseInt(bestHour[0], 10);
+        const label = h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h - 12}:00 PM`;
+        insights.push(`✨ You are most productive around ${label}. Schedule your hardest tasks then.`);
+      }
+
+      // Insight 4: Duration accuracy
+      const withBoth = records.filter(r => r.estimatedDuration > 0 && r.actualDuration > 0);
+      if (withBoth.length >= 3) {
+        const avgRatio = withBoth.reduce((s, r) => s + r.actualDuration / r.estimatedDuration, 0) / withBoth.length;
+        if (avgRatio > 1.3) insights.push(`📊 You underestimate task duration by ${Math.round((avgRatio - 1) * 100)}%. Use the AI suggestion when adding tasks.`);
+        else if (avgRatio < 0.8) insights.push(`📊 You overestimate task duration by ${Math.round((1 - avgRatio) * 100)}%. You may be padding too much.`);
+        else insights.push(`⚖️ Your duration estimates are accurate (within 20%). Well planned!`);
+      }
+
+      // Insight 5: Week-over-week trend
+      const thisWeek = records.filter(r => r.completedMs > now - weekMs).length;
+      const lastWeek = records.filter(r => r.completedMs > now - 2 * weekMs && r.completedMs <= now - weekMs).length;
+      if (lastWeek > 0) {
+        const change = thisWeek - lastWeek;
+        if (change > 0) insights.push(`📈 You completed ${change} more tasks this week vs last week. Momentum is building!`);
+        else if (change < 0) insights.push(`📉 You completed ${Math.abs(change)} fewer tasks this week vs last week. What changed?`);
+      }
+
+      if (!cancelled) setAiInsights(insights.slice(0, 4));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [events]);
+
 
   const filteredEvents = useMemo(() => {
     const now = new Date();
@@ -632,6 +701,48 @@ export default function StatisticsScreen() {
             </LinearGradient>
           </View>
         </FadeIn>
+
+        {/* ── AI PRODUCTIVITY INSIGHT ENGINE ── */}
+        {aiInsights.length > 0 && (
+          <FadeIn delay={400}>
+            <View style={{ marginTop: 6 }}>
+              <SectionHeader title="AI Insight" subtitle="What your data says about you" accentColor={colors.secondary} />
+              <View style={{ gap: 10 }}>
+                {aiInsights.map((insight, i) => {
+                  const spaceIndex = insight.indexOf(' ');
+                  const hasEmoji = spaceIndex > 0 && spaceIndex < 4; // Ensure the space is near the start
+                  const icon = hasEmoji ? insight.substring(0, spaceIndex) : '💡';
+                  const text = hasEmoji ? insight.substring(spaceIndex + 1) : insight;
+
+                  return (
+                    <LinearGradient
+                      key={i}
+                      colors={isDarkMode ? [colors.primary + '15', colors.secondary + '0A'] : [colors.primary + '08', colors.secondary + '03']}
+                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                      style={{
+                        borderRadius: 20, padding: 16, 
+                        flexDirection: 'row', alignItems: 'center', gap: 14,
+                        borderWidth: 1, borderColor: isDarkMode ? colors.primary + '25' : colors.primary + '15',
+                      }}
+                    >
+                      <View style={{
+                        width: 42, height: 42, borderRadius: 12,
+                        backgroundColor: isDarkMode ? colors.primary + '25' : colors.primary + '15',
+                        alignItems: 'center', justifyContent: 'center'
+                      }}>
+                        <Text style={{ fontSize: 20 }}>{icon}</Text>
+                      </View>
+                      <Text style={{ flex: 1, fontFamily: 'Poppins_500Medium', fontSize: 13, color: colors.text, lineHeight: 22 }}>
+                        {text}
+                      </Text>
+                    </LinearGradient>
+                  );
+                })}
+              </View>
+            </View>
+          </FadeIn>
+        )}
+        {/* ────────────────────────────────── */}
 
         <View style={{ height: 56 }} />
       </ScrollView>

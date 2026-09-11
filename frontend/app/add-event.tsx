@@ -22,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 import api from '../services/api';
 import { useEffect } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
+import { behaviorService } from '../services/behaviorService';
 
 import LocationSelector from '../components/LocationSelector';
 import MediaPicker from '../components/MediaPicker';
@@ -121,6 +122,9 @@ export default function AddEventScreen() {
     initDurVal = initDurVal / 60;
   }
   const [durationUnit, setDurationUnit] = useState<'minutes' | 'hours' | 'days'>(initDurUnit);
+  const [aiDurationHint, setAiDurationHint] = useState<number | null>(null);
+  const [aiDurationApplied, setAiDurationApplied] = useState(false);
+
 
   // Reminders State
   const [reminders, setReminders] = useState<ReminderConfig[]>(existingEvent?.reminders || []);
@@ -134,6 +138,8 @@ export default function AddEventScreen() {
   useEffect(() => {
     api.get('/friends').then(res => setFriendsList(res.data)).catch(console.error);
   }, []);
+
+
   
   // Custom Reminder Modal States
   const [modalType, setModalType] = useState<ReminderConfig['type']>('before');
@@ -470,6 +476,22 @@ export default function AddEventScreen() {
     }
   };
 
+  // AI Duration Prediction: fetch when category changes
+  useEffect(() => {
+    const category = formik.values.category;
+    if (!category) return;
+    let cancelled = false;
+    behaviorService.predictDuration(category).then(predicted => {
+      if (!cancelled && predicted !== null) {
+        setAiDurationHint(predicted);
+        setAiDurationApplied(false);
+      } else if (!cancelled) {
+        setAiDurationHint(null);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [formik.values.category]);
+
   return (
     <View style={styles.root}>
       <View style={styles.bgGlow} />
@@ -605,6 +627,28 @@ export default function AddEventScreen() {
                   </View>
                 </View>
               </View>
+
+              {/* ── AI Duration Prediction Hint ── */}
+              {aiDurationHint !== null && !aiDurationApplied && (
+                <Pressable
+                  onPress={() => {
+                    formik.setFieldValue('estimatedDuration', String(aiDurationHint));
+                    setDurationUnit('minutes');
+                    setAiDurationApplied(true);
+                    Haptics.selectionAsync();
+                  }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, padding: 12, borderRadius: 12, backgroundColor: colors.secondary + '12', borderWidth: 1, borderColor: colors.secondary + '30' }}
+                >
+                  <Text style={{ fontSize: 16 }}>🧠</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: colors.secondary }}>
+                      AI suggests {aiDurationHint} min based on your history
+                    </Text>
+                    <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 10, color: colors.textSecondary }}>Tap to apply</Text>
+                  </View>
+                </Pressable>
+              )}
+              {/* ─────────────────────────────── */}
 
               <View style={styles.mt24}>
                 <Text style={styles.label}>CATEGORY</Text>

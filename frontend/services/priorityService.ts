@@ -1,4 +1,5 @@
 import { Event } from '../models/Event';
+import { getDepartureSuggestion, DepartureSuggestion } from './travelService';
 
 export interface PriorityInfo {
   score: number;
@@ -53,7 +54,7 @@ export const priorityService = {
       score += 15;
     }
 
-    // 6. Location Relevance
+    // 6. Location Relevance (proximity)
     if (userLocation && task.locationDetails?.latitude && task.locationDetails?.longitude) {
       const dist = this.getDistance(
         userLocation.latitude,
@@ -64,9 +65,19 @@ export const priorityService = {
       if (dist <= 500) {
         score += 25;
       }
+
+      // 7. Travel Urgency: if you need to leave soon, boost priority
+      if (userLocation && task.locationDetails?.latitude) {
+        const suggestion = getDepartureSuggestion(task, userLocation.latitude, userLocation.longitude);
+        if (suggestion) {
+          if (suggestion.isMissed) score += 20;           // Already should have left
+          else if (suggestion.isUrgent) score += 15;      // Need to leave in < 15 min
+          else if (suggestion.leaveInMins < 30) score += 8; // Leave within 30 min
+        }
+      }
     }
 
-    // 7. Category Relevance Bonus
+    // 8. Category Relevance Bonus
     const highFocusCategories = ['Academic', 'Work', 'Interview', 'Hackathon'];
     if (highFocusCategories.includes(task.category)) {
       score += 5;
@@ -93,6 +104,12 @@ export const priorityService = {
 
     scored.sort((a, b) => b.score - a.score);
     return scored[0].task;
+  },
+
+  /** Get departure suggestion for a task given user location */
+  getDeparture(task: Event, userLocation?: { latitude: number; longitude: number } | null): DepartureSuggestion | null {
+    if (!userLocation) return null;
+    return getDepartureSuggestion(task, userLocation.latitude, userLocation.longitude);
   },
 
   getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {

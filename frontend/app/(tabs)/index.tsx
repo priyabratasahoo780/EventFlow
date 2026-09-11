@@ -33,6 +33,8 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ZenModePermissionModal from '../../components/ZenModePermissionModal';
 import { zenModeService } from '../../services/zenModeService';
+import { getDepartureSuggestion, formatLeaveBy, modeEmoji, DepartureSuggestion } from '../../services/travelService';
+import { notificationService } from '../../services/notificationService';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -644,67 +646,28 @@ export default function HomeScreen() {
           </View>
 
           {/* ── SMART SEARCH SUGGESTIONS DROPDOWN ── */}
-          {showSearchSuggestions && (
+          {showSearchSuggestions && !filters.searchQuery && (
             <View style={s.suggestionsPanel}>
               {/* Quick filter chips — always shown when focused */}
-              {!filters.searchQuery && (
-                <>
-                  <Text style={s.suggestionsHeader}>Quick Filters</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, paddingBottom: 10 }}>
-                    {[
-                      { label: '🔥 Today', action: () => { setFilters({ status: 'today' as any }); setShowSearchSuggestions(false); } },
-                      { label: '⚠️ Overdue', action: () => { setFilters({ status: 'overdue' as any }); setShowSearchSuggestions(false); } },
-                      { label: '🚀 Critical', action: () => { setFilters({ priority: 'critical' as any }); setShowSearchSuggestions(false); } },
-                      { label: '🔄 In Progress', action: () => { setFilters({ status: 'in_progress' as any }); setShowSearchSuggestions(false); } },
-                      { label: '✅ Completed', action: () => { setFilters({ status: 'completed' as any }); setShowSearchSuggestions(false); } },
-                      ...CATEGORIES.filter(c => c.id !== 'all').map(c => ({ label: c.label, action: () => { setFilters({ category: c.label, searchQuery: '' }); setShowSearchSuggestions(false); } }))
-                    ].map((chip, idx) => (
-                      <Pressable
-                        key={idx}
-                        style={s.suggestionChip}
-                        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); chip.action(); }}
-                      >
-                        <Text style={s.suggestionChipText}>{chip.label}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </>
-              )}
-
-              {/* Task title matches — shown while typing */}
-              {filters.searchQuery.length > 0 && (() => {
-                const q = filters.searchQuery.toLowerCase();
-                const matched = events
-                  .filter(e => e.title.toLowerCase().includes(q) || e.category?.toLowerCase().includes(q) || e.description?.toLowerCase().includes(q))
-                  .slice(0, 6);
-                return matched.length > 0 ? (
-                  <>
-                    <Text style={s.suggestionsHeader}>Tasks</Text>
-                    {matched.map((ev) => (
-                      <Pressable
-                        key={ev.id || ev._id}
-                        style={s.suggestionItem}
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          setFilters({ searchQuery: ev.title });
-                          setShowSearchSuggestions(false);
-                        }}
-                      >
-                        <View style={[s.suggestionDot, { backgroundColor: ev.color || colors.primary }]} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={s.suggestionItemTitle} numberOfLines={1}>{ev.title}</Text>
-                          <Text style={s.suggestionItemSub} numberOfLines={1}>{ev.category} · {ev.status}</Text>
-                        </View>
-                        <Text style={s.suggestionItemDate}>{ev.date?.split('T')[0]}</Text>
-                      </Pressable>
-                    ))}
-                  </>
-                ) : (
-                  <View style={{ padding: 16, alignItems: 'center' }}>
-                    <Text style={[s.suggestionsHeader, { marginBottom: 0 }]}>No tasks found for "{filters.searchQuery}"</Text>
-                  </View>
-                );
-              })()}
+              <Text style={s.suggestionsHeader}>Quick Filters</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, paddingBottom: 10 }}>
+                {[
+                  { label: '🔥 Today', action: () => { setFilters({ status: 'today' as any }); setShowSearchSuggestions(false); } },
+                  { label: '⚠️ Overdue', action: () => { setFilters({ status: 'overdue' as any }); setShowSearchSuggestions(false); } },
+                  { label: '🚀 Critical', action: () => { setFilters({ priority: 'critical' as any }); setShowSearchSuggestions(false); } },
+                  { label: '🔄 In Progress', action: () => { setFilters({ status: 'in_progress' as any }); setShowSearchSuggestions(false); } },
+                  { label: '✅ Completed', action: () => { setFilters({ status: 'completed' as any }); setShowSearchSuggestions(false); } },
+                  ...CATEGORIES.filter(c => c.id !== 'all').map(c => ({ label: c.label, action: () => { setFilters({ category: c.label, searchQuery: '' }); setShowSearchSuggestions(false); } }))
+                ].map((chip, idx) => (
+                  <Pressable
+                    key={idx}
+                    style={s.suggestionChip}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); chip.action(); }}
+                  >
+                    <Text style={s.suggestionChipText}>{chip.label}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
             </View>
           )}
         </View>
@@ -860,6 +823,11 @@ export default function HomeScreen() {
     const cat2 = (task.category || '').toLowerCase();
     const cover = task.image || defaults[cat2] || "https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?q=80&w=800&auto=format&fit=crop";
 
+    // Travel Departure Suggestion
+    const departure: DepartureSuggestion | null = location
+      ? getDepartureSuggestion(task, location.latitude, location.longitude)
+      : null;
+
     return (
       <View key={task.id} style={[s.heroCard, { width: customWidth || CARD_W, padding: 0, marginHorizontal: 0, borderRadius: rs(24) }]}>
         <View style={{ width: '100%', height: hs(160), borderTopLeftRadius: rs(24), borderTopRightRadius: rs(24), overflow: 'hidden' }}>
@@ -887,6 +855,38 @@ export default function HomeScreen() {
               <Zap color={colors.textSecondary} size={rs(18)} strokeWidth={2.5} />
               <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: ms(13), color: colors.textSecondary }}>Estimated: {durationMins2} mins</Text>
             </View>
+
+            {/* ── Travel Departure Intelligence ── */}
+            {departure && !departure.isMissed && (
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', gap: rs(10),
+                backgroundColor: departure.isUrgent ? '#FF525215' : `${colors.secondary}12`,
+                borderRadius: rs(12), paddingHorizontal: rs(12), paddingVertical: rs(8),
+                borderWidth: 1, borderColor: departure.isUrgent ? '#FF525240' : `${colors.secondary}30`,
+              }}>
+                <Text style={{ fontSize: ms(16) }}>{modeEmoji(departure.mode)}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: ms(12), color: departure.isUrgent ? '#EF4444' : colors.secondary }}>
+                    {departure.isUrgent
+                      ? `⚠️ Leave by ${formatLeaveBy(departure.leaveByMs)} — URGENT`
+                      : `🧭 Leave by ${formatLeaveBy(departure.leaveByMs)}`}
+                  </Text>
+                  <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: ms(10), color: colors.textSecondary }}>
+                    {departure.travelMins} min travel · {departure.distanceKm} km · {departure.leaveInMins > 0 ? `in ${departure.leaveInMins} min` : 'now'}
+                  </Text>
+                </View>
+              </View>
+            )}
+            {departure?.isMissed && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: rs(10), backgroundColor: '#EF444415', borderRadius: rs(12), paddingHorizontal: rs(12), paddingVertical: rs(8), borderWidth: 1, borderColor: '#EF444440' }}>
+                <Text style={{ fontSize: ms(14) }}>🚨</Text>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: ms(12), color: '#EF4444', flex: 1 }}>
+                  You should have left {Math.abs(departure.leaveInMins)} min ago
+                </Text>
+              </View>
+            )}
+            {/* ─────────────────────────────────────── */}
+
             {task.reminders && task.reminders.length > 0 && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: rs(12) }}>
                 <Bell color={colors.secondary} size={rs(18)} strokeWidth={2.5} />
@@ -927,6 +927,7 @@ export default function HomeScreen() {
       </View>
     );
   };
+
 
   const renderHeroFocusCard = () => {
     if (heroTasks.length === 0) {

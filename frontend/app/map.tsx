@@ -1,7 +1,7 @@
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, TextInput, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, TextInput, Dimensions, ActivityIndicator, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, MapPin, Search, Compass, ChevronRight, LocateFixed } from 'lucide-react-native';
@@ -23,10 +23,14 @@ export default function MapScreen() {
   const styles = getStyles(colors, isDarkMode);
   const router = useRouter();
   const { events } = useEventStore();
-  const { location, geocodeAddress } = useLocation(events);
+  const { location, geocodeAddress, searchPlaces } = useLocation(events);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [hasAutoZoomed, setHasAutoZoomed] = useState(false);
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const [placeSuggestions, setPlaceSuggestions] = useState<any[]>([]);
+  const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const insets = useSafeAreaInsets();
 
   const mapRef = useRef<MapViewRef>(null);
@@ -42,9 +46,34 @@ export default function MapScreen() {
            task.category.toLowerCase().includes(q);
   });
 
+  const handleSearchTextChange = (text: string) => {
+    setSearchQuery(text);
+    setShowSearchSuggestions(text.length > 0);
+    
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    if (text.length > 2) {
+      setIsSearchingPlaces(true);
+      searchTimeoutRef.current = setTimeout(async () => {
+        if (searchPlaces) {
+          const results = await searchPlaces(text);
+          setPlaceSuggestions(results);
+        }
+        setIsSearchingPlaces(false);
+      }, 600);
+    } else {
+      setPlaceSuggestions([]);
+      setIsSearchingPlaces(false);
+    }
+  };
+
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowSearchSuggestions(false);
+    Keyboard.dismiss();
     const coords = await geocodeAddress(searchQuery);
     if (coords && mapRef.current) {
       mapRef.current.animateToRegion({
@@ -194,11 +223,88 @@ export default function MapScreen() {
               placeholder="Search tasks or places..."
               placeholderTextColor={colors.textSecondary}
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={handleSearchTextChange}
+              onFocus={() => setShowSearchSuggestions(searchQuery.length > 0)}
               onSubmitEditing={handleSearch}
+              returnKeyType="search"
             />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => handleSearchTextChange('')} style={{ padding: 4 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: 18 }}>×</Text>
+              </Pressable>
+            )}
           </View>
         </View>
+
+        {showSearchSuggestions && (
+          <View style={styles.suggestionsPanel}>
+            {/* Task Matches */}
+            {filteredTasks.length > 0 && (
+              <>
+                <Text style={styles.suggestionsHeader}>Matching Tasks</Text>
+                {filteredTasks.slice(0, 3).map((task, idx) => {
+                  const locationIndex = locationTasks.findIndex(t => t.id === task.id);
+                  return (
+                    <Pressable
+                      key={task.id}
+                      style={styles.suggestionItem}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setSearchQuery(task.title);
+                        setShowSearchSuggestions(false);
+                        Keyboard.dismiss();
+                        if (locationIndex !== -1) handleMarkerPress(task, locationIndex);
+                      }}
+                    >
+                      <MapPin color={colors.primary} size={16} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.suggestionItemTitle} numberOfLines={1}>{task.title}</Text>
+                        <Text style={styles.suggestionItemSub} numberOfLines={1}>{task.location}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Place Matches */}
+            {searchQuery.length > 2 && (
+              <>
+                <Text style={styles.suggestionsHeader}>Places</Text>
+                {isSearchingPlaces ? (
+                  <View style={{ padding: 12, alignItems: 'center' }}><ActivityIndicator size="small" color={colors.primary} /></View>
+                ) : placeSuggestions.length > 0 ? (
+                  placeSuggestions.map((place) => (
+                    <Pressable
+                      key={place.id}
+                      style={styles.suggestionItem}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setSearchQuery(place.name.split(',')[0]);
+                        setShowSearchSuggestions(false);
+                        Keyboard.dismiss();
+                        mapRef.current?.animateToRegion({
+                          latitude: place.latitude,
+                          longitude: place.longitude,
+                          latitudeDelta: 0.05,
+                          longitudeDelta: 0.05,
+                        });
+                      }}
+                    >
+                      <LocateFixed color={colors.secondary} size={16} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.suggestionItemTitle} numberOfLines={1}>{place.name.split(',')[0]}</Text>
+                        <Text style={styles.suggestionItemSub} numberOfLines={1}>{place.name}</Text>
+                      </View>
+                    </Pressable>
+                  ))
+                ) : (
+                  <Text style={[styles.suggestionItemSub, { padding: 12 }]}>No places found</Text>
+                )}
+              </>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Floating Controls */}
@@ -353,6 +459,45 @@ const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create
     fontFamily: 'Poppins_500Medium',
     fontSize: 15,
     color: colors.text,
+  },
+  suggestionsPanel: {
+    backgroundColor: isDarkMode ? 'rgba(35,35,35,0.98)' : '#FFFFFF',
+    borderRadius: 20,
+    marginTop: 8,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 8,
+    maxHeight: 350,
+  },
+  suggestionsHeader: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 11,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginTop: 4,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 10,
+    borderRadius: 12,
+  },
+  suggestionItemTitle: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14,
+    color: colors.text,
+  },
+  suggestionItemSub: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11,
+    color: colors.textSecondary,
   },
   floatingControls: {
     position: 'absolute',

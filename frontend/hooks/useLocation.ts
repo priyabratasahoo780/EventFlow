@@ -240,6 +240,27 @@ export function useLocation(tasks: Event[] = []) {
     return null;
   };
 
+  const searchPlaces = async (queryText: string) => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queryText)}&format=json&addressdetails=1&limit=5`;
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'EventFlowApp/1.0 (contact@eventflow.app)'
+        }
+      });
+      const data = await response.json();
+      return data.map((item: any) => ({
+        id: item.place_id,
+        name: item.display_name,
+        latitude: parseFloat(item.lat),
+        longitude: parseFloat(item.lon)
+      }));
+    } catch (e) {
+      console.warn('Place search error:', e);
+      return [];
+    }
+  };
+
   return {
     location,
     address,
@@ -249,5 +270,6 @@ export function useLocation(tasks: Event[] = []) {
     dismissArrivedTask: () => setArrivedTask(null),
     reverseGeocode,
     geocodeAddress,
+    searchPlaces,
   };
 }

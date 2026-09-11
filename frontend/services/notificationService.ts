@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { Event, ReminderConfig } from '../models/Event';
 import { subMinutes, subHours, subDays, subWeeks } from 'date-fns';
 import { alarmService } from './alarmService';
+import { behaviorService } from './behaviorService';
 
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient || (Constants as any).appOwnership === 'expo';
 
@@ -370,5 +371,69 @@ export const notificationService = {
       content,
       trigger: null,
     });
-  }
+  },
+
+  /**
+   * Intelligent Escalation — call when user has dismissed or ignored a reminder.
+   * Escalation chain:
+   *   1st dismiss  → re-schedule as banner + vibration in 5 min
+   *   2nd dismiss  → upgrade to full-screen native alarm in 5 min
+   *   3rd+ dismiss → fire alarm immediately (emergency escalation)
+   */
+  async escalateIfDismissed(event: Event): Promise<void> {
+    try {
+      const count = await behaviorService.getDismissalCount(event.id);
+      const newCount = await behaviorService.recordDismissal(event.id);
+
+      if (event.completed || event.status === 'completed' || event.status === 'cancelled') {
+        await behaviorService.clearDismissals(event.id);
+        return;
+      }
+
+      const delayMs = newCount >= 3 ? 0 : 5 * 60 * 1000; // immediate on 3rd dismiss
+
+      if (newCount >= 2) {
+        // Escalate to native full-screen alarm
+        console.log(`[Escalation] 🚨 Level ${newCount} escalation → native alarm for "${event.title}"`);
+        await alarmService.scheduleAlarm(
+          `escalate_${event.id}_${Date.now()}`,
+          Date.now() + delayMs,
+          `🚨 ${event.title} — You must act NOW`,
+          `You've dismissed this ${newCount} times. This task is still pending.`,
+          event.id,
+          true // isCritical — override silent mode
+        );
+      } else {
+        // Level 1 — stronger banner re-notification
+        console.log(`[Escalation] 🔔 Level 1 escalation → banner for "${event.title}"`);
+        const body = count === 0
+          ? `This task is still pending. Don't let it slip!`
+          : `You've dismissed this reminder. Escalating in 5 minutes.`;
+
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `⚠️ ${event.title} — Reminder`,
+            body,
+            data: { eventId: event.id },
+            sound: 'default',
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            vibrate: [0, 1000, 500, 1000, 500, 1000],
+            ...(Platform.OS === 'android' ? { channelId: 'focusflow_alarm_v2' } : {}),
+          } as any,
+          trigger: delayMs > 0 ? { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: delayMs / 1000 } as any : null,
+        });
+      }
+    } catch (e) {
+      console.warn('[Escalation] escalateIfDismissed error:', e);
+    }
+  },
+
+  /**
+   * Call from foreground notification listener when user receives but doesn't
+   * tap/act on a notification. Records a "passive dismiss" for escalation tracking.
+   */
+  async recordForegroundDismissal(eventId: string): Promise<void> {
+    await behaviorService.recordDismissal(eventId);
+  },
 };
+

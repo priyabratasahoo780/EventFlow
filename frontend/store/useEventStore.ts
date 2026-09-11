@@ -11,6 +11,7 @@ import api from '../services/api';
 import { socketService } from '../services/socketService';
 import { geofencingService } from '../services/geofencingService';
 import { zenModeService } from '../services/zenModeService';
+import { behaviorService } from '../services/behaviorService';
 
 // ─── Edge Case Fix #1: UTC-Aware Deadline Parser ─────────────────────────────
 // Correctly parses a task deadline regardless of whether the backend stored
@@ -387,9 +388,16 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     set({ events: newEvents });
 
+    // ── Behavioral Learning: Record completion for AI duration/delay learning ──
+    if (resolvedStatus === 'completed' || resolvedStatus === 'late_completed') {
+      behaviorService.recordTaskComplete(updatedEvent).catch(e =>
+        console.warn('[BehaviorService] record error (non-fatal):', e)
+      );
+      behaviorService.clearDismissals(id).catch(() => {});
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     // ── Zen Mode (Auto DND) ──────────────────────────────────────────────
-    // Sirf Critical tasks ke liye — in_progress pe DND ON, complete pe DND OFF
-    // Permission flow zenModeService ke andar handle hota hai (ek baar user se puchha jaata hai)
     zenModeService
       .onTaskStatusChanged(resolvedStatus, targetEvent.priority, targetEvent.title)
       .catch(e => console.warn('[ZenMode] Status change handler error:', e));

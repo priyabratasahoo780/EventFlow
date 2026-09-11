@@ -13,7 +13,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { 
   ArrowLeft, Search, UserPlus, Users, Sparkles, 
-  UserMinus, MessageSquare, Send, X, MapPin 
+  UserMinus, MessageSquare, Send, X, MapPin, Calendar 
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -216,6 +216,17 @@ export default function FriendListScreen() {
                     <Text style={styles.cheerBtnText}>CHEER</Text>
                   </Pressable>
 
+                  <Pressable
+                    style={[styles.cheerBtn, { backgroundColor: colors.secondary + '12', borderColor: colors.secondary + '40' }]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      router.push({ pathname: '/friends/groupSchedule' as any, params: { friendIds: item._id || item.id } });
+                    }}
+                  >
+                    <Calendar color={colors.secondary} size={16} strokeWidth={2.2} />
+                    <Text style={[styles.cheerBtnText, { color: colors.secondary }]}>SCHEDULE</Text>
+                  </Pressable>
+
                   <Pressable 
                     style={styles.removeBtn} 
                     onPress={() => handleRemove(item)}
@@ -225,6 +236,7 @@ export default function FriendListScreen() {
                   </Pressable>
                 </View>
               </BrutalCard>
+
             )}
           />
         )}

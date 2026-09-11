@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions, Image, AppState } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Dimensions, Image, AppState, Modal, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useEventStore, parseDeadline } from '../store/useEventStore';
@@ -13,6 +13,8 @@ import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { reschedulingService, RescheduleSuggestion } from '../services/reschedulingService';
+
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -343,6 +345,10 @@ export default function TriageScreen() {
   const [undoVisible, setUndoVisible] = useState(false);
   const lastCancelledTask = useRef<Event | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [aiSlots, setAiSlots] = useState<RescheduleSuggestion[]>([]);
+  const [aiModalTask, setAiModalTask] = useState<Event | null>(null);
+  const [aiModalVisible, setAiModalVisible] = useState(false);
+
 
   // Compute overdue task list — extracted so it can be called from multiple effects
   const computeOverdue = useCallback(() => {
@@ -383,6 +389,15 @@ export default function TriageScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const task = overdueTasks[currentIndex];
     if (task) {
+      // AI Reschedule: show slot picker instead of just marking in_progress
+      const suggestions = reschedulingService.generateAiSlots(events, task);
+      if (suggestions.length > 0) {
+        setAiSlots(suggestions);
+        setAiModalTask(task);
+        setAiModalVisible(true);
+        return; // Wait for user choice in AI modal
+      }
+      // Fallback: mark in_progress directly
       await updateEvent({ 
         ...task, 
         status: 'in_progress', 
@@ -391,6 +406,39 @@ export default function TriageScreen() {
     }
     setCurrentIndex(prev => prev + 1);
   };
+
+  const handleAiReschedule = async (suggestion: RescheduleSuggestion) => {
+    const task = aiModalTask;
+    setAiModalVisible(false);
+    setAiModalTask(null);
+    setAiSlots([]);
+    if (!task) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await updateEvent({
+      ...task,
+      date: suggestion.slot.date + 'T00:00:00.000Z',
+      time: suggestion.slot.time,
+      status: 'pending',
+      updatedAt: new Date().toISOString(),
+    } as Event);
+    setCurrentIndex(prev => prev + 1);
+  };
+
+  const handleAiModalDismiss = async () => {
+    const task = aiModalTask;
+    setAiModalVisible(false);
+    setAiModalTask(null);
+    setAiSlots([]);
+    if (!task) return;
+    // User dismissed AI modal: just mark in_progress
+    await updateEvent({ 
+      ...task, 
+      status: 'in_progress', 
+      startedAt: new Date().toISOString() 
+    } as Event);
+    setCurrentIndex(prev => prev + 1);
+  };
+
 
   // Edge Case Fix #3: Cancel with 4-second Undo window
   const handleSwipeLeft = async () => {
@@ -437,7 +485,65 @@ export default function TriageScreen() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]}>
-        
+
+      {/* ── AI RESCHEDULE MODAL ── */}
+      <Modal
+        visible={aiModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={handleAiModalDismiss}
+      >
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <Text style={{ fontSize: 22 }}>🤖</Text>
+              <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: colors.text }}>AI Reschedule</Text>
+            </View>
+            <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 13, color: colors.textSecondary, marginBottom: 18 }}>
+              Pick a free slot to move "{aiModalTask?.title}" to
+            </Text>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {aiSlots.map((s, i) => (
+                <Pressable
+                  key={i}
+                  onPress={() => handleAiReschedule(s)}
+                  style={{
+                    borderRadius: 16, padding: 16, marginBottom: 10,
+                    borderWidth: 1.5,
+                    borderColor: i === 0 ? colors.secondary + '60' : colors.border,
+                    backgroundColor: i === 0 ? colors.secondary + '10' : colors.background,
+                    flexDirection: 'row', alignItems: 'center', gap: 12,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      {i === 0 && <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: colors.secondary, backgroundColor: colors.secondary + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>AI PICK</Text>}
+                      <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: colors.text }}>{s.slot.label}</Text>
+                    </View>
+                    <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 12, color: colors.textSecondary }}>{s.reason}</Text>
+                  </View>
+                  <View style={{
+                    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10,
+                    backgroundColor: s.slot.confidence === 'high' ? '#22C55E20' : s.slot.confidence === 'medium' ? '#F59E0B20' : '#EF444420',
+                  }}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: s.slot.confidence === 'high' ? '#22C55E' : s.slot.confidence === 'medium' ? '#F59E0B' : '#EF4444', textTransform: 'uppercase' }}>
+                      {s.slot.confidence}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable
+              onPress={handleAiModalDismiss}
+              style={{ alignItems: 'center', marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border }}
+            >
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: colors.textSecondary }}>Do it Now Instead</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      {/* ─────────────────────────────────── */}
+
         {/* TOP BAR */}
         <View style={styles.header}>
           <Pressable 
@@ -446,6 +552,7 @@ export default function TriageScreen() {
           >
             <ChevronLeft color={colors.text} size={22} strokeWidth={2.5} />
           </Pressable>
+
 
           <View style={styles.headerTitleWrap}>
             <View style={styles.headerTitleRow}>
