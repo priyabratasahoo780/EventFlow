@@ -103,10 +103,16 @@ Building a reliable alarm and productivity app comes with complex edge cases, es
 - **Multi-reminder system** per event: `before`, `exact`, `daily`, `weekly`, `monthly`, `yearly`
 - Smart status tracking: `pending → in_progress → completed → overdue`
 
-### <img src="https://api.iconify.design/lucide/brain.svg?color=%233b82f6" width="20" align="top" /> AI Priority Engine
+### <img src="https://api.iconify.design/lucide/brain.svg?color=%233b82f6" width="20" align="top" /> AI Priority Engine & Dynamic Re-planning
 - Dynamic priority scoring based on **deadline proximity**, **user-defined importance**, and **location distance**
-- Auto-ranked task list and **Hero Focus Card** carousel on the home screen
+- **AI Dynamic Rescheduling & Recovery**: Auto-detects schedule conflicts and missed tasks; analyzes free slots and proposes one-tap rebooking
+- **Behavioral Learning & Duration Estimation**: Tracks per-category duration history, calculates completion rates, delay trends, and warns against chronic optimism
 - Backend `/api/tasks/recommendation` endpoint for server-side priority suggestions
+
+### <img src="https://api.iconify.design/lucide/navigation.svg?color=%233b82f6" width="20" align="top" /> Travel-Time Awareness & Route Planning
+- Real-time travel duration calculation based on user distance using urban speed heuristics (walking, cycling, driving)
+- **Smart "Leave By" Departure Alerts**: Triggers notifications with safety buffers before you need to depart for location-based events
+- Integrated map view with live route display and travel mode indicators
 
 ### <img src="https://api.iconify.design/lucide/bell.svg?color=%233b82f6" width="20" align="top" /> Native Alarm & Notification System (Offline-First)
 - **100% Offline Capable**: Alarms fire precisely on time even if the app is completely closed (killed) or offline.
@@ -120,15 +126,17 @@ Building a reliable alarm and productivity app comes with complex edge cases, es
 - Powered by `expo-location` background task + custom geofencing engine
 - Visual `LocationArrivalModal` with navigation shortcut
 
-### <img src="https://api.iconify.design/lucide/users.svg?color=%233b82f6" width="20" align="top" /> Social & Friends
+### <img src="https://api.iconify.design/lucide/users.svg?color=%233b82f6" width="20" align="top" /> Social & Group Coordination
 - Add friends by username/email with a **request → accept → connect** flow
+- **Group Free-Time Slot Finder**: Cross-references friends' shared calendars to find overlapping free gaps for group events
 - Share events with friends (visibility: `onlyMe`, `friends`, `selectedFriends`)
 - Real-time friend event feed via **Socket.io**
 - In-app DM messaging between friends
 
-### <img src="https://api.iconify.design/lucide/bar-chart-2.svg?color=%233b82f6" width="20" align="top" /> Analytics Dashboard
+### <img src="https://api.iconify.design/lucide/bar-chart-2.svg?color=%233b82f6" width="20" align="top" /> Analytics & Behavioral Insights
 - Weekly productivity charts (gifted-charts)
-- Category breakdown and completion trends
+- Category breakdown, completion trends, and on-time performance metrics
+- Historical delay analysis and best/worst productivity hours
 - Daily momentum progress bar on home screen
 
 ### <img src="https://api.iconify.design/lucide/palette.svg?color=%233b82f6" width="20" align="top" /> Premium UI
@@ -159,13 +167,17 @@ Building a reliable alarm and productivity app comes with complex edge cases, es
 
 ---
 
-### <img src="https://api.iconify.design/lucide/brain.svg?color=%233b82f6" width="20" align="top" /> AI Priority Engine
+### <img src="https://api.iconify.design/lucide/brain.svg?color=%233b82f6" width="20" align="top" /> AI Priority Engine & Smart Recovery
 
 | Feature | Description | Status |
 |:---|:---|:---:|
 | Dynamic priority scoring | Weighs **deadline proximity**, **user-defined importance**, and **location distance** | ✅ |
 | Server-side recommendation | `/api/tasks/recommendation` returns top-ranked task | ✅ |
 | Client-side ranking | Instant re-rank on Zustand state changes without API call | ✅ |
+| AI Dynamic Rescheduling | Computes free slot intervals and generates ranked alternative times for triage | ✅ |
+| Missed Task Impact Analysis | Identifies friends and dependent items affected when a shared task is missed | ✅ |
+| Behavioral Learning | Tracks per-category duration history, actual vs estimated drift, and delay patterns | ✅ |
+| Duration Prediction & Warning | Proactive warning when scheduled duration is unrealistically optimistic | ✅ |
 | Overdue auto-detection | Backend cron-style check; status flips to `overdue` automatically | ✅ |
 
 ---
@@ -174,37 +186,36 @@ Building a reliable alarm and productivity app comes with complex edge cases, es
 
 | Feature | Description | Status |
 |:---|:---|:---:|
-| Feature | Description | Status |
-|:---|:---|:---:|
 | Local push notifications | `expo-notifications` banners with sound (all platforms, foreground + background) | ✅ |
 | Native Android exact alarms | Custom `AlarmManagerModule` (Kotlin) — fires precisely on time even if app is killed | ✅ |
 | Deep sleep wake-up | `PowerManager.WakeLock` bypasses Android Doze mode; screen turns on | ✅ |
 | Alarm modal UI | Looping alarm sound, haptics, animated dismiss button | ✅ |
 | Multi-reminder support | Schedule multiple alarm times per single event | ✅ |
+| "Leave By" Departure Alerts | Proactive alerts calculated from live distance and transit speeds | ✅ |
 | Expo Go graceful fallback | Fallback to standard notifications when native module unavailable | ✅ |
-
 
 ---
 
-### <img src="https://api.iconify.design/lucide/map-pin.svg?color=%233b82f6" width="20" align="top" /> Geofence & Location
+### <img src="https://api.iconify.design/lucide/map-pin.svg?color=%233b82f6" width="20" align="top" /> Geofence & Location Intelligence
 
 | Feature | Description | Status |
 |:---|:---|:---:|
 | Location trigger per event | Enable arrive-at / leave-location reminders | ✅ |
 | Background geofencing | `expo-location` background task + custom geofencing engine | ✅ |
 | Location Arrival Modal | In-app overlay with map shortcut when you enter the event zone | ✅ |
-| Full-screen map view | `/map` screen with event pins and geofence radius circles | ✅ |
+| Travel Time & Speed Model | Realistic travel calculation across walking, cycling, and driving | ✅ |
+| Interactive Map & Route Display | Full-screen `/map` view with event markers, destination selector, and live route lines | ✅ |
 | Location selector | Pick event location from map directly inside the Add Event flow | ✅ |
-
 
 ---
 
-### <img src="https://api.iconify.design/lucide/users.svg?color=%233b82f6" width="20" align="top" /> Social & Friends
+### <img src="https://api.iconify.design/lucide/users.svg?color=%233b82f6" width="20" align="top" /> Social & Group Coordination
 
 | Feature | Description | Status |
 |:---|:---|:---:|
 | Friend discovery | Search by username or email | ✅ |
 | Request → Accept → Connect | Full friend request lifecycle with reject support | ✅ |
+| Group Free-Time Scheduling | Finds overlapping free calendar slots among selected friends | ✅ |
 | Event sharing | Share events with visibility: `onlyMe`, `friends`, `selectedFriends` | ✅ |
 | Real-time friend event feed | Friends' shared events streamed via Socket.io | ✅ |
 | In-app DM messaging | Direct messages between connected friends | ✅ |
@@ -222,12 +233,13 @@ Building a reliable alarm and productivity app comes with complex edge cases, es
 
 ---
 
-### <img src="https://api.iconify.design/lucide/bar-chart-2.svg?color=%233b82f6" width="20" align="top" /> Analytics Dashboard
+### <img src="https://api.iconify.design/lucide/bar-chart-2.svg?color=%233b82f6" width="20" align="top" /> Analytics & Behavioral Insights
 
 | Feature | Description | Status |
 |:---|:---|:---:|
 | Weekly productivity chart | Bar chart of events completed per day (gifted-charts) | ✅ |
 | Category breakdown | Pie/segment breakdown by event category | ✅ |
+| Behavioral category insights | Average delay minutes, on-time percentage, and optimal work hours | ✅ |
 | Completion trend | Historical trend of task completion rate | ✅ |
 | Daily momentum bar | Home screen progress bar showing today's completion % | ✅ |
 | Dashboard API | `/api/analytics/dashboard`, `/weekly`, `/categories` endpoints | ✅ |
@@ -465,28 +477,25 @@ EventFlow/                              # Mono-repo root
     │   ├── (auth)/                     # Auth group: welcome, login, register
     │   ├── (tabs)/                     # Tab group: home, calendar, stats, profile, settings
     │   ├── event/[id].tsx              # Dynamic event detail screen
-    │   ├── friends/                    # Friends: connect, list, requests
+    │   ├── triage.tsx                  # AI Task triage & smart rescheduling
+    │   ├── friends/                    # Friends: connect, list, requests, groupSchedule
+    │   │   └── groupSchedule.tsx       # Group free-slot availability finder
     │   ├── community/                  # Community reviews
-    │   ├── map.tsx                     # Full-screen map view
+    │   ├── map.tsx                     # Full-screen interactive map & route planning
     │   └── _layout.tsx                 # Root layout (ClerkProvider, fonts, themes)
     │
-    ├── src/                            # All application source code
-    │   ├── components/                 # Domain-grouped UI components
-    │   │   ├── alarm/                  # AlarmModal
-    │   │   ├── events/                 # EventCard, FocusRecommendationCard, CategoryChip
-    │   │   ├── home/                   # Home screen sub-components (extracted god file)
-    │   │   ├── location/               # LocationArrivalModal, LocationSelector, MapViewWrapper
-    │   │   ├── media/                  # MediaPicker
-    │   │   └── ui/                     # Generic: BrutalButton, BrutalCard, Input, Header…
-    │   │
-    │   ├── constants/                  # Colors, theme tokens, responsive helpers
-    │   ├── hooks/                      # Custom React hooks (useLocation, useHomeScreen…)
-    │   ├── lib/                        # Third-party wrappers (notifications.ts shim)
-    │   ├── services/                   # API calls + native services
-    │   │   └── alarm/                  # alarmService.ts, alarmSoundService.ts
-    │   ├── store/                      # Zustand stores (useEventStore, useAuthStore…)
-    │   └── types/                      # Shared TypeScript types (event.types.ts)
+    ├── services/                       # API calls, heuristics & native services
+    │   ├── reschedulingService.ts      # AI Slot finder & missed task impact
+    │   ├── behaviorService.ts          # Category duration prediction & delay analysis
+    │   ├── travelService.ts            # Distance, transit modes & departure estimation
+    │   ├── notificationService.ts      # Exact alarms + leave-by departure alerts
+    │   └── priorityService.ts          # Multi-factor priority score engine
     │
+    ├── src/                            # Domain-grouped UI & architecture
+    │   ├── components/                 # AlarmModal, EventCard, BrutalCard, etc.
+    │   ├── hooks/                      # useLocation, useHomeScreen, etc.
+    │   ├── store/                      # Zustand stores (useEventStore, useAuthStore…)
+    │   └── types/                      # Shared TypeScript types
     ├── assets/                         # Fonts, images, icons
     ├── android_backup/                 # Custom Native Android Modules (Kotlin Alarms)
     ├── plugins/                        # Expo config plugins (Injects android_backup)
