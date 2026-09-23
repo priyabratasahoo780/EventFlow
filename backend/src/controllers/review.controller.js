@@ -31,7 +31,7 @@ exports.getReviews = async (req, res) => {
   try {
     const reviews = await Review.find()
       .populate('user', 'name profilePhoto')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 }).lean();
       
     res.json(reviews);
   } catch (error) {

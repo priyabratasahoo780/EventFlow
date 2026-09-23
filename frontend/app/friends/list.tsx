@@ -177,6 +177,10 @@ export default function FriendListScreen() {
         ) : (
           <FlatList
             data={filteredFriends}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews={true}
             keyExtractor={(item, index) => (item._id ? `${item._id}-${index}` : `friend-${index}`)}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}

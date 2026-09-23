@@ -9,9 +9,9 @@ exports.getTasks = async (req, res) => {
         { ownerId: req.userId },
         { sharedWith: req.userId }
       ]
-    }).sort({ date: 1 });
+    }).sort({ date: 1 }).lean();
     const tasksWithScores = tasks.map(t => {
-      const taskObj = t.toObject();
+      const taskObj = { ...t };
       taskObj.priorityScore = calculatePriorityScore(taskObj);
       taskObj.priorityDetails = getPriorityLevel(taskObj.priorityScore);
       return taskObj;
@@ -35,14 +35,14 @@ exports.getRecommendation = async (req, res) => {
       ],
       completed: false,
       status: { $ne: 'completed' }
-    });
+    }).lean();
 
     if (pendingTasks.length === 0) {
       return res.json({ recommendation: null, message: "No pending tasks! You are all caught up. 🎉" });
     }
 
     const scoredTasks = pendingTasks.map(t => {
-      const taskObj = t.toObject();
+      const taskObj = { ...t };
       taskObj.priorityScore = calculatePriorityScore(taskObj, userLocation);
       taskObj.priorityDetails = getPriorityLevel(taskObj.priorityScore);
       return taskObj;
@@ -101,7 +101,7 @@ exports.createTask = async (req, res) => {
         const friendsWithTokens = await User.find({
           _id: { $in: sharedFriends },
           expoPushToken: { $exists: true, $ne: '' }
-        });
+        }).lean();
 
         const messages = [];
         const expo = new Expo();
@@ -140,10 +140,10 @@ exports.getTaskById = async (req, res) => {
     const task = await Event.findOne({ 
       id: req.params.id, 
       $or: [{ ownerId: req.userId }, { sharedWith: req.userId }]
-    });
+    }).lean();
     if (!task) return res.status(404).json({ error: 'Task not found' });
     
-    const taskObj = task.toObject();
+    const taskObj = { ...task };
     taskObj.priorityScore = calculatePriorityScore(taskObj);
     taskObj.priorityDetails = getPriorityLevel(taskObj.priorityScore);
     res.json(taskObj);
@@ -185,7 +185,7 @@ exports.updateTask = async (req, res) => {
         const usersWithTokens = await User.find({
           _id: { $in: otherMembers },
           expoPushToken: { $exists: true, $ne: '' }
-        });
+        }).lean();
 
         const messages = [];
         const expo = new Expo();
@@ -263,7 +263,7 @@ exports.updateStatus = async (req, res) => {
         const usersWithTokens = await User.find({
           _id: { $in: otherMembers },
           expoPushToken: { $exists: true, $ne: '' }
-        });
+        }).lean();
 
         const statusLabel = status === 'completed' ? 'COMPLETED ✅' : status === 'in_progress' ? 'STARTED ⚡' : status.toUpperCase();
         const messages = [];
@@ -357,7 +357,7 @@ exports.buddyNearLocation = async (req, res) => {
     if (!task) return res.status(404).json({ error: 'Task not found or not shared with you' });
 
     // Load the friend (the one near the location)
-    const friend = await User.findById(friendId).select('name username profilePhoto');
+    const friend = await User.findById(friendId).select('name username profilePhoto').lean();
     if (!friend) return res.status(404).json({ error: 'User not found' });
 
     // Recipients: everyone EXCEPT the friend who just entered (they already know they're there)
@@ -396,7 +396,7 @@ exports.buddyNearLocation = async (req, res) => {
       const recipientUsers = await User.find({
         _id: { $in: recipientIds },
         expoPushToken: { $exists: true, $ne: '' }
-      });
+      }).lean();
 
       const messages = [];
       for (const recipient of recipientUsers) {

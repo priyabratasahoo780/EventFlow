@@ -96,6 +96,10 @@ export default function ContactSelector({ value, onSelectContact }: Props) {
 
             <FlatList
               data={filteredContacts}
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              windowSize={5}
+              removeClippedSubviews={true}
               keyExtractor={(item, index) => (item.id ? `${item.id}-${index}` : `contact-${index}`)}
               renderItem={({ item }) => (
                 <Pressable style={styles.contactItem} onPress={() => handleSelect(item)}>

@@ -1050,6 +1050,10 @@ export default function HomeScreen() {
         <FlatList
           ref={carouselRef}
           data={heroTasks}
+          initialNumToRender={5}
+          maxToRenderPerBatch={5}
+          windowSize={3}
+          removeClippedSubviews={true}
           keyExtractor={item => item.id}
           horizontal
           pagingEnabled={false}
@@ -1197,6 +1201,10 @@ export default function HomeScreen() {
     <SafeAreaView style={s.safe} edges={['top']}>
       <FlatList
         data={filteredEvents}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
         keyExtractor={(item, index) => (item.id ? `${item.id}-${index}` : `task-${index}`)}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={renderHeader()}

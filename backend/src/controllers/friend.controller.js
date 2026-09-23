@@ -22,7 +22,7 @@ exports.searchFriend = async (req, res) => {
         { username: { $regex: new RegExp(`^${escapedNoAt}$`, 'i') } },
         { email: clean.toLowerCase() }
       ]
-    }).select('name username profilePhoto uniqueId city friends');
+    }).select('name username profilePhoto uniqueId city friends').lean();
 
     if (!user) {
       return res.status(404).json({ 
@@ -44,7 +44,7 @@ exports.searchFriend = async (req, res) => {
         { senderId: req.user._id, receiverId: user._id, status: 'pending' },
         { senderId: user._id, receiverId: req.user._id, status: 'pending' }
       ]
-    });
+    }).lean();
 
     let relationshipStatus = 'none';
     if (isAlreadyFriend) {
@@ -90,7 +90,7 @@ exports.sendRequest = async (req, res) => {
         { senderId, receiverId, status: 'pending' },
         { senderId: receiverId, receiverId: senderId, status: 'pending' }
       ]
-    });
+    }).lean();
 
     if (existingRequest) {
       if (existingRequest.senderId.toString() === senderId.toString()) {
@@ -133,7 +133,7 @@ exports.sendRequest = async (req, res) => {
 exports.getRequests = async (req, res) => {
   try {
     const requests = await FriendRequest.find({ receiverId: req.user._id, status: 'pending' })
-      .populate('senderId', 'name username profilePhoto uniqueId city');
+      .populate('senderId', 'name username profilePhoto uniqueId city').lean();
     res.json(requests);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -178,7 +178,7 @@ exports.rejectRequest = async (req, res) => {
 
 exports.getFriends = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).populate('friends', 'name username profilePhoto uniqueId city');
+    const user = await User.findById(req.user._id).populate('friends', 'name username profilePhoto uniqueId city').lean();
     res.json(user.friends);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -263,7 +263,7 @@ exports.getFriendMessages = async (req, res) => {
         { senderId: req.user._id, receiverId: friendId },
         { senderId: friendId, receiverId: req.user._id }
       ]
-    }).sort({ createdAt: 1 });
+    }).sort({ createdAt: 1 }).lean();
 
     res.json(messages);
   } catch (err) {

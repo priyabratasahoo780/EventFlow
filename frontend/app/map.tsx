@@ -320,6 +320,10 @@ export default function MapScreen() {
           ref={flatListRef}
           horizontal
           data={filteredTasks}
+          initialNumToRender={5}
+          maxToRenderPerBatch={5}
+          windowSize={5}
+          removeClippedSubviews={true}
           keyExtractor={(item) => item.id}
           showsHorizontalScrollIndicator={false}
           snapToInterval={CARD_WIDTH + CARD_MARGIN}

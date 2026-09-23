@@ -19,7 +19,7 @@ exports.createEvent = async (req, res) => {
 
 exports.getEvents = async (req, res) => {
   try {
-    const events = await Event.find({ ownerId: req.user._id });
+    const events = await Event.find({ ownerId: req.user._id }).lean();
     res.json(events);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -41,7 +41,7 @@ exports.getFriendsEvents = async (req, res) => {
     const friendIds = user.friends || [];
 
     // Find all users who are mutual friends (either current user has them, or they have current user)
-    const usersWhoHaveMeAsFriend = await User.find({ friends: userId }).select('_id');
+    const usersWhoHaveMeAsFriend = await User.find({ friends: userId }).select('_id').lean();
     const allConnectedFriendIds = Array.from(new Set([
       ...friendIds.map(f => f.toString()),
       ...usersWhoHaveMeAsFriend.map(u => u._id.toString())
@@ -55,7 +55,7 @@ exports.getFriendsEvents = async (req, res) => {
         { ownerId: { $in: allConnectedFriendIds }, visibility: 'friends' },
         { visibility: 'selectedFriends', sharedWith: userId }
       ]
-    }).populate('ownerId', 'name username profilePhoto uniqueId');
+    }).populate('ownerId', 'name username profilePhoto uniqueId').lean();
 
     res.json(events);
   } catch (err) {

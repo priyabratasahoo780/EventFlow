@@ -178,6 +178,10 @@ export default function CommunityReviewsScreen() {
       ) : (
         <FlatList
           data={reviews}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
           keyExtractor={(item) => item._id || item.id}
           contentContainerStyle={[s.listContent, { paddingBottom: 120 + Math.max(insets.bottom, 16) }]}
           renderItem={renderReview}

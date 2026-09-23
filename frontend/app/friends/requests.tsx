@@ -112,6 +112,10 @@ export default function FriendRequestsScreen() {
       ) : (
         <FlatList
           data={requests}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
           keyExtractor={(item, index) => (item._id ? `${item._id}-${index}` : `req-${index}`)}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}

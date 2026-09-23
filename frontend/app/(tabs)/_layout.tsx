@@ -79,24 +79,6 @@ function AnimatedTabIcon({
 
       <Icon color={color} size={size} strokeWidth={focused ? 2.5 : 2} />
 
-      {focused && (
-        <Animated.View
-          style={{
-            position: 'absolute',
-            bottom: -6,
-            width: 4,
-            height: 4,
-            borderRadius: 2,
-            backgroundColor: activeColor,
-            opacity: glowAnim,
-            // Coloured glow dot in dark mode
-            shadowColor: activeColor,
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: isDark ? 0.9 : 0,
-            shadowRadius: 6,
-          }}
-        />
-      )}
     </Animated.View>
   );
 }

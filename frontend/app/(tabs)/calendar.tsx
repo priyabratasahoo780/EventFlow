@@ -131,6 +131,10 @@ export default function CalendarScreen() {
       <FlatList
         ref={flatListRef}
         data={selectedEvents}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={

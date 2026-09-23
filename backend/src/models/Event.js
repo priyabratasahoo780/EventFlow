@@ -43,4 +43,9 @@ const eventSchema = new mongoose.Schema({
   reminders: [{ type: Object, default: [] }]
 }, { timestamps: true });
 
+// Optimize query performance for task lists
+eventSchema.index({ ownerId: 1, status: 1 });
+eventSchema.index({ ownerId: 1, date: 1 });
+eventSchema.index({ ownerId: 1, date: 1, status: 1 });
+
 module.exports = mongoose.model('Event', eventSchema);

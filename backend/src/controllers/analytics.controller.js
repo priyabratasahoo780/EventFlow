@@ -3,8 +3,8 @@ const { generateAnalytics } = require('../services/analytics.service');
 
 exports.getDashboardAnalytics = async (req, res) => {
   try {
-    const tasks = await Event.find({ ownerId: req.userId });
-    const analytics = generateAnalytics(tasks.map(t => t.toObject()));
+    const tasks = await Event.find({ ownerId: req.userId }).lean();
+    const analytics = generateAnalytics(tasks);
     res.json(analytics);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -13,8 +13,8 @@ exports.getDashboardAnalytics = async (req, res) => {
 
 exports.getWeeklyAnalytics = async (req, res) => {
   try {
-    const tasks = await Event.find({ ownerId: req.userId });
-    const taskObjs = tasks.map(t => t.toObject());
+    const tasks = await Event.find({ ownerId: req.userId }).lean();
+    const taskObjs = tasks;
     
     // Group tasks by day of week
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -39,7 +39,7 @@ exports.getWeeklyAnalytics = async (req, res) => {
 
 exports.getCategoriesAnalytics = async (req, res) => {
   try {
-    const tasks = await Event.find({ ownerId: req.userId });
+    const tasks = await Event.find({ ownerId: req.userId }).lean();
     const categoryDistribution = {};
 
     tasks.forEach(t => {
