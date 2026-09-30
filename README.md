@@ -44,6 +44,7 @@
 - [Real-World Problems Solved](#-real-world-problems--edge-cases-solved)
 - [Key Features](#key-features)
 - [Complete Feature Overview](#-complete-feature-overview)
+- [Recent Major Upgrades & Advanced UX](#-recent-major-upgrades--advanced-ux)
 - [EventFlow vs. The Market](#️-eventflow-vs-the-market)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
@@ -258,6 +259,57 @@ Building a reliable alarm and productivity app comes with complex edge cases, es
 | Responsive layout | Scales cleanly across phone sizes (portrait only) | ✅ |
 | Media picker | Image & video picker with preview (Expo ImagePicker) | ✅ |
 | Offline-first alarms | Alarms work 100% without internet | ✅ |
+| Lottie Splash Animation Sequence | Cinematic multi-stage vector animations (portal, particles, kinetic loader) with procedural fallback | ✅ |
+| High-Urgency Radar Alarm Screen | Concentric expanding pulse rings, oscillating bell with spring physics, live digital clock, and swipe dismiss | ✅ |
+| AI Productivity Insights UI | Generative category velocity, focus hours, and procrastination analysis with glassmorphic cards | ✅ |
+| Modernized Geofence Selector | Full-width address bar, dual GPS & Map action buttons, segmented distance selector, and live radar status pill | ✅ |
+| Friends & Social Hub Overhaul | Live friend counter, two-tier card layout with status indicators, and one-tap cheer/chat actions | ✅ |
+| 3D Glossy Brand Identity | Unified 3D orange emblem across app icon, native splash (#070714), auth screens, and settings | ✅ |
+
+---
+
+## <img src="https://api.iconify.design/lucide/sparkles.svg?color=%23f97316" width="20" align="top" /> Recent Major Upgrades & Advanced UX
+
+> A comprehensive overview of recent production-grade design and architecture enhancements delivered to EventFlow.
+
+### 🎬 1. Cinematic Lottie Multi-Stage Splash Screen
+- **Portal & Particle Physics**: Built with `lottie-react-native`, transitioning from a glowing cosmic portal (`eventflow-portal.json`) through dynamic ambient particles (`eventflow-particles.json`) to a kinetic branding sequence.
+- **Procedural Vector Engine**: Includes `frontend/assets/lottie/generate-lotties.js` for standalone mathematical generation of 60 FPS vector Lottie JSONs.
+- **Seamless App Handshake**: Synchronized with `expo-splash-screen` to eliminate blank flashes and deliver an instant 60 FPS entry into EventFlow.
+
+### 🧠 2. AI Behavioral Insights & Productivity Intelligence
+- **Real-Time Insight Engine**: Integrated into the Statistics screen (`app/(tabs)/statistics.tsx`) via `AiInsightSection.tsx` and `AiInsightCard.tsx`.
+- **4-Vector Analysis**:
+  - ⚡ **Peak Focus Hours**: Identifies when task completion efficiency is at its highest based on historical completion logs.
+  - 📈 **Category Velocity**: Analyzes momentum trends across work, personal, fitness, and study.
+  - ⏳ **Procrastination Detection**: Flags recurring delay patterns with proactive warnings.
+  - 💡 **Actionable Productivity Tips**: Recommends personalized scheduling nudges.
+- **Glassmorphic Presentation**: Sleek cards with glowing linear gradients, squircle icons, and smooth entrance transitions.
+
+### 🚨 3. High-Urgency Radar Alarm Screen & Native Lockscreen Integration
+- **Concentric Radar Waveform**: Triple expanding pulse rings with Reanimated 4 looping scale and opacity physics.
+- **Oscillating Bell Animation**: Physics-based bell chime oscillation with high-tactile haptic feedback (`Haptics.notificationAsync`).
+- **Live Digital Clock**: Real-time `HH:mm:ss` counter with glowing date subtitle.
+- **Universal Mount**: Mounted globally in root layout (`_layout.tsx`) so exact alarms trigger instant full-screen takeover from any view, matched with Kotlin Android lockscreen activity (`AlarmActivity.kt`).
+- **One-Tap Snooze & Tactile Slide Dismiss**: Prevents accidental dismissal while ensuring critical deadlines cannot be missed.
+
+### 📍 4. Modernized Location & Arrival Geofence Intelligence
+- **Adaptive Theme Architecture**: Built for both Dark Mode (`#1A182E`) and Light Mode (`#F9F8FD`) with subtle elevation.
+- **Uncrowded Full-Width Search**: Dedicated `48dp` address input field preventing text truncation, complete with instant clear (`X`) trigger.
+- **Dual Thumb-Friendly Actions**: Side-by-side Indigo GPS button (`Use Current GPS`) and Orange Map button (`Pick on Map`).
+- **Segmented Distance Selector**: High-contrast, equal-width pills (`100m`, `200m`, `300m`, `500m`, `1km`) with dynamic trigger badge.
+- **Emerald Radar Confirmation Pill**: High-legibility status confirmation pill with circular checkmark badge.
+
+### 🤝 5. Friends & Social Hub Redesign
+- **Live Connected Counter**: Real-time connected friend badge with live socket presence.
+- **Two-Tier Segmented Cards**: Clean layout featuring personalized initials, status indicators, and dedicated quick-action triggers (DM Chat, Cheer/Nudge modal, Event invite).
+- **Interactive Cheer Modal**: Instant social encouragement with celebratory animations and haptics.
+
+### 🎨 6. Standardized 3D Glossy Brand Identity
+- **Unified Emblem**: Standardized custom 3D glossy orange emblem (`icon_squared.png`) across all application surfaces.
+- **Android Manifest & Drawables**: Full set of high-res density drawables (`mipmap-mdpi` through `mipmap-xxxhdpi`).
+- **Dark Deep Space Native Splash**: Native Android and iOS splash background set to `#070714` for cohesive OLED bootup.
+- **Auth & Settings Integration**: Standardized across Welcome, Login, Register, Forgot Password, and Settings views.
 
 ---
 
@@ -318,8 +370,9 @@ Building a reliable alarm and productivity app comes with complex edge cases, es
 | Axios | 1.x | HTTP client |
 | React Native Maps | 1.27 | Maps + geofence display |
 | Reanimated | 4.x | Smooth animations |
+| Lottie React Native | 7.3 | Cinematic vector splash & physics animations |
 
-**Key Expo modules:** `expo-notifications`, `expo-location`, `expo-task-manager`, `expo-video`, `expo-audio`, `expo-haptics`, `expo-image-picker`, `expo-secure-store`
+**Key Expo modules:** `expo-notifications`, `expo-location`, `expo-task-manager`, `expo-video`, `expo-audio`, `expo-haptics`, `expo-image-picker`, `expo-secure-store`, `expo-linear-gradient`
 
 ### Backend
 
@@ -491,18 +544,35 @@ EventFlow/                              # Mono-repo root
     │   ├── notificationService.ts      # Exact alarms + leave-by departure alerts
     │   └── priorityService.ts          # Multi-factor priority score engine
     │
+    ├── components/                     # Core UI Components
+    │   ├── AiInsightCard.tsx           # Generative AI velocity & focus cards
+    │   ├── AiInsightSection.tsx        # AI Insights hub with live metrics
+    │   ├── AlarmModal.tsx              # Concentric radar rings exact alarm modal
+    │   ├── LocationSelector.tsx        # Modernized dual-action geofence selector
+    │   ├── SplashScreenView.tsx        # Multi-stage Lottie cosmic splash sequence
+    │   ├── MapViewWrapper.tsx          # Cross-platform map & pin drop wrapper
+    │   ├── BrutalButton.tsx            # Design-system primitive buttons
+    │   ├── BrutalCard.tsx              # Glassmorphic brutalist card container
+    │   └── EventCard.tsx               # Event item card with status pills
     ├── src/                            # Domain-grouped UI & architecture
-    │   ├── components/                 # AlarmModal, EventCard, BrutalCard, etc.
+    │   ├── components/                 # UI primitives (BrutalCard, etc.)
     │   ├── hooks/                      # useLocation, useHomeScreen, etc.
     │   ├── store/                      # Zustand stores (useEventStore, useAuthStore…)
     │   └── types/                      # Shared TypeScript types
-    ├── assets/                         # Fonts, images, icons
+    ├── assets/                         # Static media assets
+    │   ├── fonts/                      # Poppins font family
+    │   ├── images/                     # 3D glossy emblem, icons, mockups
+    │   └── lottie/                     # 60fps vector Lottie sequences & generator
+    │       ├── eventflow-portal.json   # Cosmic portal animation
+    │       ├── eventflow-particles.json# Ambient particle physics
+    │       ├── eventflow-loader.json   # Kinetic loader animation
+    │       └── generate-lotties.js     # Mathematical Lottie JSON generator
     ├── android_backup/                 # Custom Native Android Modules (Kotlin Alarms)
     ├── plugins/                        # Expo config plugins (Injects android_backup)
     ├── babel.config.js                 # @/* path aliases via module-resolver
     ├── tsconfig.json                   # Strict TS + path aliases
     ├── metro.config.js                 # Metro bundler config + web shims
-    └── app.json                        # Expo app config (EAS, permissions)
+    └── app.json                        # Expo app config (EAS, permissions, 3D icon)
 ```
 
 ---
