@@ -27,8 +27,8 @@ module.exports = function (api) {
     'react-native-reanimated/plugin',
   ];
 
-  // Strip console.log statements in production build to avoid memory leaks
-  if (api.env('production')) {
+  const isProd = process.env.NODE_ENV === 'production';
+  if (isProd) {
     plugins.push('transform-remove-console');
   }
 
