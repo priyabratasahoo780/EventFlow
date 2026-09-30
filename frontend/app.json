@@ -7,10 +7,6 @@
     "icon": "./assets/images/icon_squared.png",
     "scheme": "eventflow",
     "userInterfaceStyle": "automatic",
-    "androidStatusBar": {
-      "barStyle": "light-content",
-      "translucent": true
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.priyabrata.eventflow"
@@ -26,6 +22,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "newArchEnabled": true,
+      "versionCode": 1,
       "permissions": [
         "SCHEDULE_EXACT_ALARM",
         "USE_EXACT_ALARM",
