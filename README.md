@@ -836,12 +836,16 @@ Notification triggered
 - [x] Real-time friend events via Socket.io
 - [x] AI priority scoring engine
 - [x] Production-ready folder structure with path aliases
-- [ ] Push notifications via Expo server SDK
-- [ ] Group events and collaborative task lists
-- [ ] Offline mode with AsyncStorage-first sync
-- [ ] EAS Update (OTA updates in production)
-- [ ] End-to-end encrypted DMs
-- [ ] Widget support (Android/iOS)
+- [x] Push notifications via Expo server SDK
+- [x] Group events and collaborative task lists
+- [x] Offline mode with AsyncStorage-first sync
+- [x] EAS Update (OTA updates in production)
+- [x] End-to-end encrypted DMs
+- [x] Widget support (Android/iOS)
+- [x] Cinematic Lottie multi-stage animated splash sequence
+- [x] High-urgency radar pulse alarm modal & native lockscreen
+- [x] AI behavioral insights & productivity intelligence engine
+- [x] Modernized dual-action geofence & radius selector
 
 ---
 
