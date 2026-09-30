@@ -38,7 +38,11 @@
         "com.google.android.gms.permission.ACTIVITY_RECOGNITION",
         "ACCESS_NOTIFICATION_POLICY",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+        "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
       "package": "com.priyabrata.eventflow"
     },
@@ -96,12 +100,13 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "6e1d8280-cb77-4673-8219-1b36142d7a90"
+        "projectId": "6411eb54-9029-40e7-8968-5c5963b9de78"
       }
     },
     "runtimeVersion": "1.0.0",
     "updates": {
-      "url": "https://u.expo.dev/6e1d8280-cb77-4673-8219-1b36142d7a90"
-    }
+      "url": "https://u.expo.dev/6411eb54-9029-40e7-8968-5c5963b9de78"
+    },
+    "owner": "bharatshah786"
   }
 }
