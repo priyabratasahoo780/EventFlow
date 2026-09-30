@@ -33,9 +33,10 @@ const RADII = [
 ];
 
 export default function LocationSelector({ value, onChangeLocation, radius = 500, onChangeRadius }: Props) {
-  const { getColors } = useThemeStore();
+  const { getColors, isDark } = useThemeStore();
   const colors = getColors();
-  const styles = getStyles(colors);
+  const isDarkMode = isDark();
+  const styles = getStyles(colors, isDarkMode);
   const [loading, setLoading] = useState(false);
   const [coords, setCoords] = useState<{ lat?: number; lng?: number }>({});
   
@@ -63,7 +64,7 @@ export default function LocationSelector({ value, onChangeLocation, radius = 500
         });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
-        Alert.alert('Not Found', 'Could not find the location.');
+        Alert.alert('Not Found', 'Could not find the location on the map.');
       }
     } catch (e) {
       console.warn(e);
@@ -108,7 +109,7 @@ export default function LocationSelector({ value, onChangeLocation, radius = 500
   };
 
   const handleSelectPreset = async (presetName: string, query: string) => {
-    Haptics.selectionAsync();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onChangeLocation(presetName, { address: presetName });
 
     try {
@@ -142,96 +143,174 @@ export default function LocationSelector({ value, onChangeLocation, radius = 500
     }
   };
 
+  const handleClearLocation = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setCoords({});
+    onChangeLocation('', undefined);
+  };
+
   return (
     <View style={styles.container}>
+      {/* HEADER ROW */}
       <View style={styles.headerRow}>
-        <MapPin color={colors.primary} size={16} strokeWidth={2.5} />
-        <Text style={styles.label}>Location & Arrival Geofence</Text>
-        <Text style={styles.hint}>Triggers alarm when you reach</Text>
+        <View style={styles.headerLeft}>
+          <View style={styles.iconSquircle}>
+            <MapPin color={colors.primary} size={18} strokeWidth={2.4} />
+          </View>
+          <View style={styles.headerTexts}>
+            <Text style={styles.label}>Location & Arrival Geofence</Text>
+            <Text style={styles.hint}>Triggers alarm when you reach</Text>
+          </View>
+        </View>
+
+        {value ? (
+          <Pressable 
+            onPress={handleClearLocation} 
+            hitSlop={8} 
+            style={styles.clearBtn}
+          >
+            <X color={colors.textSecondary} size={14} strokeWidth={2.5} />
+          </Pressable>
+        ) : null}
       </View>
 
-      {/* Preset Location Chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetScroll}>
+      {/* PRESET CHIPS */}
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false} 
+        contentContainerStyle={styles.presetScroll}
+      >
         {PRESETS.map((p) => {
           const IconComp = p.icon;
           const isSelected = value.toLowerCase().includes(p.label.toLowerCase());
           return (
             <Pressable
               key={p.label}
-              style={[styles.presetChip, isSelected && styles.presetChipActive]}
+              style={({ pressed }) => [
+                styles.presetChip,
+                isSelected && styles.presetChipActive,
+                pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
+              ]}
               onPress={() => handleSelectPreset(p.label, p.query)}
             >
-              <IconComp color={colors.primary} size={14} strokeWidth={2.5} />
-              <Text style={styles.presetText}>{p.label}</Text>
+              <IconComp 
+                color={isSelected ? colors.primary : colors.textSecondary} 
+                size={14} 
+                strokeWidth={2.4} 
+              />
+              <Text style={[styles.presetText, isSelected && styles.presetTextActive]}>
+                {p.label}
+              </Text>
             </Pressable>
           );
         })}
       </ScrollView>
-      
-      {/* Search / Input Box */}
-      <View style={styles.inputRow}>
-        <MapPin color="#64748B" size={18} style={styles.icon} strokeWidth={2.4} />
+
+      {/* ADDRESS INPUT BAR */}
+      <View style={styles.inputBar}>
+        <MapPin color={colors.textSecondary} size={18} strokeWidth={2.2} style={styles.inputPinIcon} />
         <TextInput
           style={styles.input}
-          placeholder="e.g. College Library, City Supermarket..."
-          placeholderTextColor="#94A3B8"
+          placeholder="e.g. GF4+HVC, Kalol or College Library..."
+          placeholderTextColor={colors.textSecondary}
           value={value}
           onChangeText={handleManualSearch}
         />
-        <View style={{ flexDirection: 'row', gap: 6 }}>
-          <Pressable style={styles.gpsBtn} onPress={handleGetCurrentLocation} disabled={loading}>
+        {value ? (
+          <Pressable onPress={handleClearLocation} hitSlop={6} style={styles.inputClearBtn}>
+            <X color={colors.textSecondary} size={14} strokeWidth={2.5} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {/* DUAL ACTION BUTTONS: GPS & MAP */}
+      <View style={styles.actionRow}>
+        <Pressable 
+          style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] }]} 
+          onPress={handleGetCurrentLocation} 
+          disabled={loading}
+        >
+          <LinearGradient
+            colors={['#4F46E5', '#6366F1']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.actionBtnGradient}
+          >
             {loading ? (
               <ActivityIndicator size="small" color="#FFF" />
             ) : (
-              <View style={styles.gpsBtnInner}>
+              <View style={styles.actionBtnInner}>
                 <Navigation color="#FFF" size={14} strokeWidth={2.5} />
-                <Text style={styles.gpsBtnText}>GPS</Text>
+                <Text style={styles.actionBtnText}>GPS</Text>
               </View>
             )}
-          </Pressable>
-          
-          <Pressable 
-            style={[styles.gpsBtn, { backgroundColor: colors.secondary }]} 
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setTempCoords(coords.lat ? coords : { lat: 20.5937, lng: 78.9629 });
-              setShowMapModal(true);
-            }}
+          </LinearGradient>
+        </Pressable>
+
+        <Pressable 
+          style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] }]} 
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setTempCoords(coords.lat ? coords : { lat: 20.5937, lng: 78.9629 });
+            setShowMapModal(true);
+          }}
+        >
+          <LinearGradient
+            colors={['#FF7A00', '#F97316']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.actionBtnGradient}
           >
-            <View style={styles.gpsBtnInner}>
+            <View style={styles.actionBtnInner}>
               <MapIcon color="#FFF" size={14} strokeWidth={2.5} />
-              <Text style={styles.gpsBtnText}>MAP</Text>
+              <Text style={styles.actionBtnText}>MAP</Text>
             </View>
-          </Pressable>
+          </LinearGradient>
+        </Pressable>
+      </View>
+
+      {/* RADIUS SELECTOR */}
+      <View style={styles.radiusContainer}>
+        <View style={styles.radiusHeader}>
+          <Text style={styles.radiusLabel}>Remind within:</Text>
+          <Text style={styles.radiusValueTag}>
+            {radius < 1000 ? `${radius}m` : `${radius / 1000}km`}
+          </Text>
+        </View>
+
+        <View style={styles.radiusChips}>
+          {RADII.map((r) => {
+            const isSelected = radius === r.val;
+            return (
+              <Pressable
+                key={r.val}
+                style={({ pressed }) => [
+                  styles.radiusChip,
+                  isSelected && styles.radiusChipActive,
+                  pressed && { opacity: 0.8 },
+                ]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  if (onChangeRadius) onChangeRadius(r.val);
+                }}
+              >
+                <Text style={[styles.radiusText, isSelected && styles.radiusTextActive]}>
+                  {r.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
-      {/* Radius Selector & Active Badge */}
-      <View style={styles.radiusRow}>
-        <Text style={styles.radiusLabel}>Remind within:</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.radiusChips}>
-          {RADII.map(r => (
-            <Pressable
-              key={r.val}
-              style={[styles.radiusChip, radius === r.val && styles.radiusChipActive]}
-              onPress={() => {
-                Haptics.selectionAsync();
-                if (onChangeRadius) onChangeRadius(r.val);
-              }}
-            >
-              <Text style={[styles.radiusText, radius === r.val && styles.radiusTextActive]}>
-                {r.label}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-
+      {/* ACTIVE GEOFENCE BADGE */}
       {coords.lat && coords.lng ? (
         <View style={styles.coordsBadge}>
-          <Check color={colors.success} size={13} strokeWidth={3} />
+          <View style={styles.coordsBadgeIconWrap}>
+            <Check color="#FFF" size={12} strokeWidth={3} />
+          </View>
           <Text style={styles.coordsText}>
-            📍 Proximity Geofence Active (within {radius}m of destination)
+            📍 Proximity Geofence Active (within {radius < 1000 ? `${radius}m` : `${radius / 1000}km`} of destination)
           </Text>
         </View>
       ) : null}
@@ -256,15 +335,15 @@ export default function LocationSelector({ value, onChangeLocation, radius = 500
             <View style={{ marginHorizontal: 16, marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Pressable 
                 onPress={() => setShowMapModal(false)} 
-                style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 }}
+                style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 }}
               >
                 <X color={colors.text} size={22} strokeWidth={2.5} />
               </Pressable>
 
-              <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.card, borderRadius: 25, paddingHorizontal: 16, alignItems: 'center', height: 50, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 }}>
-                <Search color={colors.textSecondary} size={20} style={{ marginRight: 8 }} strokeWidth={2.5} />
+              <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.card, borderRadius: 24, paddingHorizontal: 16, alignItems: 'center', height: 48, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 }}>
+                <Search color={colors.textSecondary} size={18} style={{ marginRight: 8 }} strokeWidth={2.5} />
                 <TextInput 
-                  style={{ flex: 1, fontFamily: 'Poppins_500Medium', fontSize: 14, color: colors.text }}
+                  style={{ flex: 1, fontFamily: 'Poppins_500Medium', fontSize: 13, color: colors.text }}
                   placeholder="Search map location..."
                   placeholderTextColor={colors.textSecondary}
                   value={mapSearchText}
@@ -278,22 +357,23 @@ export default function LocationSelector({ value, onChangeLocation, radius = 500
           </SafeAreaView>
 
           {/* FLOATING BOTTOM PANEL */}
-          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.card, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 40, shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 20 }}>
-            
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
-              <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
-                <MapPin color={colors.primary} size={26} strokeWidth={2.2} />
+          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.card, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 22, paddingBottom: 36, shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 20 }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: isDarkMode ? 'rgba(255,255,255,0.2)' : '#E2E8F0', alignSelf: 'center', marginBottom: 16 }} />
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+              <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                <MapPin color={colors.primary} size={22} strokeWidth={2.4} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: colors.text, marginBottom: 2 }}>Pin Location</Text>
-                <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 13, color: colors.textSecondary }} numberOfLines={2}>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: colors.text, marginBottom: 2 }}>Pin Location</Text>
+                <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 12, color: colors.textSecondary }} numberOfLines={2}>
                   {tempCoords.lat ? `Selected: ${tempCoords.lat.toFixed(4)}, ${tempCoords.lng?.toFixed(4)}` : 'Tap on the map to drop a pin'}
                 </Text>
               </View>
             </View>
 
             <Pressable 
-              style={({pressed}) => [{ borderRadius: 16, shadowColor: colors.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 10 }, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+              style={({ pressed }) => [{ borderRadius: 14, shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 8 }, pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] }]}
               onPress={async () => {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 if (tempCoords.lat && tempCoords.lng) {
@@ -314,8 +394,8 @@ export default function LocationSelector({ value, onChangeLocation, radius = 500
                 setShowMapModal(false);
               }}
             >
-              <LinearGradient colors={['#6366F1', '#4F46E5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 18, alignItems: 'center', justifyContent: 'center', borderRadius: 16, overflow: 'hidden' }}>
-                <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 15, color: '#FFF', letterSpacing: 1.2 }}>CONFIRM LOCATION</Text>
+              <LinearGradient colors={['#6366F1', '#4F46E5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: 'center', justifyContent: 'center', borderRadius: 14, overflow: 'hidden' }}>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#FFF', letterSpacing: 1 }}>CONFIRM LOCATION</Text>
               </LinearGradient>
             </Pressable>
           </View>
@@ -325,67 +405,103 @@ export default function LocationSelector({ value, onChangeLocation, radius = 500
   );
 }
 
-const getStyles = (colors: ColorTheme) => StyleSheet.create({
+const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create({
   container: {
-    backgroundColor: '#F5F3FF',
-    borderRadius: 16,
+    backgroundColor: isDarkMode ? '#1A182E' : '#F9F8FD',
+    borderRadius: 20,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#E0E7FF',
-    marginTop: 24,
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? 'rgba(99, 102, 241, 0.22)' : '#ECE9FB',
+    marginTop: 20,
+    shadowColor: isDarkMode ? '#000000' : '#4338CA',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: isDarkMode ? 0.25 : 0.04,
+    shadowRadius: 16,
+    elevation: 3,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  iconSquircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: isDarkMode ? 'rgba(99, 102, 241, 0.2)' : '#EDEAFD',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTexts: {
+    flex: 1,
   },
   label: {
     fontFamily: 'Poppins_700Bold',
-    fontSize: 12,
+    fontSize: 14,
     color: colors.primary,
+    letterSpacing: -0.2,
   },
   hint: {
     fontFamily: 'Poppins_500Medium',
-    fontSize: 10,
+    fontSize: 11,
     color: colors.textSecondary,
+    marginTop: 0.5,
+  },
+  clearBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   presetScroll: {
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   presetChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: '#E0E7FF',
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : colors.card,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderRadius: 12,
     gap: 6,
   },
   presetChipActive: {
-    backgroundColor: colors.primaryLight,
+    backgroundColor: isDarkMode ? 'rgba(99, 102, 241, 0.22)' : '#EDEAFD',
     borderColor: colors.primary,
   },
   presetText: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 12,
-    color: colors.primary,
+    fontSize: 11.5,
+    color: colors.textSecondary,
   },
-  inputRow: {
+  presetTextActive: {
+    color: colors.primary,
+    fontFamily: 'Poppins_700Bold',
+  },
+  inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: '#E0E7FF',
-    borderRadius: 12,
+    backgroundColor: isDarkMode ? 'rgba(15, 17, 34, 0.65)' : colors.card,
+    borderWidth: 1.2,
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0',
+    borderRadius: 14,
     paddingHorizontal: 12,
     height: 48,
+    marginBottom: 10,
   },
-  icon: {
+  inputPinIcon: {
     marginRight: 8,
   },
   input: {
@@ -394,75 +510,119 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     fontSize: 13,
     color: colors.text,
   },
-  gpsBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginLeft: 8,
+  inputClearBtn: {
+    padding: 4,
   },
-  gpsBtnInner: {
+  actionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  actionBtn: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  actionBtnGradient: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionBtnInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
+    gap: 6,
   },
-  gpsBtnText: {
+  actionBtnText: {
     fontFamily: 'Poppins_700Bold',
-    fontSize: 11,
-    color: colors.card,
+    fontSize: 12,
+    color: '#FFF',
+    letterSpacing: 0.5,
   },
-  radiusRow: {
+  radiusContainer: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0',
+  },
+  radiusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    marginBottom: 8,
   },
   radiusLabel: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11,
-    color: '#64748B',
+    fontSize: 11.5,
+    color: colors.textSecondary,
+  },
+  radiusValueTag: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 11.5,
+    color: colors.primary,
   },
   radiusChips: {
     flexDirection: 'row',
-    gap: 4,
+    gap: 6,
   },
   radiusChip: {
-    backgroundColor: '#FFF',
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 6,
+    flex: 1,
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : colors.card,
+    paddingVertical: 7,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   radiusChipActive: {
-    backgroundColor: '#0F172A',
-    borderColor: '#0F172A',
+    backgroundColor: isDarkMode ? colors.primary : '#0F172A',
+    borderColor: isDarkMode ? colors.primary : '#0F172A',
+    shadowColor: isDarkMode ? colors.primary : '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
   radiusText: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 10,
-    color: '#64748B',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 11,
+    color: colors.textSecondary,
   },
   radiusTextActive: {
     color: '#FFF',
+    fontFamily: 'Poppins_700Bold',
   },
   coordsBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: colors.successLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    gap: 8,
+    backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#DCFCE7',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
-    marginTop: 8,
+    borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.35)' : '#86EFAC',
+    marginTop: 12,
+  },
+  coordsBadgeIconWrap: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#16A34A',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   coordsText: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 10,
-    color: '#15803D',
+    flex: 1,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 11,
+    color: isDarkMode ? '#4ADE80' : '#15803D',
   },
 });
+
