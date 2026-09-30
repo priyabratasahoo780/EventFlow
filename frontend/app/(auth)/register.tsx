@@ -1,7 +1,7 @@
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Alert, Pressable, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import GoogleButton from '../../components/GoogleButton';
@@ -167,7 +167,20 @@ export default function RegisterScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.appName}>FOCUSFLOW</Text>
+        {/* Brand Header */}
+        <View style={styles.brandRow}>
+          <View style={styles.brandIcon}>
+            <Image
+              source={require('../../assets/images/icon_squared.png')}
+              style={styles.brandIconImage}
+              resizeMode="cover"
+            />
+          </View>
+          <View>
+            <Text style={styles.appName}>EVENTFLOW</Text>
+            <Text style={styles.tagline}>Create your account to get started.</Text>
+          </View>
+        </View>
         <Text style={styles.title}>SIGN UP</Text>
         
         <View style={styles.inputContainer}>
@@ -323,12 +336,38 @@ export default function RegisterScreen() {
 const getStyles = (colors: ColorTheme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: 24, paddingBottom: 60 },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 6,
+    marginBottom: 16,
+  },
+  brandIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    overflow: 'hidden',
+    shadowColor: colors.secondary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  brandIconImage: {
+    width: '100%',
+    height: '100%',
+  },
   appName: {
     fontFamily: 'Poppins_800ExtraBold',
     fontSize: 14,
     color: colors.secondary,
     letterSpacing: 2,
-    marginTop: 10,
+  },
+  tagline: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11,
+    color: colors.textSecondary,
   },
   title: {
     fontFamily: 'Poppins_700Bold',

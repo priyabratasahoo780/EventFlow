@@ -70,7 +70,7 @@ export default function WelcomeScreen() {
               <Animated.View style={[styles.circle, styles.circleMiddle, middleStyle]}>
                 <View style={[styles.circle, styles.circleInner]}>
                   <Image 
-                    source={require('../../assets/images/focusflow_logo.png')}
+                    source={require('../../assets/images/icon_squared.png')}
                     style={styles.logoImage}
                     resizeMode="cover"
                   />
@@ -82,7 +82,7 @@ export default function WelcomeScreen() {
           {/* Brand Text */}
           <Animated.View entering={FadeInDown.delay(300).duration(800).springify()} style={styles.brandContainer}>
             <Text style={styles.brandTitle}>
-              <Text style={{ color: colors.text }}>Focus</Text>
+              <Text style={{ color: colors.text }}>Event</Text>
               <Text style={{ color: colors.secondary }}>Flow</Text>
             </Text>
             <Text style={styles.tagline}>Plan Better. Focus More. Achieve All.</Text>

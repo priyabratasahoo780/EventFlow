@@ -1,7 +1,7 @@
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Alert, Pressable, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BrutalButton from '../../components/BrutalButton';
 import { Colors } from '../../constants/Colors';
@@ -80,10 +80,14 @@ export default function ForgotPasswordScreen() {
         </Pressable>
 
         <View style={styles.headerIcon}>
-          <KeyRound size={36} color="#000" strokeWidth={2.5} />
+          <Image
+            source={require('../../assets/images/icon_squared.png')}
+            style={{ width: '100%', height: '100%', borderRadius: 14 }}
+            resizeMode="cover"
+          />
         </View>
 
-        <Text style={styles.appName}>FOCUSFLOW</Text>
+        <Text style={styles.appName}>EVENTFLOW</Text>
         <Text style={styles.title}>FORGOT PASSWORD?</Text>
         <Text style={styles.subtitle}>Enter your account email and choose a new secure password.</Text>
         
@@ -142,9 +146,9 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 8 },
   backBtnText: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#000' },
   headerIcon: {
-    width: 64, height: 64, borderRadius: 16, backgroundColor: Colors.light.accent,
-    borderWidth: 2, borderColor: '#000', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0,
+    width: 64, height: 64, borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: Colors.light.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8,
     elevation: 4, marginBottom: 16
   },
   appName: {

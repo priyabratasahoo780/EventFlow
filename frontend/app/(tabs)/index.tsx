@@ -407,6 +407,11 @@ export default function HomeScreen() {
         </Pressable>
 
         <View style={s.navCenter}>
+          <Image
+            source={require('../../assets/images/icon_squared.png')}
+            style={{ width: rs(18), height: rs(18), borderRadius: rs(5) }}
+            resizeMode="cover"
+          />
           <View style={s.datePill}>
             <CalendarIcon color={colors.secondary} size={11} strokeWidth={2.5} />
             <Text style={s.datePillText}>{getFormattedDate()}</Text>
@@ -1365,6 +1370,19 @@ export default function HomeScreen() {
               <Text style={s.sideNavItemText}>Community Reviews</Text>
               <ChevronRight color={colors.border} size={18} strokeWidth={2.5} />
             </Pressable>
+
+            {/* Side Nav Brand Footer */}
+            <View style={{ marginTop: 24, padding: 14, backgroundColor: colors.surface, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Image
+                source={require('../../assets/images/icon_squared.png')}
+                style={{ width: 36, height: 36, borderRadius: 10 }}
+                resizeMode="cover"
+              />
+              <View>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: colors.text }}>EventFlow</Text>
+                <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 10, color: colors.textSecondary }}>Smart Event Platform</Text>
+              </View>
+            </View>
           </ScrollView>
         </Animated.View>
       </Modal>

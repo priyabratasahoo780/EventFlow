@@ -1,36 +1,20 @@
 /**
- * SplashScreenView.tsx — EventFlow Premium Splash
- * ══════════════════════════════════════════════════════════
+ * SplashScreenView.tsx — EventFlow Next-Gen Cinematic Splash Screen
+ * ═════════════════════════════════════════════════════════════════
  *
- *  Fully theme-accurate animated splash for EventFlow.
- *  Matches the brand exactly:
- *    • Orange #FF7A00 / #FF5C00  — primary action / energy
- *    • Indigo #4B3FDC / #6B5FF2  — AI / secondary
- *    • Background #1a1a2e / #0d0d1f — deep brand dark
- *    • Font: Poppins (800 ExtraBold for brand, 500 Medium for tagline)
- *    • Actual app icon: assets/images/icon_squared.png
- *    • Tagline: "Plan • Focus • Achieve"
+ * Fully animated, theme-accurate splash screen powered by Lottie & React Native Reanimated.
  *
- *  Animations (all via react-native-reanimated):
- *    ① Background gradient fade in
- *    ② Ambient orbs: orange top-right, indigo bottom-left
- *    ③ 14 floating star particles (orange + indigo + white)
- *    ④ 3 orbital rings:
- *         - Outer  : thin white/gray slow rotate
- *         - Middle : dashed indigo faster rotate
- *         - Inner  : solid orange neon glow, pulse
- *    ⑤ App icon: spring zoom-in + persistent glow pulse
- *    ⑥ Brand title "EventFlow": slide-up + fade
- *    ⑦ Tagline "Plan • Focus • Achieve": slide-up + fade (delayed)
- *    ⑧ Loading bar: fade-in then animated fill with shimmer tip
- *    ⑨ Full-screen smooth fade-out triggered by isReady=true
- *
- *  Props:
- *    isReady  — set true when fonts+auth are loaded → starts exit
- *    onFinish — called after exit animation → unmount / navigate
+ * Visual Features:
+ *   ① Ambient Celestial Nebula: Deep obsidian background with orange & indigo glow orbs
+ *   ② Fullscreen Lottie Starfield: Drifting cosmic particles, constellation sparks, and flares
+ *   ③ Hero Lottie Energy Portal: Concentric gyroscopic rings, pulsing shockwaves, & orbital beacons
+ *   ④ App Icon Spring-reveal: Frosted glassmorphism card with neon amber/orange aura
+ *   ⑤ Dynamic Branding: Duo-tone "EventFlow" title with text glow & category badge
+ *   ⑥ High-tech Cyber Loader: Laser beam scanner Lottie with rotating status indicators
+ *   ⑦ Cinema Exit Transition: Coordinated fade & subtle zoom scale hand-off to the app
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -38,6 +22,7 @@ import {
   StyleSheet,
   Dimensions,
   StatusBar,
+  Platform,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -46,588 +31,649 @@ import Animated, {
   withRepeat,
   withSequence,
   withDelay,
+  withSpring,
   Easing,
   interpolate,
   runOnJS,
-  type SharedValue,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import LottieView from 'lottie-react-native';
+import * as Haptics from 'expo-haptics';
 
 const { width, height } = Dimensions.get('window');
 
-// ─── Brand Design Tokens (exact from theme.ts / Colors.ts) ───────────────────
+// ─── Brand Theme Tokens ──────────────────────────────────────────────────────
 const C = {
-  orange:     '#FF7A00',
-  orangeDeep: '#FF5C00',
-  orangeGlow: '#FF9500',
-  indigo:     '#4B3FDC',
-  indigoDeep: '#3F35C8',
-  indigoBright:'#6B5FF2',
-  bgDeep:     '#0D0D1F',
-  bgMid:      '#1a1a2e',
-  bgTop:      '#0F0E24',
-  white:      '#FFFFFF',
-  slate:      '#94A3B8',
-  slateLight: '#CBD5E1',
+  orange:       '#FF7A00',
+  orangeDeep:   '#FF5C00',
+  orangeGlow:   '#FF9500',
+  amber:        '#FFBF0D',
+  indigo:       '#4B3FDC',
+  indigoBright: '#6B5FF2',
+  cyan:         '#26D9FF',
+  bgDeep:       '#070714',
+  bgMid:        '#0E0D24',
+  bgTop:        '#141238',
+  white:        '#FFFFFF',
+  slate:        '#94A3B8',
+  slateLight:   '#E2E8F0',
+  badgeBorder:  'rgba(255, 122, 0, 0.35)',
+  badgeBg:      'rgba(255, 122, 0, 0.08)',
 };
 
-// ─── Star particle data ───────────────────────────────────────────────────────
-const STARS = [
-  // Cross / sparkle stars — larger
-  { x: 0.08, y: 0.10, size: 4,  type: 'cross', color: C.orange,      delay: 0   },
-  { x: 0.88, y: 0.06, size: 3,  type: 'cross', color: C.indigoBright, delay: 250 },
-  { x: 0.75, y: 0.20, size: 4,  type: 'cross', color: C.orange,      delay: 500 },
-  { x: 0.14, y: 0.32, size: 3,  type: 'cross', color: C.white,       delay: 150 },
-  { x: 0.92, y: 0.38, size: 4,  type: 'cross', color: C.indigoBright, delay: 700 },
-  { x: 0.04, y: 0.58, size: 3,  type: 'cross', color: C.orange,      delay: 320 },
-  { x: 0.84, y: 0.63, size: 4,  type: 'cross', color: C.white,       delay: 550 },
-  // Dot stars — smaller
-  { x: 0.22, y: 0.77, size: 5,  type: 'dot',   color: C.indigoBright, delay: 200 },
-  { x: 0.62, y: 0.84, size: 6,  type: 'dot',   color: C.orange,      delay: 800 },
-  { x: 0.43, y: 0.91, size: 4,  type: 'dot',   color: C.white,       delay: 100 },
-  { x: 0.57, y: 0.15, size: 5,  type: 'dot',   color: C.indigoBright, delay: 380 },
-  { x: 0.33, y: 0.48, size: 4,  type: 'dot',   color: C.orange,      delay: 460 },
-  { x: 0.78, y: 0.45, size: 5,  type: 'dot',   color: C.white,       delay: 600 },
-  { x: 0.49, y: 0.74, size: 4,  type: 'dot',   color: C.indigoBright, delay: 290 },
+// ─── Loading Status Messages ──────────────────────────────────────────────────
+const STATUS_STEPS = [
+  'INITIALIZING WORKSPACE...',
+  'SYNCING SMART SCHEDULES...',
+  'PREPARING EVENT ENGINE...',
+  'READY TO LAUNCH',
 ];
 
-// ─── Star Particle Component ──────────────────────────────────────────────────
-function StarParticle({ x, y, size, type, color, delay }: typeof STARS[0]) {
-  const floatY  = useSharedValue(0);
-  const opacity = useSharedValue(0);
-  const scale   = useSharedValue(0.6);
-
-  useEffect(() => {
-    opacity.value = withDelay(delay, withTiming(type === 'cross' ? 0.85 : 0.65, { duration: 900 }));
-    scale.value   = withDelay(delay, withTiming(1, { duration: 700, easing: Easing.out(Easing.back(1.5)) }));
-    floatY.value  = withDelay(
-      delay,
-      withRepeat(
-        withSequence(
-          withTiming(-8 - size, { duration: 2200 + delay * 0.4, easing: Easing.inOut(Easing.sin) }),
-          withTiming( 8 + size, { duration: 2200 + delay * 0.4, easing: Easing.inOut(Easing.sin) }),
-        ),
-        -1, true
-      )
-    );
-  }, []);
-
-  const style = useAnimatedStyle(() => ({
-    opacity:   opacity.value,
-    transform: [{ translateY: floatY.value }, { scale: scale.value }],
-  }));
-
-  if (type === 'cross') {
-    return (
-      <Animated.View style={[{ position: 'absolute', left: x * width, top: y * height }, style]}>
-        {/* Horizontal bar */}
-        <View style={{ width: size * 4, height: size * 0.7, backgroundColor: color, borderRadius: 2, position: 'absolute', top: size * 1.65, left: 0 }} />
-        {/* Vertical bar */}
-        <View style={{ width: size * 0.7, height: size * 4, backgroundColor: color, borderRadius: 2, position: 'absolute', left: size * 1.65, top: 0 }} />
-      </Animated.View>
-    );
-  }
-
-  return (
-    <Animated.View
-      style={[
-        {
-          position: 'absolute',
-          left:   x * width,
-          top:    y * height,
-          width:  size,
-          height: size,
-          borderRadius: size,
-          backgroundColor: color,
-        },
-        style,
-      ]}
-    />
-  );
-}
-
-// ─── Dashed Ring (rendered as short arc segments) ────────────────────────────
-function DashedRing({ diameter, color, rotate }: { diameter: number; color: string; rotate: SharedValue<number> }) {
-  const opacity = useSharedValue(0);
-
-  useEffect(() => {
-    opacity.value = withDelay(400, withTiming(1, { duration: 900 }));
-  }, []);
-
-  const containerStyle = useAnimatedStyle(() => ({
-    opacity:   opacity.value,
-    transform: [{ rotate: `${rotate.value}deg` }],
-  }));
-
-  // Render 24 dash segments
-  const dashes = Array.from({ length: 24 });
-  const dashAngle = 360 / 24;
-
-  return (
-    <Animated.View style={[{ position: 'absolute', width: diameter, height: diameter, borderRadius: diameter / 2 }, containerStyle]}>
-      {dashes.map((_, i) => {
-        const angle = (i * dashAngle * Math.PI) / 180;
-        const r = diameter / 2;
-        const cx = r + r * Math.cos(angle);
-        const cy = r + r * Math.sin(angle);
-        return (
-          <View
-            key={i}
-            style={{
-              position: 'absolute',
-              width:  10,
-              height: 2,
-              backgroundColor: color,
-              borderRadius: 1,
-              left: cx - 5,
-              top:  cy - 1,
-              transform: [{ rotate: `${i * dashAngle + 90}deg` }],
-              opacity: i % 3 === 0 ? 0.9 : 0.35,
-            }}
-          />
-        );
-      })}
-    </Animated.View>
-  );
-}
-
-// ─── Solid Orbital Ring ───────────────────────────────────────────────────────
-function SolidRing({
-  diameter,
-  borderColor,
-  borderWidth,
-  glowColor,
-  pulseDelay,
-  rotate,
-}: {
-  diameter: number;
-  borderColor: string;
-  borderWidth: number;
-  glowColor: string;
-  pulseDelay?: number;
-  rotate?: SharedValue<number>;
-}) {
-  const scale   = useSharedValue(1);
-  const opacity = useSharedValue(0);
-
-  useEffect(() => {
-    opacity.value = withDelay(300, withTiming(1, { duration: 800 }));
-    scale.value = withDelay(
-      pulseDelay ?? 0,
-      withRepeat(
-        withSequence(
-          withTiming(1.035, { duration: 2400, easing: Easing.inOut(Easing.ease) }),
-          withTiming(1,     { duration: 2400, easing: Easing.inOut(Easing.ease) }),
-        ),
-        -1, true
-      )
-    );
-  }, []);
-
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [
-      { scale: scale.value },
-      ...(rotate ? [{ rotate: `${rotate.value}deg` }] : []),
-    ],
-  }));
-
-  return (
-    <Animated.View
-      style={[
-        {
-          position:     'absolute',
-          width:        diameter,
-          height:       diameter,
-          borderRadius: diameter / 2,
-          borderWidth,
-          borderColor,
-          shadowColor:  glowColor,
-          shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.7,
-          shadowRadius: 12,
-        },
-        animStyle,
-      ]}
-    />
-  );
-}
-
-// ─── Main Splash Component ────────────────────────────────────────────────────
 interface Props {
-  isReady?:  boolean;
+  isReady?: boolean;
   onFinish?: () => void;
 }
 
 export default function SplashScreenView({ isReady = false, onFinish }: Props) {
-  // ── Shared values for rings rotation
-  const rotateOuter  = useSharedValue(0);  // outer ring — slow CW
-  const rotateDashed = useSharedValue(0);  // dashed indigo — medium CCW
-  const rotateInner  = useSharedValue(0);  // inner orange — faster CW
+  // ── Lottie Refs ─────────────────────────────────────────────────────────────
+  const portalLottieRef = useRef<LottieView>(null);
+  const particlesLottieRef = useRef<LottieView>(null);
+  const loaderLottieRef = useRef<LottieView>(null);
 
-  // ── Logo + text entrance
-  const rootOpacity  = useSharedValue(1);
-  const iconScale    = useSharedValue(0);
-  const iconOpacity  = useSharedValue(0);
-  const glowPulse    = useSharedValue(0.5);
-  const titleY       = useSharedValue(50);
-  const titleOp      = useSharedValue(0);
-  const tagY         = useSharedValue(35);
-  const tagOp        = useSharedValue(0);
-  const barOp        = useSharedValue(0);
-  const barProgress  = useSharedValue(0);
+  // ── State for dynamic status text ───────────────────────────────────────────
+  const [statusIndex, setStatusIndex] = useState(0);
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
 
+  // ── Reanimated Shared Values ────────────────────────────────────────────────
+  const rootOpacity   = useSharedValue(1);
+  const rootScale     = useSharedValue(1);
+
+  // Background glow orbs
+  const orbScale      = useSharedValue(0.8);
+  const orbOpacity    = useSharedValue(0);
+
+  // Hero section entrance
+  const badgeOpacity  = useSharedValue(0);
+  const badgeTranslateY = useSharedValue(-15);
+
+  const portalScale   = useSharedValue(0.4);
+  const portalOpacity = useSharedValue(0);
+
+  const iconScale     = useSharedValue(0);
+  const iconGlowPulse = useSharedValue(0.4);
+
+  // Typography entrance
+  const titleOpacity  = useSharedValue(0);
+  const titleTranslateY = useSharedValue(30);
+
+  const tagOpacity    = useSharedValue(0);
+  const tagTranslateY = useSharedValue(20);
+
+  // Loader entrance & progress
+  const loaderOpacity = useSharedValue(0);
+  const progressBar   = useSharedValue(0);
+
+  // ── Entrance Choreography ───────────────────────────────────────────────────
   useEffect(() => {
-    // ── Ring rotations
-    rotateOuter.value = withRepeat(withTiming( 360, { duration: 28000, easing: Easing.linear }), -1, false);
-    rotateDashed.value= withRepeat(withTiming(-360, { duration: 18000, easing: Easing.linear }), -1, false);
-    rotateInner.value = withRepeat(withTiming( 360, { duration: 12000, easing: Easing.linear }), -1, false);
+    // 1. Subtle tactile feedback on start
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    } catch (_) {}
 
-    // ── Icon spring-zoom
-    iconScale.value  = withDelay(250, withTiming(1,   { duration: 750, easing: Easing.out(Easing.back(1.6)) }));
-    iconOpacity.value= withDelay(250, withTiming(1,   { duration: 500 }));
-
-    // ── Glow breath
-    glowPulse.value = withRepeat(
+    // 2. Ambient orbs breathe
+    orbOpacity.value = withTiming(1, { duration: 1000 });
+    orbScale.value = withRepeat(
       withSequence(
-        withTiming(1,   { duration: 1600, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.4, { duration: 1600, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1.15, { duration: 3200, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.9, { duration: 3200, easing: Easing.inOut(Easing.ease) })
       ),
-      -1, true
+      -1,
+      true
     );
 
-    // ── Brand name slide-up
-    titleY.value = withDelay(620, withTiming(0, { duration: 650, easing: Easing.out(Easing.cubic) }));
-    titleOp.value= withDelay(620, withTiming(1, { duration: 650 }));
+    // 3. Category badge reveal
+    badgeOpacity.value = withDelay(200, withTiming(1, { duration: 600 }));
+    badgeTranslateY.value = withDelay(
+      200,
+      withTiming(0, { duration: 600, easing: Easing.out(Easing.cubic) })
+    );
 
-    // ── Tagline slide-up
-    tagY.value  = withDelay(820, withTiming(0, { duration: 600, easing: Easing.out(Easing.cubic) }));
-    tagOp.value = withDelay(820, withTiming(1, { duration: 600 }));
+    // 4. Lottie Portal entrance
+    portalOpacity.value = withDelay(150, withTiming(1, { duration: 700 }));
+    portalScale.value = withDelay(
+      150,
+      withSpring(1, { damping: 14, stiffness: 85 })
+    );
 
-    // ── Progress bar
-    barOp.value      = withDelay(950,  withTiming(1, { duration: 350 }));
-    barProgress.value= withDelay(1050, withTiming(1, { duration: 2400, easing: Easing.inOut(Easing.cubic) }));
+    // 5. Central Icon Card spring pop
+    iconScale.value = withDelay(
+      350,
+      withSpring(1, { damping: 11, stiffness: 100 })
+    );
+
+    // 6. Icon neon glow breathing
+    iconGlowPulse.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1600, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0.4, { duration: 1600, easing: Easing.inOut(Easing.quad) })
+      ),
+      -1,
+      true
+    );
+
+    // 7. Typography entrance: Title & Tagline
+    titleOpacity.value = withDelay(650, withTiming(1, { duration: 600 }));
+    titleTranslateY.value = withDelay(
+      650,
+      withTiming(0, { duration: 600, easing: Easing.out(Easing.back(1.2)) })
+    );
+
+    tagOpacity.value = withDelay(850, withTiming(1, { duration: 500 }));
+    tagTranslateY.value = withDelay(
+      850,
+      withTiming(0, { duration: 500, easing: Easing.out(Easing.cubic) })
+    );
+
+    // 8. Cyber Loader section reveal
+    loaderOpacity.value = withDelay(1000, withTiming(1, { duration: 400 }));
+    progressBar.value = withDelay(
+      1100,
+      withTiming(0.92, { duration: 2200, easing: Easing.out(Easing.cubic) })
+    );
+
+    // 9. Cycle status text for high-tech feeling
+    const interval = setInterval(() => {
+      setStatusIndex((prev) => (prev < STATUS_STEPS.length - 1 ? prev + 1 : prev));
+    }, 650);
+
+    // 10. Guarantee a minimum display duration of 2.2 seconds so user enjoys the visuals
+    const timer = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, 2200);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timer);
+    };
   }, []);
 
-  // ── Exit sequence when app is ready
+  // ── Coordinated Exit Sequence ───────────────────────────────────────────────
   useEffect(() => {
-    if (!isReady) return;
-    barProgress.value = withTiming(1, { duration: 350 }, () => {
-      rootOpacity.value = withDelay(200, withTiming(0, { duration: 550 }, () => {
-        if (onFinish) runOnJS(onFinish)();
-      }));
-    });
-  }, [isReady]);
+    // Only proceed to exit when both app resources (fonts/auth) are ready AND min showcase time has elapsed
+    if (isReady && minTimeElapsed) {
+      progressBar.value = withTiming(1, { duration: 250 }, () => {
+        // Subtle exit haptic
+        try {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        } catch (_) {}
 
-  // ── Animated styles
-  const rootStyle  = useAnimatedStyle(() => ({ opacity: rootOpacity.value }));
-  const iconStyle  = useAnimatedStyle(() => ({ opacity: iconOpacity.value, transform: [{ scale: iconScale.value }] }));
-  const glowStyle  = useAnimatedStyle(() => ({ opacity: glowPulse.value }));
-  const titleStyle = useAnimatedStyle(() => ({ opacity: titleOp.value, transform: [{ translateY: titleY.value }] }));
-  const tagStyle   = useAnimatedStyle(() => ({ opacity: tagOp.value,   transform: [{ translateY: tagY.value   }] }));
-  const barCont    = useAnimatedStyle(() => ({ opacity: barOp.value }));
-  const barFill    = useAnimatedStyle(() => ({
-    width: `${interpolate(barProgress.value, [0, 1], [0, 100])}%` as any,
-  }));
-  const shimmerStyle = useAnimatedStyle(() => ({
-    right: 0,
-    opacity: interpolate(barProgress.value, [0, 0.05, 0.95, 1], [0, 1, 1, 0]),
+        // Cinematic zoom-out and fade
+        rootScale.value = withTiming(1.04, { duration: 450, easing: Easing.in(Easing.cubic) });
+        rootOpacity.value = withTiming(0, { duration: 450, easing: Easing.in(Easing.cubic) }, () => {
+          if (onFinish) {
+            runOnJS(onFinish)();
+          }
+        });
+      });
+    }
+  }, [isReady, minTimeElapsed]);
+
+  // ── Animated Style Bindings ────────────────────────────────────────────────
+  const rootAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: rootOpacity.value,
+    transform: [{ scale: rootScale.value }],
   }));
 
-  const RING_BASE = width * 0.72;
+  const orbAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: orbOpacity.value,
+    transform: [{ scale: orbScale.value }],
+  }));
+
+  const badgeAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: badgeOpacity.value,
+    transform: [{ translateY: badgeTranslateY.value }],
+  }));
+
+  const portalAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: portalOpacity.value,
+    transform: [{ scale: portalScale.value }],
+  }));
+
+  const iconAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: iconScale.value }],
+  }));
+
+  const iconGlowAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: iconGlowPulse.value,
+    transform: [{ scale: interpolate(iconGlowPulse.value, [0.4, 1], [0.95, 1.1]) }],
+  }));
+
+  const titleAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: titleOpacity.value,
+    transform: [{ translateY: titleTranslateY.value }],
+  }));
+
+  const tagAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: tagOpacity.value,
+    transform: [{ translateY: tagTranslateY.value }],
+  }));
+
+  const loaderSectionAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: loaderOpacity.value,
+  }));
+
+  const progressFillAnimatedStyle = useAnimatedStyle(() => ({
+    width: `${interpolate(progressBar.value, [0, 1], [0, 100])}%` as any,
+  }));
+
+  const PORTAL_SIZE = Math.min(width * 0.95, 380);
+  const ICON_SIZE = width * 0.28;
 
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, styles.root, rootStyle]}>
+    <Animated.View style={[StyleSheet.absoluteFill, styles.root, rootAnimatedStyle]}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      {/* ── 1. Background gradient ─────────────────────────────── */}
+      {/* ── 1. Cosmic Aurora Gradient Background ─────────────────────── */}
       <LinearGradient
-        colors={[C.bgTop, C.bgMid, C.bgDeep]}
-        locations={[0, 0.45, 1]}
+        colors={[C.bgDeep, C.bgMid, C.bgTop, C.bgDeep]}
+        locations={[0, 0.35, 0.75, 1]}
         style={StyleSheet.absoluteFill}
       />
 
-      {/* ── 2. Ambient glow orbs ───────────────────────────────── */}
-      <View style={styles.orbOrange} />
-      <View style={styles.orbIndigo} />
+      {/* ── 2. Ambient Glowing Orbs ─────────────────────────────────── */}
+      <Animated.View style={[StyleSheet.absoluteFill, orbAnimatedStyle]} pointerEvents="none">
+        {/* Top-Right Electric Amber Orb */}
+        <View style={styles.ambientOrbTop} />
+        {/* Bottom-Left Hyper Indigo Orb */}
+        <View style={styles.ambientOrbBottom} />
+        {/* Central Core Ambient Glow */}
+        <View style={styles.ambientOrbCenter} />
+      </Animated.View>
 
-      {/* ── 3. Floating star particles ─────────────────────────── */}
-      {STARS.map((s, i) => <StarParticle key={i} {...s} />)}
+      {/* ── 3. Fullscreen Lottie Starfield & Cosmic Particles ────────── */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <LottieView
+          ref={particlesLottieRef}
+          source={require('../assets/lottie/eventflow-particles.json')}
+          autoPlay
+          loop
+          speed={0.9}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
+      </View>
 
-      {/* ── 4. Central rings + icon ────────────────────────────── */}
-      <View style={styles.centerStage}>
+      {/* ── 4. Main Stage (Pill, Lottie Portal, Logo, Title, Tagline) ── */}
+      <View style={styles.stage}>
 
-        {/* Ring arena */}
-        <View style={[styles.ringArena, { width: RING_BASE, height: RING_BASE }]}>
-
-          {/* Outer: thin white ghost ring */}
-          <SolidRing
-            diameter={RING_BASE * 0.98}
-            borderColor="rgba(255,255,255,0.10)"
-            borderWidth={1}
-            glowColor="transparent"
-            pulseDelay={0}
-            rotate={rotateOuter}
-          />
-
-          {/* Middle: dashed indigo rotating ring */}
-          <DashedRing
-            diameter={RING_BASE * 0.76}
-            color={C.indigoBright}
-            rotate={rotateDashed}
-          />
-
-          {/* Inner: solid orange neon ring */}
-          <SolidRing
-            diameter={RING_BASE * 0.56}
-            borderColor={C.orange}
-            borderWidth={2}
-            glowColor={C.orange}
-            pulseDelay={300}
-            rotate={rotateInner}
-          />
-
-          {/* Icon + glow */}
-          <View style={styles.iconArea}>
-            {/* Orange ambient glow behind icon */}
-            <Animated.View style={[styles.iconGlowOuter, glowStyle]} />
-            <Animated.View style={[styles.iconGlowInner, glowStyle]} />
-
-            {/* Actual app icon in superellipse card */}
-            <Animated.View style={[styles.iconCard, iconStyle]}>
-              <Image
-                source={require('../assets/images/icon_squared.png')}
-                style={styles.iconImage}
-                resizeMode="cover"
-              />
-            </Animated.View>
-          </View>
-
-        </View>
-
-        {/* ── 5. Brand title ─────────────────────────────────────── */}
-        <Animated.View style={[styles.brandRow, titleStyle]}>
-          <Text style={styles.brandText}>
-            <Text style={styles.brandWhite}>Event</Text>
-            <Text style={styles.brandOrange}>Flow</Text>
-          </Text>
+        {/* ── Modern Category Pill ──────────────────────────────────── */}
+        <Animated.View style={[styles.badgeContainer, badgeAnimatedStyle]}>
+          <LinearGradient
+            colors={['rgba(255,122,0,0.22)', 'rgba(107,95,242,0.12)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.badgeGradient}
+          >
+            <View style={styles.badgeDot} />
+            <Text style={styles.badgeText}>SMART EVENT PLATFORM</Text>
+          </LinearGradient>
         </Animated.View>
 
-        {/* ── 6. Tagline + dots ──────────────────────────────────── */}
-        <Animated.View style={[styles.tagBlock, tagStyle]}>
-          <Text style={styles.tagline}>Plan  •  Focus  •  Achieve</Text>
-          <View style={styles.dotRow}>
-            <View style={[styles.dot, styles.dotOn]} />
-            <View style={styles.dot} />
-            <View style={styles.dot} />
+        {/* ── Hero Center: Lottie Energy Portal + App Icon Card ──────── */}
+        <View style={[styles.heroCenter, { width: PORTAL_SIZE, height: PORTAL_SIZE }]}>
+          {/* Lottie Concentric Energy Gyro Portal */}
+          <Animated.View style={[styles.lottiePortalWrapper, portalAnimatedStyle]}>
+            <LottieView
+              ref={portalLottieRef}
+              source={require('../assets/lottie/eventflow-portal.json')}
+              autoPlay
+              loop
+              speed={1.0}
+              style={{ width: PORTAL_SIZE, height: PORTAL_SIZE }}
+              resizeMode="contain"
+            />
+          </Animated.View>
+
+          {/* Central App Icon with Multi-layer Glow */}
+          <View style={styles.iconCenterWrapper}>
+            {/* Outer Soft Ambient Glow */}
+            <Animated.View
+              style={[
+                styles.iconNeonAuraOuter,
+                { width: ICON_SIZE + 50, height: ICON_SIZE + 50, borderRadius: (ICON_SIZE + 50) / 2 },
+                iconGlowAnimatedStyle,
+              ]}
+            />
+            {/* Inner Intense Orange Flare */}
+            <Animated.View
+              style={[
+                styles.iconNeonAuraInner,
+                { width: ICON_SIZE + 24, height: ICON_SIZE + 24, borderRadius: (ICON_SIZE + 24) / 2 },
+                iconGlowAnimatedStyle,
+              ]}
+            />
+
+            {/* Premium Icon Card with Rounded Glass Effect */}
+            <Animated.View style={[styles.iconCard, { width: ICON_SIZE, height: ICON_SIZE }, iconAnimatedStyle]}>
+              <LinearGradient
+                colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.05)']}
+                style={styles.iconCardBorder}
+              >
+                <View style={styles.iconInnerFrame}>
+                  <Image
+                    source={require('../assets/images/icon_squared.png')}
+                    style={styles.iconImage}
+                    resizeMode="cover"
+                  />
+                </View>
+              </LinearGradient>
+            </Animated.View>
+          </View>
+        </View>
+
+        {/* ── Brand Typography: Title ───────────────────────────────── */}
+        <Animated.View style={[styles.brandTitleWrapper, titleAnimatedStyle]}>
+          <Text style={styles.brandTitleText}>
+            <Text style={styles.brandTitleWhite}>Event</Text>
+            <Text style={styles.brandTitleOrange}>Flow</Text>
+          </Text>
+          <View style={styles.sparkleIcon}>
+            <Text style={styles.sparkleText}>✦</Text>
+          </View>
+        </Animated.View>
+
+        {/* ── Tagline & Status Dots ─────────────────────────────────── */}
+        <Animated.View style={[styles.taglineWrapper, tagAnimatedStyle]}>
+          <Text style={styles.taglineText}>Plan  •  Focus  •  Achieve</Text>
+          <View style={styles.stepDotsRow}>
+            <View style={[styles.stepDot, styles.stepDotActive]} />
+            <View style={[styles.stepDot, statusIndex >= 1 && styles.stepDotActive]} />
+            <View style={[styles.stepDot, statusIndex >= 2 && styles.stepDotActive]} />
           </View>
         </Animated.View>
 
       </View>
 
-      {/* ── 7. Loading bar ─────────────────────────────────────────── */}
-      <Animated.View style={[styles.barSection, barCont]}>
-        <View style={styles.barTrack}>
-          <Animated.View style={[styles.barFill, barFill]}>
-            {/* Gradient fill */}
+      {/* ── 5. Cyber Loader Section (Lottie Beam + Bar + Status) ─────── */}
+      <Animated.View style={[styles.loaderSection, loaderSectionAnimatedStyle]}>
+        {/* Lottie Cyber Beam Scanner */}
+        <View style={styles.lottieLoaderContainer}>
+          <LottieView
+            ref={loaderLottieRef}
+            source={require('../assets/lottie/eventflow-loader.json')}
+            autoPlay
+            loop
+            speed={1.2}
+            style={styles.lottieLoader}
+            resizeMode="contain"
+          />
+        </View>
+
+        {/* Progress Track with Gradient Fill */}
+        <View style={styles.progressBarTrack}>
+          <Animated.View style={[styles.progressBarFill, progressFillAnimatedStyle]}>
             <LinearGradient
-              colors={[C.orangeGlow, C.orange, C.orangeDeep]}
-              style={StyleSheet.absoluteFill}
+              colors={[C.indigoBright, C.orangeGlow, C.orange]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFill}
             />
-            {/* Glowing tip shimmer */}
-            <Animated.View style={[styles.barTip, shimmerStyle]}>
-              <LinearGradient
-                colors={['transparent', 'rgba(255,255,255,0.8)', 'transparent']}
-                style={{ flex: 1 }}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              />
-            </Animated.View>
           </Animated.View>
         </View>
-        <Text style={styles.versionLabel}>v1.0.0</Text>
-      </Animated.View>
 
+        {/* Dynamic Status Text & Version */}
+        <View style={styles.statusFooterRow}>
+          <Text style={styles.statusStepText}>{STATUS_STEPS[statusIndex]}</Text>
+          <Text style={styles.versionText}>v1.0.0 • PRO</Text>
+        </View>
+      </Animated.View>
     </Animated.View>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-const ICON_CARD_SIZE = width * 0.30;
-
+// ─── Stylesheet ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: C.bgDeep,
   },
 
-  // Ambient orbs
-  orbOrange: {
-    position:        'absolute',
-    width:           width * 0.60,
-    height:          width * 0.60,
-    top:             -width * 0.18,
-    right:           -width * 0.12,
-    borderRadius:    width * 0.30,
+  // Ambient Glowing Orbs
+  ambientOrbTop: {
+    position: 'absolute',
+    top: -width * 0.25,
+    right: -width * 0.15,
+    width: width * 0.85,
+    height: width * 0.85,
+    borderRadius: (width * 0.85) / 2,
     backgroundColor: C.orange,
-    opacity:         0.07,
+    opacity: 0.14,
   },
-  orbIndigo: {
-    position:        'absolute',
-    width:           width * 0.70,
-    height:          width * 0.70,
-    bottom:          -width * 0.22,
-    left:            -width * 0.18,
-    borderRadius:    width * 0.35,
-    backgroundColor: C.indigo,
-    opacity:         0.10,
+  ambientOrbBottom: {
+    position: 'absolute',
+    bottom: -width * 0.3,
+    left: -width * 0.2,
+    width: width * 0.9,
+    height: width * 0.9,
+    borderRadius: (width * 0.9) / 2,
+    backgroundColor: C.indigoBright,
+    opacity: 0.12,
+  },
+  ambientOrbCenter: {
+    position: 'absolute',
+    top: height * 0.32,
+    left: width * 0.2,
+    width: width * 0.6,
+    height: width * 0.6,
+    borderRadius: (width * 0.6) / 2,
+    backgroundColor: C.orangeGlow,
+    opacity: 0.08,
   },
 
-  // Central stage
-  centerStage: {
-    flex:           1,
-    alignItems:     'center',
+  // Main Stage
+  stage: {
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingTop:     height * 0.02,
-    gap:            0,
+    paddingTop: height * 0.03,
   },
 
-  // Ring arena
-  ringArena: {
-    alignItems:     'center',
-    justifyContent: 'center',
-    marginBottom:   32,
+  // Category Pill Badge
+  badgeContainer: {
+    marginBottom: 20,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: C.badgeBorder,
+    shadowColor: C.orange,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  badgeGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    gap: 8,
+  },
+  badgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.orange,
+  },
+  badgeText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 11,
+    color: C.orangeGlow,
+    letterSpacing: 2,
   },
 
-  // Icon
-  iconArea: {
-    position:       'absolute',
-    alignItems:     'center',
+  // Hero Center (Portal + App Icon)
+  heroCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  lottiePortalWrapper: {
+    position: 'absolute',
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  iconGlowOuter: {
-    position:        'absolute',
-    width:           ICON_CARD_SIZE + 80,
-    height:          ICON_CARD_SIZE + 80,
-    borderRadius:    (ICON_CARD_SIZE + 80) / 2,
-    backgroundColor: C.orange,
-    opacity:         0.18,
+  iconCenterWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  iconGlowInner: {
-    position:        'absolute',
-    width:           ICON_CARD_SIZE + 30,
-    height:          ICON_CARD_SIZE + 30,
-    borderRadius:    (ICON_CARD_SIZE + 30) / 2,
+  iconNeonAuraOuter: {
+    position: 'absolute',
+    backgroundColor: C.orangeDeep,
+    opacity: 0.2,
+  },
+  iconNeonAuraInner: {
+    position: 'absolute',
     backgroundColor: C.orange,
-    opacity:         0.28,
+    opacity: 0.35,
   },
   iconCard: {
-    width:        ICON_CARD_SIZE,
-    height:       ICON_CARD_SIZE,
-    borderRadius: ICON_CARD_SIZE * 0.24,   // iOS superellipse-like radius
-    overflow:     'hidden',
-    // Orange drop shadow
-    shadowColor:    C.orange,
-    shadowOffset:   { width: 0, height: 4 },
-    shadowOpacity:  0.75,
-    shadowRadius:   24,
-    elevation:      20,
+    borderRadius: 28,
+    overflow: 'hidden',
+    shadowColor: C.orange,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.8,
+    shadowRadius: 28,
+    elevation: 24,
+  },
+  iconCardBorder: {
+    flex: 1,
+    padding: 1.5,
+    borderRadius: 28,
+  },
+  iconInnerFrame: {
+    flex: 1,
+    borderRadius: 26.5,
+    overflow: 'hidden',
+    backgroundColor: '#0D0D1F',
   },
   iconImage: {
-    width:  '100%',
+    width: '100%',
     height: '100%',
   },
 
-  // Brand name
-  brandRow: {
-    alignItems:   'center',
-    marginBottom: 10,
-  },
-  brandText: {
-    fontSize:       48,
-    lineHeight:     56,
-    letterSpacing:  -1.5,
-    // Poppins 800 — text shadow for orange glow
-    textShadowColor:  'rgba(255,122,0,0.45)',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 14,
-  },
-  brandWhite: {
-    fontFamily: 'Poppins_800ExtraBold',
-    color:      C.white,
-  },
-  brandOrange: {
-    fontFamily: 'Poppins_800ExtraBold',
-    color:      C.orange,
-  },
-
-  // Tagline
-  tagBlock: {
-    alignItems:   'center',
-    gap:          20,
-    marginBottom: 0,
-  },
-  tagline: {
-    fontFamily:    'Poppins_500Medium',
-    fontSize:      13,
-    color:         C.slate,
-    letterSpacing: 2.5,
-    textTransform: 'uppercase',
-  },
-  dotRow: {
+  // Brand Title
+  brandTitleWrapper: {
     flexDirection: 'row',
-    gap:           8,
-    alignItems:    'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+    marginBottom: 8,
   },
-  dot: {
-    width:           10,
-    height:          4,
-    borderRadius:    3,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+  brandTitleText: {
+    fontSize: 46,
+    lineHeight: 54,
+    letterSpacing: -1,
+    textShadowColor: 'rgba(255, 122, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 18,
   },
-  dotOn: {
-    width:           22,
-    backgroundColor: C.orange,
-    shadowColor:     C.orange,
-    shadowOffset:    { width: 0, height: 0 },
-    shadowOpacity:   0.9,
-    shadowRadius:    8,
-    elevation:       5,
+  brandTitleWhite: {
+    fontFamily: 'Poppins_800ExtraBold',
+    color: C.white,
+  },
+  brandTitleOrange: {
+    fontFamily: 'Poppins_800ExtraBold',
+    color: C.orange,
+  },
+  sparkleIcon: {
+    marginLeft: 6,
+    marginBottom: 18,
+  },
+  sparkleText: {
+    color: C.amber,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 
-  // Loading bar section
-  barSection: {
-    paddingHorizontal: 44,
-    paddingBottom:     height * 0.08,
-    gap:               12,
-    alignItems:        'center',
+  // Tagline & Step Dots
+  taglineWrapper: {
+    alignItems: 'center',
+    gap: 16,
   },
-  barTrack: {
-    width:           '100%',
-    height:          3,
-    borderRadius:    3,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    overflow:        'hidden',
-  },
-  barFill: {
-    height:       '100%',
-    borderRadius: 3,
-    overflow:     'hidden',
-  },
-  barTip: {
-    position:     'absolute',
-    top:          -2,
-    bottom:       -2,
-    width:        24,
-    borderRadius: 4,
-  },
-  versionLabel: {
-    fontFamily:    'Poppins_400Regular',
-    fontSize:      10,
-    color:         'rgba(255,255,255,0.22)',
-    letterSpacing: 2,
+  taglineText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 13,
+    color: C.slate,
+    letterSpacing: 3,
     textTransform: 'uppercase',
+  },
+  stepDotsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  stepDot: {
+    width: 8,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+  },
+  stepDotActive: {
+    width: 20,
+    backgroundColor: C.orange,
+    shadowColor: C.orange,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+
+  // Cyber Loader Section
+  loaderSection: {
+    paddingHorizontal: 36,
+    paddingBottom: Platform.OS === 'ios' ? height * 0.07 : height * 0.05,
+    alignItems: 'center',
+    gap: 8,
+  },
+  lottieLoaderContainer: {
+    width: '100%',
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lottieLoader: {
+    width: width * 0.82,
+    height: 28,
+  },
+  progressBarTrack: {
+    width: '100%',
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  statusFooterRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+    marginTop: 4,
+  },
+  statusStepText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 10,
+    color: C.slate,
+    letterSpacing: 1.5,
+  },
+  versionText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.28)',
+    letterSpacing: 1.5,
   },
 });

@@ -24,6 +24,9 @@ import { tokenCache } from '../services/tokenCache';
 import '../services/geofencingService'; // Initialize Geofencing Background Task
 import * as Location from 'expo-location';
 import { alarmService } from '../services/alarmService';
+import AlarmModal from '../components/AlarmModal';
+import { Event } from '../models/Event';
+import { useEventStore } from '../store/useEventStore';
 
 LogBox.ignoreLogs([
   'expo-notifications: Android Push notifications',
@@ -118,9 +121,35 @@ function RootLayoutNav() {
   const router = useRouter();
   // Keep a ref to the last notification response so we only navigate once
   const lastNotificationId = useRef<string | null>(null);
+  const [activeAlarmEvent, setActiveAlarmEvent] = useState<Event | null>(null);
 
   useEffect(() => {
     checkAuth();
+  }, []);
+
+  // Listen for incoming foreground alarms / notifications
+  useEffect(() => {
+    const sub = Notifications.addNotificationReceivedListener((notification: any) => {
+      try {
+        const data = notification?.request?.content?.data;
+        const eventId = data?.eventId;
+        if (eventId) {
+          const events = useEventStore.getState().events;
+          const found = events.find((e) => e.id === eventId);
+          if (found && !found.completed && found.status !== 'completed') {
+            setActiveAlarmEvent(found);
+          }
+        }
+      } catch (err) {
+        console.warn('[Notifications] Foreground received error:', err);
+      }
+    });
+
+    return () => {
+      try {
+        sub?.remove();
+      } catch (_) {}
+    };
   }, []);
 
   // ── Auth guard ──────────────────────────────────────────────────────────────
@@ -247,6 +276,16 @@ function RootLayoutNav() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
+
+        <AlarmModal
+          visible={!!activeAlarmEvent}
+          event={activeAlarmEvent}
+          onDismiss={() => setActiveAlarmEvent(null)}
+          onStartTask={(ev) => {
+            setActiveAlarmEvent(null);
+            router.push(`/event/${ev.id}` as any);
+          }}
+        />
       </ThemeProvider>
     </GestureHandlerRootView>
   );

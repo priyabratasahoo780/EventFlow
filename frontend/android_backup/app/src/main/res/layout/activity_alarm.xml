@@ -2,49 +2,105 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#6366F1">
+    android:background="#070714">
 
+    <!-- Top Alert Capsule -->
+    <LinearLayout
+        android:id="@+id/topPill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="56dp"
+        android:background="#22FF4D4D"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="8dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🚨 LOUD EVENT ALARM"
+            android:textColor="#FF4D4D"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.1" />
+    </LinearLayout>
+
+    <!-- Central Hero Container -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_centerInParent="true"
         android:gravity="center"
         android:orientation="vertical"
-        android:padding="32dp">
+        android:paddingHorizontal="28dp">
 
+        <!-- Glowing Alert Icon Badge -->
+        <FrameLayout
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:background="#FF7A00"
+            android:layout_marginBottom="32dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="🔔"
+                android:textSize="48sp" />
+        </FrameLayout>
+
+        <!-- Event Title -->
         <TextView
             android:id="@+id/alarmTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Event Reminder"
             android:textColor="#FFFFFF"
-            android:textSize="28sp"
+            android:textSize="26sp"
             android:textStyle="bold"
             android:gravity="center"
-            android:layout_marginBottom="16dp" />
+            android:layout_marginBottom="14dp" />
 
+        <!-- Event Description / Subtitle -->
         <TextView
             android:id="@+id/alarmBody"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="It's time to focus on your task!"
-            android:textColor="#F3F4F6"
-            android:textSize="18sp"
+            android:text="Target deadline has arrived. Time to focus on your task!"
+            android:textColor="#CBD5E1"
+            android:textSize="16sp"
             android:gravity="center"
-            android:layout_marginBottom="48dp" />
+            android:lineSpacingExtra="4dp"
+            android:layout_marginBottom="44dp" />
 
+        <!-- Stop Alarm Action Button -->
         <Button
             android:id="@+id/alarmDismiss"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:backgroundTint="#FFFFFF"
-            android:textColor="#6366F1"
-            android:paddingHorizontal="48dp"
-            android:paddingVertical="16dp"
-            android:text="DISMISS"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:backgroundTint="#FF7A00"
+            android:textColor="#FFFFFF"
+            android:text="STOP ALARM"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.08"
+            android:elevation="8dp" />
 
     </LinearLayout>
+
+    <!-- Bottom Brand Label -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="32dp"
+        android:text="EVENTFLOW • SMART EVENT PLATFORM"
+        android:textColor="#55FFFFFF"
+        android:textSize="11sp"
+        android:letterSpacing="0.15" />
 
 </RelativeLayout>

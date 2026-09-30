@@ -2,7 +2,7 @@ import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, Alert,
+  View, Text, TextInput, StyleSheet, Alert, Image,
   Pressable, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -157,14 +157,13 @@ export default function LoginScreen() {
         >
           {/* Brand */}
           <View style={styles.brandRow}>
-            <LinearGradient
-              colors={[colors.secondary, colors.secondary]}
-              style={styles.brandIcon}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Text style={styles.brandIconText}>E</Text>
-            </LinearGradient>
+            <View style={styles.brandIcon}>
+              <Image
+                source={require('../../assets/images/icon_squared.png')}
+                style={styles.brandIconImage}
+                resizeMode="cover"
+              />
+            </View>
             <View>
               <Text style={styles.appName}>EVENTFLOW</Text>
               <Text style={styles.tagline}>Focus on the right task at the right time.</Text>
@@ -338,13 +337,16 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
+    shadowColor: colors.secondary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  brandIconText: {
-    fontFamily: 'Poppins_800ExtraBold',
-    fontSize: 22,
-    color: '#FFF',
+  brandIconImage: {
+    width: '100%',
+    height: '100%',
   },
   appName: {
     fontFamily: 'Poppins_800ExtraBold',

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, Switch, Pressable, ScrollView, Alert, ToastAndroid, Platform } from 'react-native';
+import { StyleSheet, View, Text, Switch, Pressable, ScrollView, Alert, ToastAndroid, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { VolumeX, Moon, Bell, Download, Upload, Trash2, Info, Users, Volume2, UserPlus, Sun, Lock } from 'lucide-react-native';
 import { useEventStore } from '../../store/useEventStore';
@@ -422,6 +422,16 @@ export default function SettingsScreen() {
                 <Text style={styles.settingText}>Privacy & Security</Text>
               </View>
             </Pressable>
+          </View>
+
+          {/* Official App Logo Badge */}
+          <View style={{ alignItems: 'center', marginTop: 24, marginBottom: 8, gap: 6 }}>
+            <Image
+              source={require('../../assets/images/icon_squared.png')}
+              style={{ width: 60, height: 60, borderRadius: 16 }}
+              resizeMode="cover"
+            />
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: colors.text }}>EventFlow</Text>
           </View>
 
           <Text style={styles.versionText}>EventFlow v2.0 • Intelligent Event Management</Text>
