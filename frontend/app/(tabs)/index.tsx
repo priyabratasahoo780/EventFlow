@@ -262,12 +262,24 @@ export default function HomeScreen() {
   // 2. Precise foreground alarm checker (fixes Android exact alarm delays)
   useEffect(() => {
     if (events.length === 0 && friendsEvents.length === 0) return;
-    
+
+    const parseTime = (timeStr?: string): { h: number; m: number } | null => {
+      if (!timeStr || typeof timeStr !== 'string') return null;
+      const trimmed = timeStr.trim();
+      const isPM = /pm/i.test(trimmed);
+      const isAM = /am/i.test(trimmed);
+      const parts = trimmed.replace(/[ap]m/i, '').trim().split(':');
+      if (parts.length < 2) return null;
+      let h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (isNaN(h) || isNaN(m)) return null;
+      if (isPM && h !== 12) h += 12;
+      if (isAM && h === 12) h = 0;
+      return { h, m };
+    };
+
     const interval = setInterval(() => {
       const now = new Date();
-      // Only check at the first 5 seconds of each minute
-      if (now.getSeconds() > 5) return; 
-      
       const currentHours = now.getHours();
       const currentMinutes = now.getMinutes();
 
@@ -277,44 +289,66 @@ export default function HomeScreen() {
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const day = String(now.getDate()).padStart(2, '0');
       const todayStr = `${year}-${month}-${day}`;
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const todayDayName = dayNames[now.getDay()];
       
       const dueTask = allEvents.find(e => {
-        if (e.completed || e.status === 'completed' || e.status === 'in_progress') return false;
+        if (!e || e.completed || e.status === 'completed' || e.status === 'in_progress') return false;
         
         let triggerTimes: { h: number; m: number }[] = [];
         
         // 1. Add main event time
         if (e.time && e.date && e.date.startsWith(todayStr)) {
-          let timeParts = e.time.split(' ');
-          let [h, m] = timeParts[0].split(':').map(Number);
-          if (timeParts[1] === 'PM' && h !== 12) h += 12;
-          if (timeParts[1] === 'AM' && h === 12) h = 0;
-          triggerTimes.push({ h, m });
+          const parsed = parseTime(e.time);
+          if (parsed) triggerTimes.push(parsed);
         }
         
-        // 2. Add reminder times
+        // 2. Add reminder times (exact, daily, weekly, monthly, yearly, before)
         if (e.reminders && e.reminders.length > 0) {
           e.reminders.forEach((r: any) => {
-            // Only trigger full-screen alarm modal if preference includes alarm or is undefined/both
-            const pref = r.alarmPreference || 'both';
-            if (pref === 'notification') return;
+            if (!r) return;
 
-            if (r.type === 'exact' && r.time && (!r.date || r.date.startsWith(todayStr))) {
-              let [h, m] = r.time.split(':').map(Number);
-              triggerTimes.push({ h, m });
+            if (r.type === 'exact') {
+              if (r.time && (!r.date || r.date.startsWith(todayStr))) {
+                const parsed = parseTime(r.time);
+                if (parsed) triggerTimes.push(parsed);
+              }
+            } else if (r.type === 'daily') {
+              if (r.time) {
+                const parsed = parseTime(r.time);
+                if (parsed) triggerTimes.push(parsed);
+              }
+            } else if (r.type === 'weekly') {
+              if (r.time && r.days && r.days.includes(todayDayName)) {
+                const parsed = parseTime(r.time);
+                if (parsed) triggerTimes.push(parsed);
+              }
+            } else if (r.type === 'monthly') {
+              if (r.time && r.dayOfMonth === now.getDate()) {
+                const parsed = parseTime(r.time);
+                if (parsed) triggerTimes.push(parsed);
+              }
+            } else if (r.type === 'yearly') {
+              if (r.time && r.date) {
+                const parts = r.date.split('-');
+                const m = parseInt(parts[0], 10) || parseInt(parts[1], 10);
+                const d = parseInt(parts[1], 10) || parseInt(parts[2], 10);
+                if (m === now.getMonth() + 1 && d === now.getDate()) {
+                  const parsed = parseTime(r.time);
+                  if (parsed) triggerTimes.push(parsed);
+                }
+              }
             } else if (r.type === 'before' && r.value && e.time) {
-              let timeParts = e.time.split(' ');
-              let [h, m] = timeParts[0].split(':').map(Number);
-              if (timeParts[1] === 'PM' && h !== 12) h += 12;
-              if (timeParts[1] === 'AM' && h === 12) h = 0;
-              
-              let triggerDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
-              if (r.unit === 'minutes') triggerDate.setMinutes(triggerDate.getMinutes() - r.value);
-              else if (r.unit === 'hours') triggerDate.setHours(triggerDate.getHours() - r.value);
-              else if (r.unit === 'days') triggerDate.setDate(triggerDate.getDate() - r.value);
-              
-              if (triggerDate.getDate() === now.getDate()) {
-                triggerTimes.push({ h: triggerDate.getHours(), m: triggerDate.getMinutes() });
+              const mainParsed = parseTime(e.time);
+              if (mainParsed) {
+                let triggerDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), mainParsed.h, mainParsed.m);
+                if (r.unit === 'minutes') triggerDate.setMinutes(triggerDate.getMinutes() - r.value);
+                else if (r.unit === 'hours') triggerDate.setHours(triggerDate.getHours() - r.value);
+                else if (r.unit === 'days') triggerDate.setDate(triggerDate.getDate() - r.value);
+                
+                if (triggerDate.getDate() === now.getDate()) {
+                  triggerTimes.push({ h: triggerDate.getHours(), m: triggerDate.getMinutes() });
+                }
               }
             }
           });
@@ -322,7 +356,7 @@ export default function HomeScreen() {
         
         // Check if ANY trigger time matches current time
         for (let time of triggerTimes) {
-          const alarmKey = `${e.id || e._id}_${time.h}:${time.m}`;
+          const alarmKey = `${e.id || e._id}_${time.h}:${time.m}_${todayStr}`;
           if (time.h === currentHours && time.m === currentMinutes && !triggeredAlarms.current.has(alarmKey)) {
             triggeredAlarms.current.add(alarmKey);
             return true;

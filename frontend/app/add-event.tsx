@@ -152,7 +152,7 @@ export default function AddEventScreen() {
   
   // Notification & Alarm Customization States
   const [modalNotificationPref] = useState<'banner_sound' | 'banner_only' | 'silent'>('banner_sound');
-  const [modalAlarmPref, setModalAlarmPref] = useState<'notification' | 'alarm' | 'both'>('notification');
+  const [modalAlarmPref, setModalAlarmPref] = useState<'notification' | 'alarm' | 'both'>('both');
   const [modalSnooze, setModalSnooze] = useState<number>(0);
   const [modalSound, setModalSound] = useState<'default'|'silent'|'custom'>('default');
   const [modalVibration] = useState<boolean>(true);
