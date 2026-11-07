@@ -25,6 +25,7 @@ import '../services/geofencingService'; // Initialize Geofencing Background Task
 import * as Location from 'expo-location';
 import { alarmService } from '../services/alarmService';
 import AlarmModal from '../components/AlarmModal';
+import DynamicIslandTaskBar from '../components/DynamicIslandTaskBar';
 import { Event } from '../models/Event';
 import { useEventStore } from '../store/useEventStore';
 
@@ -299,6 +300,9 @@ function RootLayoutNav() {
           onDismiss={handleDismissAlarm}
           onStartTask={handleStartTaskAlarm}
         />
+
+        {/* Global Floating "Now Doing" Dynamic Island */}
+        <DynamicIslandTaskBar />
       </ThemeProvider>
     </GestureHandlerRootView>
   );
