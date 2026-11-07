@@ -238,10 +238,8 @@ export default function AiInsightCard({
     }
   };
 
-  const bgColors = isDarkMode ? parsed.darkBg : parsed.lightBg;
-  const borderColor = isDarkMode
-    ? `${parsed.accentColor}33`
-    : `${parsed.accentColor}25`;
+  const bgColors: [string, string] = isDarkMode ? parsed.darkBg : ['#FFFFFF', `${parsed.accentColor}0A`];
+  const borderColor = parsed.accentColor;
 
   return (
     <Animated.View style={[styles.cardWrapper, cardAnimatedStyle]}>
@@ -265,7 +263,7 @@ export default function AiInsightCard({
           styles.cardContainer,
           {
             borderColor,
-            backgroundColor: isDarkMode ? 'rgba(18, 18, 32, 0.85)' : '#FFFFFF',
+            backgroundColor: isDarkMode ? 'rgba(18, 18, 32, 0.95)' : '#FFFFFF',
           },
         ]}
       >
@@ -293,9 +291,6 @@ export default function AiInsightCard({
             style={styles.shimmerGradient}
           />
         </Animated.View>
-
-        {/* Left Vertical Accent Ribbon */}
-        <View style={[styles.accentRibbon, { backgroundColor: parsed.accentColor }]} />
 
         {/* Content Body */}
         <View style={styles.cardContent}>
@@ -413,22 +408,21 @@ const styles = StyleSheet.create({
     right: 14,
     bottom: 0,
     borderRadius: 22,
-    opacity: 0.15,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    elevation: 6,
+    opacity: 0.12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
   },
   cardContainer: {
     borderRadius: 22,
-    borderWidth: 1.5,
+    borderWidth: 1.6,
+    borderStyle: 'dashed',
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowColor: '#182235',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
   },
   shimmerContainer: {
     position: 'absolute',
@@ -441,18 +435,11 @@ const styles = StyleSheet.create({
     transform: [{ skewX: '-25deg' }],
   },
   accentRibbon: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4.5,
-    borderTopLeftRadius: 22,
-    borderBottomLeftRadius: 22,
+    display: 'none',
   },
   cardContent: {
     paddingVertical: 16,
-    paddingHorizontal: 18,
-    paddingLeft: 20,
+    paddingHorizontal: 16,
     gap: 12,
   },
   cardTopRow: {

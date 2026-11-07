@@ -8,7 +8,7 @@ import {
 } from '@expo-google-fonts/poppins';
 import { Stack, DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import SplashScreenView from '../components/SplashScreenView';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -89,11 +89,17 @@ export default function RootLayout() {
     }
   }, [error]);
 
-  // When SplashScreenView finishes its exit animation, hide the native splash too
-  const handleSplashFinish = () => {
+  // Dismiss native Android splash immediately once fonts are ready so animated in-app splash appears
+  useEffect(() => {
+    if (fontsReady) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsReady]);
+
+  // When SplashScreenView finishes its exit animation, remove the overlay
+  const handleSplashFinish = useCallback(() => {
     setShowSplash(false);
-    SplashScreen.hideAsync().catch(() => {});
-  };
+  }, []);
 
   return (
     <>
@@ -267,10 +273,20 @@ function RootLayoutNav() {
   }, []);
 
   const { isDark } = useThemeStore();
+  const theme = useMemo(() => (isDark() ? DarkTheme : DefaultTheme), [isDark]);
+
+  const handleDismissAlarm = useCallback(() => {
+    setActiveAlarmEvent(null);
+  }, []);
+
+  const handleStartTaskAlarm = useCallback((ev: Event) => {
+    setActiveAlarmEvent(null);
+    router.push(`/event/${ev.id}` as any);
+  }, [router]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={isDark() ? DarkTheme : DefaultTheme}>
+      <ThemeProvider value={theme}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
@@ -280,11 +296,8 @@ function RootLayoutNav() {
         <AlarmModal
           visible={!!activeAlarmEvent}
           event={activeAlarmEvent}
-          onDismiss={() => setActiveAlarmEvent(null)}
-          onStartTask={(ev) => {
-            setActiveAlarmEvent(null);
-            router.push(`/event/${ev.id}` as any);
-          }}
+          onDismiss={handleDismissAlarm}
+          onStartTask={handleStartTaskAlarm}
         />
       </ThemeProvider>
     </GestureHandlerRootView>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert, FlatList, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useEventStore } from '../../store/useEventStore';
@@ -9,7 +10,7 @@ import BrutalCard from '../../components/BrutalCard';
 import api from '../../services/api';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Check, X, UserPlus, Inbox, MapPin } from 'lucide-react-native';
+import { ArrowLeft, Check, X, UserPlus, Inbox, MapPin, RefreshCw } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function FriendRequestsScreen() {
@@ -67,6 +68,8 @@ export default function FriendRequestsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar style={colors.text === '#FFFFFF' ? 'light' : 'dark'} />
+
       {/* HEADER */}
       <View style={styles.header}>
         <Pressable 
@@ -74,14 +77,34 @@ export default function FriendRequestsScreen() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); 
             router.back(); 
           }} 
-          style={styles.backBtn}
+          style={({ pressed }) => [styles.backBtn, pressed && styles.btnPressed]}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <ArrowLeft color={colors.text} size={22} strokeWidth={2.5} />
+          <ArrowLeft color={colors.text} size={20} strokeWidth={2.4} />
         </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>FRIEND REQUESTS</Text>
+
+        <View style={styles.headerTextCol}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Friend Requests</Text>
+            {requests.length > 0 && (
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{requests.length} New</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.subtitle}>Manage your incoming invites</Text>
         </View>
+
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            fetchRequests();
+          }}
+          style={({ pressed }) => [styles.actionBtn, pressed && styles.btnPressed]}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <RefreshCw color={colors.textSecondary} size={18} strokeWidth={2.2} />
+        </Pressable>
       </View>
       
       {loading ? (
@@ -178,39 +201,86 @@ export default function FriendRequestsScreen() {
 const getStyles = (colors: ColorTheme) => StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: colors.background 
+    backgroundColor: colors.background,
   },
   header: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     paddingHorizontal: 16, 
-    paddingVertical: 14, 
-    backgroundColor: colors.card, 
+    paddingTop: 10,
+    paddingBottom: 14, 
+    backgroundColor: colors.background, 
     borderBottomWidth: 1, 
-    borderBottomColor: colors.border 
+    borderBottomColor: colors.border,
+    gap: 12,
   },
   backBtn: { 
     width: 42, 
     height: 42, 
-    borderRadius: 12, 
-    backgroundColor: colors.surface, 
-    borderWidth: 1, 
+    borderRadius: 14, 
+    backgroundColor: colors.card, 
+    borderWidth: 1.2, 
     borderColor: colors.border, 
     alignItems: 'center', 
-    justifyContent: 'center', 
-    marginRight: 14 
+    justifyContent: 'center',
+    shadowColor: '#182235',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  actionBtn: { 
+    width: 42, 
+    height: 42, 
+    borderRadius: 14, 
+    backgroundColor: colors.card, 
+    borderWidth: 1.2, 
+    borderColor: colors.border, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    shadowColor: '#182235',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  btnPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.95 }],
+  },
+  headerTextCol: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   title: { 
-    fontFamily: 'Poppins_800ExtraBold', 
-    fontSize: 18, 
+    fontFamily: 'Poppins_700Bold', 
+    fontSize: 20, 
     color: colors.text,
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
+  },
+  countBadge: {
+    backgroundColor: colors.secondaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.secondary,
+  },
+  countBadgeText: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 11,
+    color: colors.secondary,
   },
   subtitle: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 11,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12.5,
     color: colors.textSecondary,
-    marginTop: -2,
+    marginTop: 2,
   },
   centerContainer: {
     flex: 1,

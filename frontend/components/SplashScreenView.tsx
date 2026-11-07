@@ -1,29 +1,21 @@
 /**
- * SplashScreenView.tsx — EventFlow Next-Gen Cinematic Splash Screen
+ * SplashScreenView.tsx — EventFlow Next-Gen Radiant Splash Screen
  * ═════════════════════════════════════════════════════════════════
  *
- * Fully animated, theme-accurate splash screen powered by Lottie & React Native Reanimated.
- *
- * Visual Features:
- *   ① Ambient Celestial Nebula: Deep obsidian background with orange & indigo glow orbs
- *   ② Fullscreen Lottie Starfield: Drifting cosmic particles, constellation sparks, and flares
- *   ③ Hero Lottie Energy Portal: Concentric gyroscopic rings, pulsing shockwaves, & orbital beacons
- *   ④ App Icon Spring-reveal: Frosted glassmorphism card with neon amber/orange aura
- *   ⑤ Dynamic Branding: Duo-tone "EventFlow" title with text glow & category badge
- *   ⑥ High-tech Cyber Loader: Laser beam scanner Lottie with rotating status indicators
- *   ⑦ Cinema Exit Transition: Coordinated fade & subtle zoom scale hand-off to the app
+ * Fully animated, warm & vibrant splash screen powered by Lottie & React Native Reanimated.
+ * Highly optimized with React.memo, isolated re-rendering zones, and 100% UI-thread animations.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   Image,
   StyleSheet,
   Dimensions,
-  StatusBar,
   Platform,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -42,21 +34,21 @@ import * as Haptics from 'expo-haptics';
 
 const { width, height } = Dimensions.get('window');
 
-// ─── Brand Theme Tokens ──────────────────────────────────────────────────────
+// ─── Brand Theme Tokens (Radiant, Warm & Luxury) ──────────────────────────────
 const C = {
   orange:       '#FF7A00',
   orangeDeep:   '#FF5C00',
   orangeGlow:   '#FF9500',
-  amber:        '#FFBF0D',
+  amber:        '#FFB800',
   indigo:       '#4B3FDC',
-  indigoBright: '#6B5FF2',
-  cyan:         '#26D9FF',
-  bgDeep:       '#070714',
-  bgMid:        '#0E0D24',
-  bgTop:        '#141238',
+  indigoBright: '#6366F1',
+  bgTop:        '#FFFDF9',
+  bgMid:        '#FFF3E6',
+  bgWarm:       '#FFEADB',
+  bgBottom:     '#FFF5EA',
   white:        '#FFFFFF',
-  slate:        '#94A3B8',
-  slateLight:   '#E2E8F0',
+  textDark:     '#111827',
+  textMuted:    '#64748B',
   badgeBorder:  'rgba(255, 122, 0, 0.35)',
   badgeBg:      'rgba(255, 122, 0, 0.08)',
 };
@@ -69,18 +61,47 @@ const STATUS_STEPS = [
   'READY TO LAUNCH',
 ];
 
+const PORTAL_SIZE = Math.min(width * 0.95, 380);
+const ICON_SIZE = width * 0.28;
+
+const GRADIENT_COLORS = [C.bgTop, C.bgMid, C.bgWarm, C.bgBottom] as const;
+const GRADIENT_LOCATIONS = [0, 0.35, 0.72, 1] as const;
+const BADGE_COLORS = ['rgba(255, 122, 0, 0.14)', 'rgba(99, 102, 241, 0.08)'] as const;
+const PROGRESS_COLORS = [C.indigoBright, C.orangeGlow, C.orange] as const;
+const CARD_BORDER_COLORS = ['rgba(255, 255, 255, 0.95)', 'rgba(255, 245, 235, 0.85)'] as const;
+
+// ─── Isolated Status Tracker (Prevents Re-rendering the Heavy Parent Tree) ────
+const StatusDots = React.memo(function StatusDots({ step }: { step: number }) {
+  return (
+    <View style={styles.stepDotsRow}>
+      <View style={[styles.stepDot, styles.stepDotActive]} />
+      <View style={[styles.stepDot, step >= 1 && styles.stepDotActive]} />
+      <View style={[styles.stepDot, step >= 2 && styles.stepDotActive]} />
+    </View>
+  );
+});
+
+const StatusFooter = React.memo(function StatusFooter({ step }: { step: number }) {
+  return (
+    <View style={styles.statusFooterRow}>
+      <Text style={styles.statusStepText}>{STATUS_STEPS[step]}</Text>
+      <Text style={styles.versionText}>v1.0.0 • PRO</Text>
+    </View>
+  );
+});
+
 interface Props {
   isReady?: boolean;
   onFinish?: () => void;
 }
 
-export default function SplashScreenView({ isReady = false, onFinish }: Props) {
+function SplashScreenView({ isReady = false, onFinish }: Props) {
   // ── Lottie Refs ─────────────────────────────────────────────────────────────
   const portalLottieRef = useRef<LottieView>(null);
   const particlesLottieRef = useRef<LottieView>(null);
   const loaderLottieRef = useRef<LottieView>(null);
 
-  // ── State for dynamic status text ───────────────────────────────────────────
+  // ── Local state for status text ─────────────────────────────────────────────
   const [statusIndex, setStatusIndex] = useState(0);
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
 
@@ -89,7 +110,7 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
   const rootScale     = useSharedValue(1);
 
   // Background glow orbs
-  const orbScale      = useSharedValue(0.8);
+  const orbScale      = useSharedValue(0.85);
   const orbOpacity    = useSharedValue(0);
 
   // Hero section entrance
@@ -100,14 +121,14 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
   const portalOpacity = useSharedValue(0);
 
   const iconScale     = useSharedValue(0);
-  const iconGlowPulse = useSharedValue(0.4);
+  const iconGlowPulse = useSharedValue(0.5);
 
   // Typography entrance
   const titleOpacity  = useSharedValue(0);
-  const titleTranslateY = useSharedValue(30);
+  const titleTranslateY = useSharedValue(25);
 
   const tagOpacity    = useSharedValue(0);
-  const tagTranslateY = useSharedValue(20);
+  const tagTranslateY = useSharedValue(18);
 
   // Loader entrance & progress
   const loaderOpacity = useSharedValue(0);
@@ -115,13 +136,12 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
 
   // ── Entrance Choreography ───────────────────────────────────────────────────
   useEffect(() => {
-    // 1. Subtle tactile feedback on start
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     } catch (_) {}
 
-    // 2. Ambient orbs breathe
-    orbOpacity.value = withTiming(1, { duration: 1000 });
+    // Ambient orbs breathe smoothly on UI thread
+    orbOpacity.value = withTiming(1, { duration: 800 });
     orbScale.value = withRepeat(
       withSequence(
         withTiming(1.15, { duration: 3200, easing: Easing.inOut(Easing.ease) }),
@@ -131,65 +151,64 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
       true
     );
 
-    // 3. Category badge reveal
-    badgeOpacity.value = withDelay(200, withTiming(1, { duration: 600 }));
+    // Category badge reveal
+    badgeOpacity.value = withDelay(150, withTiming(1, { duration: 500 }));
     badgeTranslateY.value = withDelay(
-      200,
-      withTiming(0, { duration: 600, easing: Easing.out(Easing.cubic) })
+      150,
+      withTiming(0, { duration: 500, easing: Easing.out(Easing.cubic) })
     );
 
-    // 4. Lottie Portal entrance
-    portalOpacity.value = withDelay(150, withTiming(1, { duration: 700 }));
+    // Energy Portal entrance
+    portalOpacity.value = withDelay(180, withTiming(1, { duration: 600 }));
     portalScale.value = withDelay(
-      150,
+      180,
       withSpring(1, { damping: 14, stiffness: 85 })
     );
 
-    // 5. Central Icon Card spring pop
+    // Central 3D Icon Card spring pop
     iconScale.value = withDelay(
-      350,
+      300,
       withSpring(1, { damping: 11, stiffness: 100 })
     );
 
-    // 6. Icon neon glow breathing
+    // Warm neon aura pulse
     iconGlowPulse.value = withRepeat(
       withSequence(
         withTiming(1, { duration: 1600, easing: Easing.inOut(Easing.quad) }),
-        withTiming(0.4, { duration: 1600, easing: Easing.inOut(Easing.quad) })
+        withTiming(0.45, { duration: 1600, easing: Easing.inOut(Easing.quad) })
       ),
       -1,
       true
     );
 
-    // 7. Typography entrance: Title & Tagline
-    titleOpacity.value = withDelay(650, withTiming(1, { duration: 600 }));
+    // Typography entrance
+    titleOpacity.value = withDelay(500, withTiming(1, { duration: 500 }));
     titleTranslateY.value = withDelay(
-      650,
-      withTiming(0, { duration: 600, easing: Easing.out(Easing.back(1.2)) })
+      500,
+      withTiming(0, { duration: 500, easing: Easing.out(Easing.back(1.2)) })
     );
 
-    tagOpacity.value = withDelay(850, withTiming(1, { duration: 500 }));
+    tagOpacity.value = withDelay(700, withTiming(1, { duration: 500 }));
     tagTranslateY.value = withDelay(
-      850,
+      700,
       withTiming(0, { duration: 500, easing: Easing.out(Easing.cubic) })
     );
 
-    // 8. Cyber Loader section reveal
-    loaderOpacity.value = withDelay(1000, withTiming(1, { duration: 400 }));
+    // Cyber Loader section reveal & GPU progress fill
+    loaderOpacity.value = withDelay(850, withTiming(1, { duration: 400 }));
     progressBar.value = withDelay(
-      1100,
-      withTiming(0.92, { duration: 2200, easing: Easing.out(Easing.cubic) })
+      950,
+      withTiming(0.94, { duration: 1800, easing: Easing.out(Easing.cubic) })
     );
 
-    // 9. Cycle status text for high-tech feeling
+    // Step cycle
     const interval = setInterval(() => {
       setStatusIndex((prev) => (prev < STATUS_STEPS.length - 1 ? prev + 1 : prev));
-    }, 650);
+    }, 550);
 
-    // 10. Guarantee a minimum display duration of 2.2 seconds so user enjoys the visuals
     const timer = setTimeout(() => {
       setMinTimeElapsed(true);
-    }, 2200);
+    }, 2000);
 
     return () => {
       clearInterval(interval);
@@ -199,26 +218,24 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
 
   // ── Coordinated Exit Sequence ───────────────────────────────────────────────
   useEffect(() => {
-    // Only proceed to exit when both app resources (fonts/auth) are ready AND min showcase time has elapsed
     if (isReady && minTimeElapsed) {
-      progressBar.value = withTiming(1, { duration: 250 }, () => {
-        // Subtle exit haptic
+      progressBar.value = withTiming(1, { duration: 200 }, () => {
         try {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         } catch (_) {}
 
-        // Cinematic zoom-out and fade
-        rootScale.value = withTiming(1.04, { duration: 450, easing: Easing.in(Easing.cubic) });
-        rootOpacity.value = withTiming(0, { duration: 450, easing: Easing.in(Easing.cubic) }, () => {
+        // Cinematic exit zoom-out and fade
+        rootScale.value = withTiming(1.03, { duration: 400, easing: Easing.in(Easing.cubic) });
+        rootOpacity.value = withTiming(0, { duration: 400, easing: Easing.in(Easing.cubic) }, () => {
           if (onFinish) {
             runOnJS(onFinish)();
           }
         });
       });
     }
-  }, [isReady, minTimeElapsed]);
+  }, [isReady, minTimeElapsed, onFinish]);
 
-  // ── Animated Style Bindings ────────────────────────────────────────────────
+  // ── UI Thread Animated Styles ──────────────────────────────────────────────
   const rootAnimatedStyle = useAnimatedStyle(() => ({
     opacity: rootOpacity.value,
     transform: [{ scale: rootScale.value }],
@@ -245,7 +262,7 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
 
   const iconGlowAnimatedStyle = useAnimatedStyle(() => ({
     opacity: iconGlowPulse.value,
-    transform: [{ scale: interpolate(iconGlowPulse.value, [0.4, 1], [0.95, 1.1]) }],
+    transform: [{ scale: interpolate(iconGlowPulse.value, [0.45, 1], [0.96, 1.12]) }],
   }));
 
   const titleAnimatedStyle = useAnimatedStyle(() => ({
@@ -263,53 +280,49 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
   }));
 
   const progressFillAnimatedStyle = useAnimatedStyle(() => ({
-    width: `${interpolate(progressBar.value, [0, 1], [0, 100])}%` as any,
+    transform: [{ scaleX: progressBar.value }],
   }));
 
-  const PORTAL_SIZE = Math.min(width * 0.95, 380);
-  const ICON_SIZE = width * 0.28;
+
 
   return (
     <Animated.View style={[StyleSheet.absoluteFill, styles.root, rootAnimatedStyle]}>
-      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+      <StatusBar style="dark" />
 
-      {/* ── 1. Cosmic Aurora Gradient Background ─────────────────────── */}
+      {/* ── 1. Radiant Warm Aurora Gradient ─────────────────────────── */}
       <LinearGradient
-        colors={[C.bgDeep, C.bgMid, C.bgTop, C.bgDeep]}
-        locations={[0, 0.35, 0.75, 1]}
+        colors={GRADIENT_COLORS}
+        locations={GRADIENT_LOCATIONS}
         style={StyleSheet.absoluteFill}
       />
 
-      {/* ── 2. Ambient Glowing Orbs ─────────────────────────────────── */}
+      {/* ── 2. Ambient Radiant Glow Orbs ────────────────────────────── */}
       <Animated.View style={[StyleSheet.absoluteFill, orbAnimatedStyle]} pointerEvents="none">
-        {/* Top-Right Electric Amber Orb */}
         <View style={styles.ambientOrbTop} />
-        {/* Bottom-Left Hyper Indigo Orb */}
         <View style={styles.ambientOrbBottom} />
-        {/* Central Core Ambient Glow */}
         <View style={styles.ambientOrbCenter} />
       </Animated.View>
 
-      {/* ── 3. Fullscreen Lottie Starfield & Cosmic Particles ────────── */}
+      {/* ── 3. Fullscreen Particles / Constellation Sparks ──────────── */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <LottieView
           ref={particlesLottieRef}
           source={require('../assets/lottie/eventflow-particles.json')}
           autoPlay
           loop
-          speed={0.9}
+          speed={0.8}
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
         />
       </View>
 
-      {/* ── 4. Main Stage (Pill, Lottie Portal, Logo, Title, Tagline) ── */}
+      {/* ── 4. Main Stage (Pill, Portal, 3D Icon Card, Title, Tagline) ── */}
       <View style={styles.stage}>
 
         {/* ── Modern Category Pill ──────────────────────────────────── */}
         <Animated.View style={[styles.badgeContainer, badgeAnimatedStyle]}>
           <LinearGradient
-            colors={['rgba(255,122,0,0.22)', 'rgba(107,95,242,0.12)']}
+            colors={BADGE_COLORS}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.badgeGradient}
@@ -319,9 +332,8 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
           </LinearGradient>
         </Animated.View>
 
-        {/* ── Hero Center: Lottie Energy Portal + App Icon Card ──────── */}
+        {/* ── Hero Center: Concentric Portal + 3D Logo Card ─────────── */}
         <View style={[styles.heroCenter, { width: PORTAL_SIZE, height: PORTAL_SIZE }]}>
-          {/* Lottie Concentric Energy Gyro Portal */}
           <Animated.View style={[styles.lottiePortalWrapper, portalAnimatedStyle]}>
             <LottieView
               ref={portalLottieRef}
@@ -334,9 +346,8 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
             />
           </Animated.View>
 
-          {/* Central App Icon with Multi-layer Glow */}
+          {/* Central Logo with Multi-layer Warm Aura */}
           <View style={styles.iconCenterWrapper}>
-            {/* Outer Soft Ambient Glow */}
             <Animated.View
               style={[
                 styles.iconNeonAuraOuter,
@@ -344,7 +355,6 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
                 iconGlowAnimatedStyle,
               ]}
             />
-            {/* Inner Intense Orange Flare */}
             <Animated.View
               style={[
                 styles.iconNeonAuraInner,
@@ -353,17 +363,17 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
               ]}
             />
 
-            {/* Premium Icon Card with Rounded Glass Effect */}
+            {/* Premium 3D Floating Icon Card */}
             <Animated.View style={[styles.iconCard, { width: ICON_SIZE, height: ICON_SIZE }, iconAnimatedStyle]}>
               <LinearGradient
-                colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.05)']}
+                colors={CARD_BORDER_COLORS}
                 style={styles.iconCardBorder}
               >
                 <View style={styles.iconInnerFrame}>
                   <Image
-                    source={require('../assets/images/icon_squared.png')}
+                    source={require('../assets/images/icon.png')}
                     style={styles.iconImage}
-                    resizeMode="cover"
+                    resizeMode="contain"
                   />
                 </View>
               </LinearGradient>
@@ -374,7 +384,7 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
         {/* ── Brand Typography: Title ───────────────────────────────── */}
         <Animated.View style={[styles.brandTitleWrapper, titleAnimatedStyle]}>
           <Text style={styles.brandTitleText}>
-            <Text style={styles.brandTitleWhite}>Event</Text>
+            <Text style={styles.brandTitleDark}>Event</Text>
             <Text style={styles.brandTitleOrange}>Flow</Text>
           </Text>
           <View style={styles.sparkleIcon}>
@@ -385,18 +395,13 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
         {/* ── Tagline & Status Dots ─────────────────────────────────── */}
         <Animated.View style={[styles.taglineWrapper, tagAnimatedStyle]}>
           <Text style={styles.taglineText}>Plan  •  Focus  •  Achieve</Text>
-          <View style={styles.stepDotsRow}>
-            <View style={[styles.stepDot, styles.stepDotActive]} />
-            <View style={[styles.stepDot, statusIndex >= 1 && styles.stepDotActive]} />
-            <View style={[styles.stepDot, statusIndex >= 2 && styles.stepDotActive]} />
-          </View>
+          <StatusDots step={statusIndex} />
         </Animated.View>
 
       </View>
 
       {/* ── 5. Cyber Loader Section (Lottie Beam + Bar + Status) ─────── */}
       <Animated.View style={[styles.loaderSection, loaderSectionAnimatedStyle]}>
-        {/* Lottie Cyber Beam Scanner */}
         <View style={styles.lottieLoaderContainer}>
           <LottieView
             ref={loaderLottieRef}
@@ -409,11 +414,11 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
           />
         </View>
 
-        {/* Progress Track with Gradient Fill */}
+        {/* Progress Track with GPU Scale Fill */}
         <View style={styles.progressBarTrack}>
           <Animated.View style={[styles.progressBarFill, progressFillAnimatedStyle]}>
             <LinearGradient
-              colors={[C.indigoBright, C.orangeGlow, C.orange]}
+              colors={PROGRESS_COLORS}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={StyleSheet.absoluteFill}
@@ -421,53 +426,52 @@ export default function SplashScreenView({ isReady = false, onFinish }: Props) {
           </Animated.View>
         </View>
 
-        {/* Dynamic Status Text & Version */}
-        <View style={styles.statusFooterRow}>
-          <Text style={styles.statusStepText}>{STATUS_STEPS[statusIndex]}</Text>
-          <Text style={styles.versionText}>v1.0.0 • PRO</Text>
-        </View>
+        {/* Isolated Memoized Status Footer */}
+        <StatusFooter step={statusIndex} />
       </Animated.View>
     </Animated.View>
   );
 }
 
+export default React.memo(SplashScreenView);
+
 // ─── Stylesheet ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: C.bgDeep,
+    backgroundColor: C.bgBottom,
   },
 
   // Ambient Glowing Orbs
   ambientOrbTop: {
     position: 'absolute',
-    top: -width * 0.25,
+    top: -width * 0.2,
     right: -width * 0.15,
-    width: width * 0.85,
-    height: width * 0.85,
-    borderRadius: (width * 0.85) / 2,
-    backgroundColor: C.orange,
-    opacity: 0.14,
-  },
-  ambientOrbBottom: {
-    position: 'absolute',
-    bottom: -width * 0.3,
-    left: -width * 0.2,
     width: width * 0.9,
     height: width * 0.9,
     borderRadius: (width * 0.9) / 2,
+    backgroundColor: C.orange,
+    opacity: 0.18,
+  },
+  ambientOrbBottom: {
+    position: 'absolute',
+    bottom: -width * 0.25,
+    left: -width * 0.2,
+    width: width * 0.95,
+    height: width * 0.95,
+    borderRadius: (width * 0.95) / 2,
     backgroundColor: C.indigoBright,
     opacity: 0.12,
   },
   ambientOrbCenter: {
     position: 'absolute',
-    top: height * 0.32,
-    left: width * 0.2,
-    width: width * 0.6,
-    height: width * 0.6,
-    borderRadius: (width * 0.6) / 2,
-    backgroundColor: C.orangeGlow,
-    opacity: 0.08,
+    top: height * 0.3,
+    left: width * 0.15,
+    width: width * 0.7,
+    height: width * 0.7,
+    borderRadius: (width * 0.7) / 2,
+    backgroundColor: C.amber,
+    opacity: 0.15,
   },
 
   // Main Stage
@@ -487,15 +491,15 @@ const styles = StyleSheet.create({
     borderColor: C.badgeBorder,
     shadowColor: C.orange,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 3,
   },
   badgeGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingVertical: 7,
     gap: 8,
   },
   badgeDot: {
@@ -507,7 +511,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 11,
-    color: C.orangeGlow,
+    color: '#EA580C',
     letterSpacing: 2,
   },
 
@@ -528,8 +532,8 @@ const styles = StyleSheet.create({
   },
   iconNeonAuraOuter: {
     position: 'absolute',
-    backgroundColor: C.orangeDeep,
-    opacity: 0.2,
+    backgroundColor: C.amber,
+    opacity: 0.25,
   },
   iconNeonAuraInner: {
     position: 'absolute',
@@ -540,21 +544,24 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     overflow: 'hidden',
     shadowColor: C.orange,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.8,
-    shadowRadius: 28,
-    elevation: 24,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 16,
   },
   iconCardBorder: {
     flex: 1,
-    padding: 1.5,
+    padding: 2,
     borderRadius: 28,
   },
   iconInnerFrame: {
     flex: 1,
-    borderRadius: 26.5,
+    borderRadius: 26,
     overflow: 'hidden',
-    backgroundColor: '#0D0D1F',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
   },
   iconImage: {
     width: '100%',
@@ -567,19 +574,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 6,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   brandTitleText: {
     fontSize: 46,
     lineHeight: 54,
     letterSpacing: -1,
-    textShadowColor: 'rgba(255, 122, 0, 0.55)',
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 18,
   },
-  brandTitleWhite: {
+  brandTitleDark: {
     fontFamily: 'Poppins_800ExtraBold',
-    color: C.white,
+    color: C.textDark,
   },
   brandTitleOrange: {
     fontFamily: 'Poppins_800ExtraBold',
@@ -591,20 +595,20 @@ const styles = StyleSheet.create({
   },
   sparkleText: {
     color: C.amber,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
   },
 
   // Tagline & Step Dots
   taglineWrapper: {
     alignItems: 'center',
-    gap: 16,
+    gap: 14,
   },
   taglineText: {
     fontFamily: 'Poppins_500Medium',
     fontSize: 13,
-    color: C.slate,
-    letterSpacing: 3,
+    color: C.textMuted,
+    letterSpacing: 2.5,
     textTransform: 'uppercase',
   },
   stepDotsRow: {
@@ -616,16 +620,16 @@ const styles = StyleSheet.create({
     width: 8,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    backgroundColor: 'rgba(255, 122, 0, 0.2)',
   },
   stepDotActive: {
-    width: 20,
+    width: 22,
     backgroundColor: C.orange,
     shadowColor: C.orange,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+    elevation: 2,
   },
 
   // Cyber Loader Section
@@ -647,14 +651,16 @@ const styles = StyleSheet.create({
   },
   progressBarTrack: {
     width: '100%',
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 122, 0, 0.15)',
     overflow: 'hidden',
   },
   progressBarFill: {
+    width: '100%',
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 3,
+    transformOrigin: 'left',
   },
   statusFooterRow: {
     width: '100%',
@@ -665,15 +671,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   statusStepText: {
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: 'Poppins_600SemiBold',
     fontSize: 10,
-    color: C.slate,
+    color: '#EA580C',
     letterSpacing: 1.5,
   },
   versionText: {
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: 'Poppins_500Medium',
     fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.28)',
+    color: '#94A3B8',
     letterSpacing: 1.5,
   },
 });

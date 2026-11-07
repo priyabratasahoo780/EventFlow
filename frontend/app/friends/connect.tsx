@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Modal, KeyboardAvoidingView, Platform, ScrollView, Share, Image 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
@@ -178,6 +179,7 @@ export default function ConnectFriendScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar style={colors.text === '#FFFFFF' ? 'light' : 'dark'} />
       {/* HEADER */}
       <View style={styles.header}>
         <Pressable 
@@ -191,7 +193,7 @@ export default function ConnectFriendScreen() {
         </Pressable>
 
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.title}>ADD FRIENDS</Text>
+          <Text style={styles.title}>Add Friends</Text>
           <Text style={styles.subtitle}>Connect & collaborate on shared tasks</Text>
         </View>
 
@@ -521,47 +523,58 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     paddingHorizontal: 16, 
-    paddingVertical: 14, 
+    paddingTop: 10,
+    paddingBottom: 14, 
     borderBottomWidth: 1, 
     borderBottomColor: colors.border, 
-    backgroundColor: colors.card,
+    backgroundColor: colors.background,
+    gap: 12,
   },
   backBtn: { 
     width: 42, 
     height: 42, 
-    backgroundColor: colors.surface, 
-    borderRadius: 12, 
-    borderWidth: 1, 
+    backgroundColor: colors.card, 
+    borderRadius: 14, 
+    borderWidth: 1.2, 
     borderColor: colors.border, 
     alignItems: 'center', 
-    justifyContent: 'center', 
-    marginRight: 12 
+    justifyContent: 'center',
+    shadowColor: '#182235',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
   },
   headerTitleWrap: {
     flex: 1,
   },
   title: { 
-    fontFamily: 'Poppins_800ExtraBold', 
-    fontSize: 18, 
+    fontFamily: 'Poppins_700Bold', 
+    fontSize: 20, 
     color: colors.text,
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
   },
   subtitle: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 11,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12.5,
     color: colors.textSecondary,
-    marginTop: -2,
+    marginTop: 2,
   },
   requestsBtn: {
     width: 42,
     height: 42,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    borderWidth: 1.2,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    shadowColor: '#182235',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
   },
   badgeCount: {
     position: 'absolute',

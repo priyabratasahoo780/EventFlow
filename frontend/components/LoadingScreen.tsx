@@ -17,7 +17,7 @@ interface Props {
   fullScreen?: boolean;
 }
 
-export default function LoadingScreen({ message = 'Loading FocusFlow...', fullScreen = true }: Props) {
+function LoadingScreen({ message = 'Loading FocusFlow...', fullScreen = true }: Props) {
   const colors = useThemeStore(state => state.getColors());
 
   const rotation = useSharedValue(0);
@@ -37,7 +37,7 @@ export default function LoadingScreen({ message = 'Loading FocusFlow...', fullSc
       -1,
       true
     );
-  }, []);
+  }, [rotation, pulse]);
 
   const spinStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotation.value}deg` }]
@@ -106,3 +106,5 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 });
+
+export default React.memo(LoadingScreen);

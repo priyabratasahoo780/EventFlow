@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View, Text, FlatList, Pressable, Modal, TextInput, ActivityIndicator, Image, ToastAndroid, Platform, Alert, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { useAuthStore } from '../../store/useAuthStore';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import api from '../../services/api';
 import LoadingScreen from '../../components/LoadingScreen';
-import { ArrowLeft, Star, MessageCircle, Send, X, Heart, Quote } from 'lucide-react-native';
+import { ArrowLeft, Star, MessageCircle, Send, X, Heart, Quote, CheckCircle2, Sparkles } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -111,43 +112,75 @@ export default function CommunityReviewsScreen() {
       ? item.user.profilePhoto 
       : defaultAvatar;
     const name = item.user?.name || 'Anonymous';
+    const isLiked = item.likes && currentUser && item.likes.includes(currentUser._id);
+    const likeCount = item.likes ? item.likes.length : 0;
+    const formattedDate = (() => {
+      try {
+        const d = new Date(item.createdAt);
+        return isNaN(d.getTime()) ? 'Recently' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      } catch {
+        return 'Recently';
+      }
+    })();
     
     return (
       <View style={s.reviewCard}>
+        {/* Card Header: Avatar, Name, Rating & Date */}
         <View style={s.reviewHeader}>
           <View style={s.avatarContainer}>
             <Image source={{ uri: avatar }} style={s.avatar} />
           </View>
           <View style={s.reviewMeta}>
-            <Text style={s.reviewerName}>{name}</Text>
-            {renderStars(item.rating)}
+            <View style={s.reviewerNameRow}>
+              <Text style={s.reviewerName}>{name}</Text>
+              <CheckCircle2 color={colors.success} size={13} strokeWidth={2.4} />
+            </View>
+            <View style={s.ratingRow}>
+              {renderStars(item.rating, 14)}
+              <View style={s.ratingScoreBadge}>
+                <Text style={s.ratingScoreText}>{Number(item.rating || 5).toFixed(1)}</Text>
+              </View>
+            </View>
           </View>
           <View style={s.dateContainer}>
-            <Text style={s.reviewDate}>{new Date(item.createdAt).toLocaleDateString()}</Text>
+            <Text style={s.reviewDate}>{formattedDate}</Text>
           </View>
         </View>
+
+        {/* Card Body: Quote / Review Text */}
         <View style={s.quoteContainer}>
-          <Quote color={colors.border} size={16} style={{ marginRight: 8, marginTop: 2 }} />
+          <Quote color={colors.secondary} size={15} style={s.quoteIcon} />
           <Text style={s.reviewText}>{item.text}</Text>
         </View>
+
+        {/* Card Footer: Likes & Verified Tag */}
         <View style={s.cardFooter}>
           <Pressable 
-            style={[s.likeBtn, (item.likes && currentUser && item.likes.includes(currentUser._id)) && s.likeBtnActive]} 
+            style={({ pressed }) => [
+              s.likeBtn, 
+              isLiked && s.likeBtnActive,
+              pressed && { transform: [{ scale: 0.95 }] }
+            ]} 
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               handleLike(item._id);
             }}
           >
             <Heart 
-              color={(item.likes && currentUser && item.likes.includes(currentUser._id)) ? '#EA580C' : colors.textSecondary} 
-              fill={(item.likes && currentUser && item.likes.includes(currentUser._id)) ? '#EA580C' : 'transparent'}
-              size={16} 
-              strokeWidth={2} 
+              color={isLiked ? '#EA580C' : colors.textSecondary} 
+              fill={isLiked ? '#EA580C' : 'transparent'}
+              size={15} 
+              strokeWidth={2.2} 
             />
-            <Text style={[s.likeText, (item.likes && currentUser && item.likes.includes(currentUser._id)) && { color: '#EA580C' }]}>
-              {item.likes ? item.likes.length : 0}
+            <Text style={[s.likeText, isLiked && s.likeTextActive]}>
+              {likeCount > 0 ? `${likeCount} Helpful` : 'Helpful'}
             </Text>
           </Pressable>
+
+          <View style={s.communityTag}>
+            <Sparkles color={colors.secondary} size={12} strokeWidth={2.2} />
+            <Text style={s.communityTagText}>Verified Review</Text>
+          </View>
         </View>
       </View>
     );
@@ -155,22 +188,25 @@ export default function CommunityReviewsScreen() {
 
   return (
     <SafeAreaView style={s.container} edges={['top']}>
+      <StatusBar style={colors.text === '#FFFFFF' ? 'light' : 'dark'} />
+
       {/* ── HEADER ── */}
       <View style={s.header}>
         <Pressable 
-          style={s.backBtn}
+          style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.8, transform: [{ scale: 0.95 }] }]}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.back();
           }}
         >
-          <ArrowLeft color={colors.text} size={24} strokeWidth={2.5} />
+          <ArrowLeft color={colors.text} size={20} strokeWidth={2.4} />
         </Pressable>
         <View style={s.headerTextContainer}>
           <Text style={s.headerTitle}>Community Reviews</Text>
           <Text style={s.headerSub}>Real feedback from users</Text>
         </View>
-        <View style={{ width: 40 }} />
+        <View style={{ width: 42 }} />
       </View>
 
       {loading ? (
@@ -304,27 +340,41 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 10,
+    paddingBottom: 14,
+    backgroundColor: colors.background,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   backBtn: {
-    padding: 8,
-    marginLeft: -8,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: colors.card,
+    borderWidth: 1.2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#182235',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
   },
   headerTextContainer: {
     alignItems: 'center',
   },
   headerTitle: {
-    fontFamily: 'Poppins_800ExtraBold',
-    fontSize: 20,
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 19,
     color: colors.text,
+    letterSpacing: 0.2,
   },
   headerSub: {
-    fontFamily: 'Poppins_500Medium',
+    fontFamily: 'Poppins_400Regular',
     fontSize: 12,
     color: colors.textSecondary,
-    marginTop: -2,
+    marginTop: 1,
   },
   loadingBox: {
     flex: 1,
@@ -356,97 +406,155 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   },
   reviewCard: {
     backgroundColor: colors.card,
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(150, 150, 150, 0.15)',
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: 1.6,
+    borderColor: '#D4C7B8',
+    borderStyle: 'dashed',
+    shadowColor: '#182235',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   reviewHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   avatarContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 14,
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
-    backgroundColor: colors.background,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
   },
   avatar: {
     width: '100%',
     height: '100%',
-    borderRadius: 24,
+    borderRadius: 22,
   },
   reviewMeta: {
     flex: 1,
     justifyContent: 'center',
   },
-  dateContainer: {
-    alignItems: 'flex-end',
+  reviewerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 3,
   },
   reviewerName: {
     fontFamily: 'Poppins_700Bold',
-    fontSize: 16,
+    fontSize: 15,
     color: colors.text,
-    marginBottom: 2,
+    letterSpacing: 0.2,
+    textTransform: 'capitalize',
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  ratingScoreBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  ratingScoreText: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 10.5,
+    color: '#D97706',
   },
   starRow: {
     flexDirection: 'row',
-    gap: 3,
+    gap: 2.5,
+  },
+  dateContainer: {
+    alignSelf: 'flex-start',
+    paddingTop: 2,
+  },
+  reviewDate: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 11.5,
+    color: colors.textSecondary,
+    letterSpacing: 0.2,
   },
   quoteContainer: {
     flexDirection: 'row',
-    marginBottom: 16,
-    paddingRight: 16,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    marginBottom: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  quoteIcon: {
+    marginTop: 2,
+    opacity: 0.8,
   },
   reviewText: {
     fontFamily: 'Poppins_500Medium',
-    fontSize: 15,
+    fontSize: 14.5,
     color: colors.text,
-    lineHeight: 24,
+    lineHeight: 22,
     flex: 1,
   },
   cardFooter: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: 14,
+    borderStyle: 'dashed',
+    paddingTop: 12,
   },
   likeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    backgroundColor: colors.background,
-    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
     gap: 6,
   },
   likeBtnActive: {
-    backgroundColor: 'rgba(234, 88, 12, 0.1)',
+    backgroundColor: colors.secondaryLight,
+    borderColor: colors.secondary,
   },
   likeText: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  reviewDate: {
-    fontFamily: 'Poppins_600SemiBold',
     fontSize: 12,
     color: colors.textSecondary,
-    opacity: 0.8,
+  },
+  likeTextActive: {
+    color: '#EA580C',
+    fontFamily: 'Poppins_700Bold',
+  },
+  communityTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.secondaryLight,
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.secondaryLight,
+  },
+  communityTagText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 11,
+    color: colors.secondary,
   },
   fab: {
     position: 'absolute',

@@ -24,9 +24,9 @@ import {
   StyleSheet,
   Pressable,
   Dimensions,
-  StatusBar,
   Platform,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -306,7 +306,7 @@ export default function AlarmModal({
       onRequestClose={handleDismiss}
       statusBarTranslucent
     >
-      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+      <StatusBar style="light" />
 
       <View style={styles.root}>
         {/* ── 1. Cosmic Aurora & Alert Gradient ──────────────────────── */}

@@ -120,49 +120,88 @@ function FadeIn({ delay = 0, dy = 20, children }: { delay?: number; dy?: number;
 // ─── Premium Stat Pill ────────────────────────────────────────────────────────
 function StatPill({
   icon, label, value, color, bg,
-}: { icon: React.ReactNode; label: string; value: string | number; color: string; bg: string }) {
+}: { icon: React.ReactNode; label: string; value: string | number; color: string; bg?: string }) {
+  const { getColors } = useThemeStore();
+  const colors = getColors();
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   useEffect(() => {
     Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 120, friction: 10 }).start();
   }, [value]);
 
   return (
-    <View style={[pillStyles.pill, { backgroundColor: bg, borderColor: color + '30' }]}>
-      {/* Gradient left accent bar */}
-      <View style={[pillStyles.accentBar, { backgroundColor: color }]} />
-      <View style={[pillStyles.iconBox, { backgroundColor: color + '20' }]}>{icon}</View>
-      <View style={{ flex: 1 }}>
+    <Pressable
+      style={({ pressed }) => [
+        pillStyles.pill,
+        {
+          borderColor: color,
+          backgroundColor: colors.card,
+        },
+        pressed && { transform: [{ scale: 0.98 }], opacity: 0.88 },
+      ]}
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }}
+    >
+      <View style={[pillStyles.iconBox, { backgroundColor: color + '15', borderColor: color + '30' }]}>
+        {icon}
+      </View>
+
+      <View style={{ flex: 1, justifyContent: 'center' }}>
         <Text style={[pillStyles.pillLabel, { color }]}>{label.toUpperCase()}</Text>
         <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-          <Text style={pillStyles.pillValue}>{value}</Text>
+          <Text style={[pillStyles.pillValue, { color: colors.text }]}>{value}</Text>
         </Animated.View>
       </View>
-      <ChevronRight color={color + '60'} size={16} strokeWidth={2.5} />
-    </View>
+
+      <View style={[pillStyles.chevronBox, { backgroundColor: color + '12', borderColor: color + '25' }]}>
+        <ChevronRight color={color} size={15} strokeWidth={2.6} />
+      </View>
+    </Pressable>
   );
 }
 
 const pillStyles = StyleSheet.create({
   pill: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    borderRadius: 20, padding: 16, borderWidth: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06, shadowRadius: 10, elevation: 3,
-    marginBottom: 10, overflow: 'hidden',
-  },
-  accentBar: {
-    position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
-    borderTopLeftRadius: 20, borderBottomLeftRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1.6,
+    borderStyle: 'dashed',
+    shadowColor: '#182235',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    marginBottom: 12,
   },
   iconBox: {
-    width: 44, height: 44, borderRadius: 14,
-    alignItems: 'center', justifyContent: 'center',
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
   pillLabel: {
-    fontFamily: 'Poppins_700Bold', fontSize: 8, letterSpacing: 1.2, marginBottom: 2,
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 10.5,
+    letterSpacing: 0.8,
+    marginBottom: 2,
   },
   pillValue: {
-    fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: '#182235', letterSpacing: -0.5,
+    fontFamily: 'Poppins_800ExtraBold',
+    fontSize: 24,
+    letterSpacing: -0.5,
+  },
+  chevronBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
 });
 
@@ -170,6 +209,8 @@ const pillStyles = StyleSheet.create({
 function StatusBar({
   label, count, total, color, icon, bg, textColor,
 }: { label: string; count: number; total: number; color: string; icon: React.ReactNode; bg: string; textColor: string }) {
+  const { getColors } = useThemeStore();
+  const colors = getColors();
   const barAnim = useRef(new Animated.Value(0)).current;
   const pct = total === 0 ? 0 : Math.min((count / total) * 100, 100);
 
@@ -183,19 +224,18 @@ function StatusBar({
   const barWidth = barAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] });
 
   return (
-    <View style={[sbStyles.row, { backgroundColor: bg, borderColor: color + '25' }]}>
-      {/* Gradient icon box */}
-      <View style={[sbStyles.iconBox, { backgroundColor: color + '20' }]}>{icon}</View>
-      <View style={{ flex: 1, gap: 7 }}>
+    <View style={[sbStyles.row, { backgroundColor: colors.card, borderColor: color }]}>
+      <View style={[sbStyles.iconBox, { backgroundColor: color + '15', borderColor: color + '30' }]}>{icon}</View>
+      <View style={{ flex: 1, gap: 6 }}>
         <View style={sbStyles.topRow}>
           <Text style={[sbStyles.label, { color: textColor }]}>{label}</Text>
           <Text style={[sbStyles.count, { color }]}>{count}</Text>
         </View>
         {/* Animated bar track */}
-        <View style={[sbStyles.trackBg, { backgroundColor: color + '15' }]}>
+        <View style={[sbStyles.trackBg, { backgroundColor: color + '18' }]}>
           <Animated.View style={[sbStyles.trackFill, { width: barWidth, backgroundColor: color }]} />
         </View>
-        <Text style={[sbStyles.pct, { color: color + 'AA' }]}>{Math.round(pct)}% of total</Text>
+        <Text style={[sbStyles.pct, { color }]}>{Math.round(pct)}% of total</Text>
       </View>
     </View>
   );
@@ -203,23 +243,54 @@ function StatusBar({
 
 const sbStyles = StyleSheet.create({
   row: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    borderRadius: 22, padding: 18, marginBottom: 10, borderWidth: 1.5,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1.6,
+    borderStyle: 'dashed',
+    shadowColor: '#182235',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
   },
   iconBox: {
-    width: 48, height: 48, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center',
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  label: { fontFamily: 'Poppins_600SemiBold', fontSize: 14 },
-  count: { fontFamily: 'Poppins_800ExtraBold', fontSize: 22, letterSpacing: -0.5 },
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  label: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 14,
+  },
+  count: {
+    fontFamily: 'Poppins_800ExtraBold',
+    fontSize: 22,
+    letterSpacing: -0.5,
+  },
   trackBg: {
-    height: 7, borderRadius: 4, overflow: 'hidden',
+    height: 7,
+    borderRadius: 4,
+    overflow: 'hidden',
   },
-  trackFill: { height: 7, borderRadius: 4 },
-  pct: { fontFamily: 'Poppins_500Medium', fontSize: 10 },
+  trackFill: {
+    height: 7,
+    borderRadius: 4,
+  },
+  pct: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 10.5,
+  },
 });
 
 // ─── Section Header ───────────────────────────────────────────────────────────
@@ -242,9 +313,9 @@ function SectionHeader({ title, subtitle, accentColor }: { title: string; subtit
 
 const shStyles = StyleSheet.create({
   wrap: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14, marginTop: 6 },
-  accent: { width: 5, height: 36, borderRadius: 3 },
-  title: { fontFamily: 'Poppins_800ExtraBold', fontSize: 17, color: '#182235', letterSpacing: -0.4 },
-  sub: { fontFamily: 'Poppins_500Medium', fontSize: 11, color: '#667085', marginTop: 1 },
+  accent: { width: 4.5, height: 34, borderRadius: 3 },
+  title: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: '#182235', letterSpacing: -0.3 },
+  sub: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#667085', marginTop: 1 },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────

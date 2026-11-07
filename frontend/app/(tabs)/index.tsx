@@ -23,8 +23,9 @@ import {
   Sparkles, Plus, Flame, Calendar as CalendarIcon,
   Hourglass, AlertTriangle, Zap, MapPin, Grid3x3, Bell,
   Menu, GraduationCap, Briefcase, User as UserIcon,
-  Check, ChevronRight, LogOut,
-  CalendarClock, Users, Code, Activity, ShoppingBag, Hash, Settings, MessageCircle
+  Check, ChevronRight, LogOut, Layers,
+  CalendarClock, Users, Code, Activity, ShoppingBag, Hash, Settings, MessageCircle,
+  SlidersHorizontal, RotateCcw, Tag
 } from 'lucide-react-native';
 import { Event } from '../../models/Event';
 import { priorityService } from '../../services/priorityService';
@@ -53,7 +54,7 @@ const CATEGORIES = [
 ];
 
 const STATUS_FILTERS = [
-  { id: 'all',         label: 'All Tasks',   Icon: Grid3x3 },
+  { id: 'all',         label: 'All Tasks',   Icon: Layers },
   { id: 'today',       label: 'Today',       Icon: CalendarIcon },
   { id: 'in_progress', label: 'In Progress', Icon: Clock },
   { id: 'pending',     label: 'Pending',     Icon: Hourglass },
@@ -74,7 +75,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { getColors } = useThemeStore();
   const colors = getColors();
-  const s = getStyles(colors);
+  const s = useMemo(() => getStyles(colors), [colors]);
   const { user } = useAuthStore();
   const { events, friendsEvents, loadEvents, syncFriendSharedEvents, updateTaskStatus, filters, setFilters, getFilteredEvents, getTopRecommendation, initSocket, buddyAlert, clearBuddyAlert } = useEventStore();
   const { location, arrivedTask, arrivedTriggerType, dismissArrivedTask } = useLocation(events);
@@ -83,7 +84,57 @@ export default function HomeScreen() {
   const [showAlarmModal, setShowAlarmModal] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
   const appState = useRef(AppState.currentState);
+
+  const statusCounts = useMemo<Record<string, number>>(() => {
+    const today = new Date().toISOString().split('T')[0];
+    let all = events.length;
+    let todayCount = 0;
+    let inProgress = 0;
+    let pending = 0;
+    let completed = 0;
+    let overdue = 0;
+
+    for (const e of events) {
+      const isDone = e.completed || e.status === 'completed' || e.status === 'late_completed';
+      if (isDone) {
+        completed++;
+      } else {
+        pending++;
+        if (e.status === 'in_progress') inProgress++;
+        if (e.date?.startsWith(today)) todayCount++;
+        if (e.date && e.date.split('T')[0] < today) overdue++;
+      }
+    }
+
+    return {
+      all,
+      today: todayCount,
+      in_progress: inProgress,
+      pending,
+      completed,
+      overdue,
+    };
+  }, [events]);
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.status && filters.status !== 'all') count++;
+    if (filters.category && filters.category !== 'all') count++;
+    if (filters.priority && filters.priority !== 'all') count++;
+    if (filters.searchQuery?.trim()) count++;
+    return count;
+  }, [filters]);
+
+  const resetFilters = useCallback(() => {
+    setFilters({
+      status: 'all',
+      category: 'all',
+      priority: 'all',
+      searchQuery: '',
+    });
+  }, [setFilters]);
 
   // ── Zen Mode modal state ─────────────────────────────────────────────────
   const [zenModalVisible, setZenModalVisible] = useState(false);
@@ -155,7 +206,7 @@ export default function HomeScreen() {
     }, 15000);
 
     const subscription = AppState.addEventListener('change', nextAppState => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+      if (appState.current?.match(/inactive|background/) && nextAppState === 'active') {
         fetchFriendsEvents();
         loadEvents();
       }
@@ -376,19 +427,20 @@ export default function HomeScreen() {
 
   // ─── Sub-components ───────────────────────────────────────────────────────
 
-  const userName = user?.name ? user.name.split(' ')[0] : 'User';
-  const userInitial = (user?.name?.charAt(0) || 'U').toUpperCase();
-  const hasValidPhoto = !!user?.profilePhoto && !user.profilePhoto.includes('unsplash.com');
+  const userName = useMemo(() => (user?.name ? user.name.split(' ')[0] : 'User'), [user?.name]);
+  const userInitial = useMemo(() => (user?.name?.charAt(0) || 'U').toUpperCase(), [user?.name]);
+  const hasValidPhoto = useMemo(() => (!!user?.profilePhoto && !user.profilePhoto.includes('unsplash.com')), [user?.profilePhoto]);
 
-  const getGreeting = () => {
+  const greeting = useMemo(() => {
     const h = new Date().getHours();
     if (h < 12) return 'Good Morning';
     if (h < 17) return 'Good Afternoon';
     return 'Good Evening';
-  };
+  }, []);
 
-  const getFormattedDate = () =>
-    new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const formattedDate = useMemo(() =>
+    new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+  []);
 
   // ─── Render helpers ───────────────────────────────────────────────────────
 
@@ -408,13 +460,13 @@ export default function HomeScreen() {
 
         <View style={s.navCenter}>
           <Image
-            source={require('../../assets/images/icon_squared.png')}
-            style={{ width: rs(18), height: rs(18), borderRadius: rs(5) }}
-            resizeMode="cover"
+            source={require('../../assets/images/icon.png')}
+            style={{ width: rs(20), height: rs(20), borderRadius: rs(5) }}
+            resizeMode="contain"
           />
           <View style={s.datePill}>
             <CalendarIcon color={colors.secondary} size={11} strokeWidth={2.5} />
-            <Text style={s.datePillText}>{getFormattedDate()}</Text>
+            <Text style={s.datePillText}>{formattedDate}</Text>
           </View>
           <View style={s.brandDot} />
           <Text style={s.navBrand}>EVENTFLOW</Text>
@@ -455,7 +507,7 @@ export default function HomeScreen() {
       {/* ── GREETING & HERO FOCUS ── */}
       <View style={s.greetingRow}>
         <Text style={s.greeting}>
-          {getGreeting()}, {userName} 👋
+          {greeting}, {userName} 👋
         </Text>
         <Text style={s.greetingSub}>
           You have {totalPendingCount} pending tasks.
@@ -628,7 +680,7 @@ export default function HomeScreen() {
       <View style={s.searchRow}>
         <View style={{ flex: 1 }}>
           <View style={s.searchBox}>
-            <Search color={filters.searchQuery ? colors.primary : colors.textSecondary} size={17} strokeWidth={2} />
+            <Search color={filters.searchQuery ? colors.secondary : colors.textSecondary} size={17} strokeWidth={2.2} />
             <TextInput
               style={s.searchInput}
               placeholder="Search tasks, categories, tags..."
@@ -644,8 +696,16 @@ export default function HomeScreen() {
               onSubmitEditing={() => setShowSearchSuggestions(false)}
             />
             {filters.searchQuery ? (
-              <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFilters({ searchQuery: '' }); setShowSearchSuggestions(false); }}>
-                <X color={colors.textSecondary} size={15} strokeWidth={2.5} />
+              <Pressable
+                style={s.searchClearBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setFilters({ searchQuery: '' });
+                  setShowSearchSuggestions(false);
+                }}
+              >
+                <X color={colors.textSecondary} size={13} strokeWidth={2.5} />
               </Pressable>
             ) : null}
           </View>
@@ -677,46 +737,81 @@ export default function HomeScreen() {
           )}
         </View>
 
+        {/* Filter Modal Action Button */}
         <Pressable
-          style={[s.filterBtn, { marginLeft: 10 }]}
+          style={({ pressed }) => [s.actionBtn, pressed && { opacity: 0.88, transform: [{ scale: 0.95 }] }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setShowFilterModal(true);
+          }}
+        >
+          {activeFiltersCount > 0 ? (
+            <LinearGradient colors={[colors.secondary, '#FF6500']} style={s.actionBtnGrad}>
+              <SlidersHorizontal color="#FFF" size={17} strokeWidth={2.4} />
+              <View style={s.filterBadgeCount}>
+                <Text style={s.filterBadgeCountText}>{activeFiltersCount}</Text>
+              </View>
+            </LinearGradient>
+          ) : (
+            <View style={s.actionBtnSolid}>
+              <SlidersHorizontal color={colors.text} size={17} strokeWidth={2.2} />
+            </View>
+          )}
+        </Pressable>
+
+        {/* Task Map Pin Button */}
+        <Pressable
+          style={({ pressed }) => [s.actionBtn, pressed && { opacity: 0.88, transform: [{ scale: 0.95 }] }]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             router.push('/map' as any);
           }}
         >
-          <LinearGradient colors={[colors.secondary, colors.secondary]} style={s.filterBtnGrad}>
-            <Filter color="#FFF" size={17} strokeWidth={2.5} />
-          </LinearGradient>
+          <View style={s.actionBtnSolid}>
+            <MapPin color={colors.secondary} size={17} strokeWidth={2.4} />
+          </View>
         </Pressable>
       </View>
 
-      {/* ── STATUS FILTERS ── */}
+      {/* ── STATUS SEGMENT CONTROL (PRIMARY TASK LIFECYCLE) ── */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.statusScroll}
-        style={{ marginBottom: 10 }}
+        style={{ marginBottom: 12 }}
       >
         {STATUS_FILTERS.map((st) => {
           const isActive = filters.status === st.id;
+          const count = statusCounts[st.id] ?? 0;
           return (
             <Pressable
               key={st.id}
-              style={[s.statusPill, isActive && s.statusPillActive]}
+              style={({ pressed }) => [s.statusTab, pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setFilters({ status: st.id as any });
               }}
             >
               {isActive ? (
-                <View style={s.statusPillActiveInner}>
-                  <st.Icon color={colors.secondary} size={13} strokeWidth={2.5} />
-                  <Text style={[s.statusPillText, { color: colors.secondary }]}>{st.label}</Text>
-                </View>
+                <LinearGradient
+                  colors={[colors.secondary, '#FF6500']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={s.statusTabActiveInner}
+                >
+                  <st.Icon color="#FFF" size={13.5} strokeWidth={2.4} />
+                  <Text style={s.statusTabActiveText}>{st.label}</Text>
+                  <View style={s.statusCountBadgeActive}>
+                    <Text style={s.statusCountBadgeActiveText}>{count}</Text>
+                  </View>
+                </LinearGradient>
               ) : (
-                <View style={s.statusPillInner}>
-                  <st.Icon color={colors.textSecondary} size={13} strokeWidth={2.2} />
-                  <Text style={s.statusPillText}>{st.label}</Text>
+                <View style={s.statusTabInner}>
+                  <st.Icon color={colors.textSecondary} size={13.5} strokeWidth={2} />
+                  <Text style={s.statusTabText}>{st.label}</Text>
+                  <View style={s.statusCountBadge}>
+                    <Text style={s.statusCountBadgeText}>{count}</Text>
+                  </View>
                 </View>
               )}
             </Pressable>
@@ -724,41 +819,64 @@ export default function HomeScreen() {
         })}
       </ScrollView>
 
-      {/* ── CATEGORY CHIPS ── */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={s.categoryScroll}
-        style={{ marginBottom: 16 }}
-      >
-        {CATEGORIES.map((cat) => {
-          const isActive =
-            (cat.id === 'all' && filters.category === 'all') ||
-            filters.category.toLowerCase() === cat.id.toLowerCase();
-          return (
+      {/* ── CATEGORY TAGS BAR (DISTINCT DASHED-BORDER DESIGN) ── */}
+      <View style={s.categorySection}>
+        <View style={s.categoryHeaderRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Tag color={colors.secondary} size={12} strokeWidth={2.4} />
+            <Text style={s.categoryBarLabel}>CATEGORY</Text>
+          </View>
+          {((filters.category && filters.category !== 'all') || filters.status !== 'all' || (filters.priority && filters.priority !== 'all')) && (
             <Pressable
-              key={cat.id}
-              style={[s.catChip, isActive && s.catChipActive]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setFilters({ category: cat.id === 'all' ? 'all' : cat.label });
+                resetFilters();
               }}
+              hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+              style={s.resetInlineBtn}
             >
-              {isActive ? (
-                <View style={[s.catChipGrad, { backgroundColor: colors.secondary }]}>
-                  {renderCatIcon(cat.id, '#FFF')}
-                  <Text style={[s.catChipText, { color: '#FFF' }]}>{cat.label}</Text>
-                </View>
-              ) : (
-                <View style={s.catChipInner}>
-                  {renderCatIcon(cat.id, colors.textSecondary)}
-                  <Text style={s.catChipText}>{cat.label}</Text>
-                </View>
-              )}
+              <RotateCcw color={colors.secondary} size={11} strokeWidth={2.2} />
+              <Text style={s.resetInlineText}>Reset</Text>
             </Pressable>
-          );
-        })}
-      </ScrollView>
+          )}
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.categoryScroll}
+        >
+          {CATEGORIES.map((cat) => {
+            const isActive =
+              (cat.id === 'all' && (!filters.category || filters.category === 'all')) ||
+              (filters.category && filters.category.toLowerCase() === cat.id.toLowerCase());
+            return (
+              <Pressable
+                key={cat.id}
+                style={({ pressed }) => [
+                  s.catDashedTag,
+                  isActive && s.catDashedTagActive,
+                  pressed && { opacity: 0.8, transform: [{ scale: 0.96 }] },
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setFilters({ category: cat.id === 'all' ? 'all' : cat.label });
+                }}
+              >
+                {renderCatIcon(cat.id, isActive ? colors.secondary : colors.textSecondary)}
+                <Text style={[s.catDashedTagText, isActive && s.catDashedTagTextActive]}>
+                  {cat.label}
+                </Text>
+                {isActive && cat.id !== 'all' && (
+                  <View style={s.catClearDot}>
+                    <X color={colors.secondary} size={10} strokeWidth={2.6} />
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {/* ── TASKS HEADER ── */}
       <View style={s.taskHeader}>
@@ -1374,9 +1492,9 @@ export default function HomeScreen() {
             {/* Side Nav Brand Footer */}
             <View style={{ marginTop: 24, padding: 14, backgroundColor: colors.surface, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Image
-                source={require('../../assets/images/icon_squared.png')}
+                source={require('../../assets/images/icon.png')}
                 style={{ width: 36, height: 36, borderRadius: 10 }}
-                resizeMode="cover"
+                resizeMode="contain"
               />
               <View>
                 <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: colors.text }}>EventFlow</Text>
@@ -1386,6 +1504,154 @@ export default function HomeScreen() {
           </ScrollView>
         </Animated.View>
       </Modal>
+
+      {/* ── SMART FILTER MODAL SHEET ── */}
+      <Modal
+        visible={showFilterModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFilterModal(false)}
+      >
+        <View style={s.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowFilterModal(false)} />
+          <View style={s.filterModalCard}>
+            <View style={s.filterModalHandle} />
+
+            <View style={s.filterModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={s.filterModalHeaderIconBox}>
+                  <SlidersHorizontal color={colors.secondary} size={18} strokeWidth={2.4} />
+                </View>
+                <View>
+                  <Text style={s.filterModalTitle}>Filter Tasks</Text>
+                  <Text style={s.filterModalSubtitle}>Customize your task view</Text>
+                </View>
+              </View>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  resetFilters();
+                }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={s.resetAllBtn}
+              >
+                <RotateCcw color={colors.secondary} size={13} strokeWidth={2.2} />
+                <Text style={s.resetAllBtnText}>Reset</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+              {/* Status Section */}
+              <Text style={s.filterSectionTitle}>TASK STATUS</Text>
+              <View style={s.filterChipGrid}>
+                {STATUS_FILTERS.map((st) => {
+                  const isSelected = filters.status === st.id;
+                  const count = statusCounts[st.id] ?? 0;
+                  return (
+                    <Pressable
+                      key={st.id}
+                      style={[
+                        s.filterModalChip,
+                        isSelected && s.filterModalChipSelected,
+                      ]}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setFilters({ status: st.id as any });
+                      }}
+                    >
+                      <st.Icon color={isSelected ? colors.secondary : colors.textSecondary} size={13.5} strokeWidth={2.2} />
+                      <Text style={[s.filterModalChipText, isSelected && s.filterModalChipTextSelected]}>
+                        {st.label}
+                      </Text>
+                      <View style={[s.filterCountBadge, isSelected && s.filterCountBadgeSelected]}>
+                        <Text style={[s.filterCountBadgeText, isSelected && s.filterCountBadgeTextSelected]}>
+                          {count}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Priority Section */}
+              <Text style={[s.filterSectionTitle, { marginTop: 16 }]}>PRIORITY</Text>
+              <View style={s.filterChipGrid}>
+                {[
+                  { id: 'all', label: 'All', color: colors.textSecondary },
+                  { id: 'critical', label: 'Critical', color: colors.error },
+                  { id: 'high', label: 'High', color: colors.secondary },
+                  { id: 'medium', label: 'Medium', color: colors.warning },
+                  { id: 'low', label: 'Low', color: colors.success },
+                ].map((p) => {
+                  const isSelected = (filters.priority || 'all') === p.id;
+                  return (
+                    <Pressable
+                      key={p.id}
+                      style={[
+                        s.filterModalChip,
+                        isSelected && s.filterModalChipSelected,
+                      ]}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setFilters({ priority: p.id as any });
+                      }}
+                    >
+                      <View style={[s.priorityDot, { backgroundColor: p.color }]} />
+                      <Text style={[s.filterModalChipText, isSelected && s.filterModalChipTextSelected]}>
+                        {p.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Category Grid (with signature dashed borders!) */}
+              <Text style={[s.filterSectionTitle, { marginTop: 16 }]}>CATEGORIES</Text>
+              <View style={s.filterCategoryGrid}>
+                {CATEGORIES.map((cat) => {
+                  const isSelected =
+                    (cat.id === 'all' && (!filters.category || filters.category === 'all')) ||
+                    (filters.category && filters.category.toLowerCase() === cat.id.toLowerCase());
+                  return (
+                    <Pressable
+                      key={cat.id}
+                      style={[
+                        s.categoryDashedCard,
+                        isSelected && s.categoryDashedCardSelected,
+                      ]}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setFilters({ category: cat.id === 'all' ? 'all' : cat.label });
+                      }}
+                    >
+                      {renderCatIcon(cat.id, isSelected ? colors.secondary : colors.textSecondary)}
+                      <Text
+                        numberOfLines={1}
+                        style={[s.categoryDashedCardText, isSelected && s.categoryDashedCardTextSelected]}
+                      >
+                        {cat.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            {/* Bottom Apply Action */}
+            <Pressable
+              style={s.filterApplyBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setShowFilterModal(false);
+              }}
+            >
+              <LinearGradient colors={[colors.secondary, '#FF6500']} style={s.filterApplyGrad}>
+                <Text style={s.filterApplyText}>Show {filteredEvents.length} Tasks</Text>
+              </LinearGradient>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1393,10 +1659,10 @@ export default function HomeScreen() {
 // ─── Category icon helper ────────────────────────────────────────────────────
 
 function renderCatIcon(id: string, color: string) {
-  const size = 13;
-  const sw = 2.3;
+  const size = 12.5;
+  const sw = 2.2;
   switch (id) {
-    case 'all':         return <Grid3x3 color={color} size={size} strokeWidth={sw} />;
+    case 'all':         return <Sparkles color={color} size={size} strokeWidth={sw} />;
     case 'Academic':    return <GraduationCap color={color} size={size} strokeWidth={sw} />;
     case 'Work':        return <Briefcase color={color} size={size} strokeWidth={sw} />;
     case 'Personal':    return <UserIcon color={color} size={size} strokeWidth={sw} />;
@@ -1961,25 +2227,26 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   // ── Search Row ──
   searchRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginHorizontal: 16,
-    gap: 12,
-    marginBottom: 16,
+    gap: 8,
+    marginBottom: 12,
     zIndex: 100,
   },
   searchBox: {
     flex: 1,
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.card,
-    borderRadius: 24,
-    paddingHorizontal: 16,
+    borderRadius: 16,
+    paddingHorizontal: 14,
     borderWidth: 1.5,
     borderColor: colors.border,
-    shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#182235',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 10,
+    shadowRadius: 6,
     elevation: 2,
     gap: 10,
   },
@@ -1987,26 +2254,62 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     flex: 1,
     height: 48,
     fontFamily: 'Poppins_400Regular',
-    fontSize: 14,
+    fontSize: 13.5,
     color: colors.text,
+    paddingVertical: 0,
   },
-  filterBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  filterBtnGrad: {
-    width: 48,
-    height: 48,
+  searchClearBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 24,
+  },
+  actionBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.secondary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  actionBtnSolid: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionBtnGrad: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadgeCount: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    minWidth: 17,
+    height: 17,
+    borderRadius: 8.5,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3.5,
+  },
+  filterBadgeCountText: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 9.5,
+    color: colors.secondary,
   },
 
   // ── Search Suggestions Dropdown ──
@@ -2083,78 +2386,335 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     color: colors.textSecondary,
   },
 
-  // ── Status Pills ──
+  // ── Status Segment Tabs (Primary Task Lifecycle) ──
   statusScroll: {
     paddingHorizontal: 16,
-    gap: 10,
+    gap: 8,
+    alignItems: 'center',
   },
-  statusPill: {
-    borderRadius: 30,
+  statusTab: {
+    borderRadius: 20,
     overflow: 'hidden',
   },
-  statusPillActive: {},
-  statusPillActiveInner: {
+  statusTabActiveInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 30,
-    backgroundColor: colors.secondaryLight,
-    borderWidth: 1.5,
-    borderColor: colors.secondary,
+    gap: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: colors.secondary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  statusPillInner: {
+  statusTabInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 30,
+    gap: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
     backgroundColor: colors.card,
-    borderWidth: 1.5,
+    borderWidth: 1.2,
     borderColor: colors.border,
   },
-  statusPillText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 13,
+  statusTabText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12.5,
     color: colors.textSecondary,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
+  },
+  statusTabActiveText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12.5,
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  statusCountBadge: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: 6.5,
+    paddingVertical: 1.5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  statusCountBadgeText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 10.5,
+    color: colors.textSecondary,
+  },
+  statusCountBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+    paddingHorizontal: 6.5,
+    paddingVertical: 1.5,
+    borderRadius: 10,
+  },
+  statusCountBadgeActiveText: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 10.5,
+    color: '#FFFFFF',
   },
 
-  // ── Category Chips ──
+  // ── Category Tags Section (Dashed Border Tags) ──
+  categorySection: {
+    marginBottom: 14,
+  },
+  categoryHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  categoryBarLabel: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 10.5,
+    color: colors.textSecondary,
+    letterSpacing: 0.8,
+  },
+  resetInlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: colors.secondaryLight,
+  },
+  resetInlineText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 11,
+    color: colors.secondary,
+  },
   categoryScroll: {
     paddingHorizontal: 16,
-    gap: 10,
+    gap: 8,
+    alignItems: 'center',
   },
-  catChip: {
-    borderRadius: 30,
-    overflow: 'hidden',
-  },
-  catChipActive: {},
-  catChipGrad: {
+  catDashedTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 30,
-  },
-  catChipInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 30,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 14,
     backgroundColor: colors.card,
+    borderStyle: 'dashed',
     borderWidth: 1.5,
     borderColor: colors.border,
   },
-  catChipText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 13,
+  catDashedTagActive: {
+    backgroundColor: colors.secondaryLight,
+    borderColor: colors.secondary,
+    borderStyle: 'dashed',
+    borderWidth: 1.5,
+  },
+  catDashedTagText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
     color: colors.textSecondary,
+  },
+  catDashedTagTextActive: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 12,
+    color: colors.secondary,
+  },
+  catClearDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: 'rgba(255, 122, 0, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 2,
+  },
+
+  // ── Filter Modal Sheet Styles ──
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  filterModalCard: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 32,
+    maxHeight: SCREEN.height * 0.85,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  filterModalHandle: {
+    width: 42,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  filterModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  filterModalHeaderIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: colors.secondaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterModalTitle: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 16,
+    color: colors.text,
+  },
+  filterModalSubtitle: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 11.5,
+    color: colors.textSecondary,
+  },
+  resetAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    backgroundColor: colors.secondaryLight,
+  },
+  resetAllBtnText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 11,
+    color: colors.secondary,
+  },
+  filterSectionTitle: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 11,
+    color: colors.textSecondary,
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  filterChipGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterModalChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7.5,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1.2,
+    borderColor: colors.border,
+  },
+  filterModalChipSelected: {
+    backgroundColor: colors.secondaryLight,
+    borderColor: colors.secondary,
+  },
+  filterModalChipText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
+    color: colors.text,
+  },
+  filterModalChipTextSelected: {
+    fontFamily: 'Poppins_600SemiBold',
+    color: colors.secondary,
+  },
+  filterCountBadge: {
+    backgroundColor: colors.card,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+  },
+  filterCountBadgeSelected: {
+    backgroundColor: colors.secondary,
+  },
+  filterCountBadgeText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 10,
+    color: colors.textSecondary,
+  },
+  filterCountBadgeTextSelected: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 10,
+    color: '#FFFFFF',
+  },
+  priorityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  filterCategoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  categoryDashedCard: {
+    width: '31%',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    backgroundColor: colors.card,
+    borderStyle: 'dashed',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  categoryDashedCardSelected: {
+    backgroundColor: colors.secondaryLight,
+    borderColor: colors.secondary,
+  },
+  categoryDashedCardText: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 11,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  categoryDashedCardTextSelected: {
+    fontFamily: 'Poppins_600SemiBold',
+    color: colors.secondary,
+  },
+  filterApplyBtn: {
+    marginTop: 14,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.secondary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  filterApplyGrad: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+  },
+  filterApplyText: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 14,
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
 
   // ── Task Header ──

@@ -4,6 +4,7 @@ import {
   TextInput, Image, Modal, KeyboardAvoidingView, Platform, ScrollView 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import api from '../../services/api';
@@ -121,6 +122,7 @@ export default function FriendListScreen() {
   return (
     <View style={styles.root}>
       <SafeAreaView style={styles.container} edges={['top']}>
+        <StatusBar style={colors.text === '#FFFFFF' ? 'light' : 'dark'} />
         
         {/* ── HEADER ── */}
         <View style={styles.header}>
@@ -136,7 +138,7 @@ export default function FriendListScreen() {
 
           <View style={styles.headerTextContainer}>
             <View style={styles.titleRow}>
-              <Text style={styles.title}>MY FRIENDS</Text>
+              <Text style={styles.title}>My Friends</Text>
               <View style={styles.countBadge}>
                 <View style={styles.countBadgeDot} />
                 <Text style={styles.countBadgeText}>{friends.length}</Text>
@@ -417,25 +419,31 @@ const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create
   header: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    paddingHorizontal: 18, 
-    paddingVertical: 14, 
-    backgroundColor: colors.card,
+    paddingHorizontal: 16, 
+    paddingTop: 10,
+    paddingBottom: 14, 
+    backgroundColor: colors.background,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   backBtn: { 
     width: 42, 
     height: 42, 
-    backgroundColor: colors.surface, 
+    backgroundColor: colors.card, 
     borderRadius: 14, 
-    borderWidth: 1,
+    borderWidth: 1.2,
     borderColor: colors.border,
     alignItems: 'center', 
     justifyContent: 'center',
+    shadowColor: '#182235',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 2,
   },
   headerTextContainer: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: 12,
   },
   titleRow: {
     flexDirection: 'row',
@@ -443,10 +451,10 @@ const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create
     gap: 8,
   },
   title: { 
-    fontFamily: 'Poppins_800ExtraBold', 
-    fontSize: 18, 
+    fontFamily: 'Poppins_700Bold', 
+    fontSize: 20, 
     color: colors.text,
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
   },
   countBadge: {
     flexDirection: 'row',
