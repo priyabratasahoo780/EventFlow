@@ -78,7 +78,7 @@ export default function AlarmModal({
 
   const isCompleted = !event || event.completed || event.status === 'completed';
 
-  // ── Live Digital Clock ──────────────────────────────────────────────────────
+  // ── Live Digital Clock 
   const [currentTime, setCurrentTime] = useState({
     timeStr: '',
     period: '',
@@ -104,7 +104,7 @@ export default function AlarmModal({
     return () => clearInterval(interval);
   }, []);
 
-  // ── Animated Values ─────────────────────────────────────────────────────────
+  //  Animated Values 
   const ring1Scale = useSharedValue(0.7);
   const ring1Opacity = useSharedValue(0.8);
   const ring2Scale = useSharedValue(0.7);
@@ -120,7 +120,7 @@ export default function AlarmModal({
 
   const orbPulse = useSharedValue(0.4);
 
-  // ── Sound & Animation Triggers ──────────────────────────────────────────────
+  // ── Sound & Animation Triggers 
   useEffect(() => {
     if (visible && event && !isCompleted) {
       // Start loud alarm sound + haptics
