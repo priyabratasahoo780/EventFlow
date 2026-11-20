@@ -2,7 +2,7 @@
   "expo": {
     "name": "EventFlow",
     "slug": "FocusFlow",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon_squared.png",
     "scheme": "eventflow",
@@ -22,7 +22,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "newArchEnabled": true,
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "SCHEDULE_EXACT_ALARM",
         "USE_EXACT_ALARM",
@@ -103,7 +103,7 @@
         "projectId": "6411eb54-9029-40e7-8968-5c5963b9de78"
       }
     },
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": "2.0.0",
     "updates": {
       "url": "https://u.expo.dev/6411eb54-9029-40e7-8968-5c5963b9de78"
     },
