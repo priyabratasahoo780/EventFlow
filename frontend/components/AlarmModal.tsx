@@ -220,50 +220,6 @@ export default function AlarmModal({
     };
   }, [visible, event, isCompleted]);
 
-  if (isCompleted || !visible || !event) {
-    return null;
-  }
-
-  // ── Action Handlers ─────────────────────────────────────────────────────────
-  const handleDismiss = () => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    } catch (_) {}
-    alarmSoundService.stopAlarmSound();
-    onDismiss();
-  };
-
-  const handleStart = () => {
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    } catch (_) {}
-    alarmSoundService.stopAlarmSound();
-    onStartTask(event);
-  };
-
-  const handleSnooze = () => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    } catch (_) {}
-    alarmSoundService.stopAlarmSound();
-
-    if (onSnooze) {
-      onSnooze(event);
-    } else {
-      // Schedule quick 5-minute snooze
-      const snoozeMs = Date.now() + 5 * 60 * 1000;
-      alarmService.scheduleAlarm(
-        `snooze_${event.id}_${Date.now()}`,
-        snoozeMs,
-        `⏰ Snoozed: ${event.title}`,
-        `Your 5-minute snooze has ended. Time to start!`,
-        event.id,
-        true
-      ).catch(() => {});
-      onDismiss();
-    }
-  };
-
   // ── Reanimated Styles ───────────────────────────────────────────────────────
   const cardAnimStyle = useAnimatedStyle(() => ({
     opacity: cardOpacity.value,
@@ -295,6 +251,52 @@ export default function AlarmModal({
   const orbAnimStyle = useAnimatedStyle(() => ({
     opacity: orbPulse.value,
   }));
+
+  // ── Action Handlers ─────────────────────────────────────────────────────────
+  const handleDismiss = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    } catch (_) {}
+    alarmSoundService.stopAlarmSound();
+    onDismiss();
+  };
+
+  const handleStart = () => {
+    if (!event) return;
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch (_) {}
+    alarmSoundService.stopAlarmSound();
+    onStartTask(event);
+  };
+
+  const handleSnooze = () => {
+    if (!event) return;
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    } catch (_) {}
+    alarmSoundService.stopAlarmSound();
+
+    if (onSnooze) {
+      onSnooze(event);
+    } else {
+      // Schedule quick 5-minute snooze
+      const snoozeMs = Date.now() + 5 * 60 * 1000;
+      alarmService.scheduleAlarm(
+        `snooze_${event.id}_${Date.now()}`,
+        snoozeMs,
+        `⏰ Snoozed: ${event.title}`,
+        `Your 5-minute snooze has ended. Time to start!`,
+        event.id,
+        true
+      ).catch(() => {});
+      onDismiss();
+    }
+  };
+
+  if (isCompleted || !visible || !event) {
+    return null;
+  }
 
   const BELL_ARENA = 140;
 
