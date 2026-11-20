@@ -9,7 +9,17 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal", 
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_cmFwaWQtd2FscnVzLTU2ODYuY2xlcmsuYWNjb3VudHMuZGV2JA",
+        "EXPO_PUBLIC_API_URL": "https://eventflow-ks7m.onrender.com/api"
+      }
+    },
+    "apk": {
+      "distribution": "internal",
       "android": {
         "buildType": "apk"
       },
