@@ -22,7 +22,8 @@ export default function CalendarScreen() {
   const router = useRouter();
   const { getColors, isDark } = useThemeStore();
   const colors = getColors();
-  const styles = getStyles(colors);
+  const isDarkMode = isDark();
+  const styles = getStyles(colors, isDarkMode);
   const { events, toggleEventCompletion, deleteEvent } = useEventStore();
   
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -219,13 +220,10 @@ export default function CalendarScreen() {
 
             {/* ── SELECTED DATE SUMMARY CARD ── */}
             <LinearGradient
-              colors={isDark ? ['rgba(255, 148, 51, 0.12)', 'rgba(255, 100, 0, 0.06)'] : [colors.secondaryLight, colors.secondaryLight]}
+              colors={isDarkMode ? ['rgba(255, 148, 51, 0.12)', 'rgba(255, 100, 0, 0.06)'] : ['#FFF5EB', '#FFF0E5']}
               start={{x:0, y:0}}
               end={{x:1, y:0}}
-              style={[
-                styles.summaryCard,
-                isDark && { borderWidth: 1, borderColor: 'rgba(255, 148, 51, 0.22)' },
-              ]}
+              style={styles.summaryCard}
             >
               <View style={styles.summaryLeft}>
                 <View style={styles.summaryIconBox}>
@@ -318,7 +316,7 @@ export default function CalendarScreen() {
   );
 }
 
-const getStyles = (colors: ColorTheme) => StyleSheet.create({
+const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.background,
@@ -524,9 +522,16 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginHorizontal: 16,
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 18,
+    padding: 15,
     marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: isDarkMode ? 'rgba(255, 148, 51, 0.22)' : '#FFD5B0',
+    shadowColor: isDarkMode ? '#000000' : colors.secondary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: isDarkMode ? 0.2 : 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   summaryLeft: {
     flexDirection: 'row',
@@ -537,9 +542,9 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.secondaryLight,
+    backgroundColor: isDarkMode ? 'rgba(255, 148, 51, 0.15)' : '#FFF0E5',
     borderWidth: 1,
-    borderColor: colors.secondaryLight,
+    borderColor: isDarkMode ? 'rgba(255, 148, 51, 0.3)' : '#FFD5B0',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -563,7 +568,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.secondaryLight,
+    borderColor: isDarkMode ? 'rgba(255, 148, 51, 0.25)' : '#FFD5B0',
   },
   allClearText: {
     fontFamily: 'Poppins_700Bold',

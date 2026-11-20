@@ -25,7 +25,8 @@ const getPriorityConfig = (colors: ColorTheme): Record<string, { strip: string; 
 export default function EventCard({ event, onPress, onComplete }: EventCardProps) {
   const { getColors, isDark } = useThemeStore();
   const colors = getColors();
-  const styles = getStyles(colors, isDark);
+  const isDarkMode = isDark();
+  const styles = getStyles(colors, isDarkMode);
   const isCompleted = event.completed || event.status === 'completed';
   const isInProgress = event.status === 'in_progress';
   const PRIORITY_CONFIG = getPriorityConfig(colors);
@@ -93,7 +94,7 @@ export default function EventCard({ event, onPress, onComplete }: EventCardProps
             {/* Checkbox */}
             <Pressable onPress={handleToggleComplete} hitSlop={10} style={styles.checkbox}>
               {isCompleted ? (
-                <CheckCircle color={colors.success} size={22} strokeWidth={2.5} fill={colors.successLight} />
+                <CheckCircle color={colors.success} size={22} strokeWidth={2.5} fill={isDarkMode ? 'rgba(52, 211, 153, 0.2)' : '#DCFCE7'} />
               ) : (
                 <View style={styles.unchecked} />
               )}
@@ -153,7 +154,7 @@ export default function EventCard({ event, onPress, onComplete }: EventCardProps
   );
 }
 
-const getStyles = (colors: ColorTheme, isDark: boolean) => StyleSheet.create({
+const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create({
   container: {
     marginHorizontal: 16,
     marginBottom: 12,
@@ -161,26 +162,26 @@ const getStyles = (colors: ColorTheme, isDark: boolean) => StyleSheet.create({
   card: {
     backgroundColor: colors.card,
     borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 16,
+    borderColor: isDarkMode ? colors.border : '#EFEBE4',
+    borderRadius: 18,
     overflow: 'hidden',
     flexDirection: 'row',
-    shadowColor: isDark ? '#000000' : colors.secondary,
+    shadowColor: isDarkMode ? '#000000' : '#475569',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: isDark ? 0.35 : 0.09,
-    shadowRadius: 8,
+    shadowOpacity: isDarkMode ? 0.35 : 0.06,
+    shadowRadius: 10,
     elevation: 3,
   },
   cardCompleted: {
-    backgroundColor: isDark ? '#111722' : '#F8F9FA',
-    borderColor: isDark ? '#1C2536' : colors.border,
-    shadowOpacity: 0.03,
+    backgroundColor: isDarkMode ? '#111726' : '#FAF9F6',
+    borderColor: isDarkMode ? '#1E293B' : '#E8E3DB',
+    shadowOpacity: isDarkMode ? 0.05 : 0.02,
   },
   cardInProgress: {
     borderColor: colors.primary,
-    backgroundColor: isDark ? 'rgba(107, 95, 242, 0.10)' : '#FDFCFF',
+    backgroundColor: isDarkMode ? 'rgba(107, 95, 242, 0.10)' : '#F9F8FE',
     shadowColor: colors.primary,
-    shadowOpacity: isDark ? 0.25 : 0.08,
+    shadowOpacity: isDarkMode ? 0.25 : 0.08,
   },
   priorityStrip: {
     width: 5,
@@ -203,17 +204,17 @@ const getStyles = (colors: ColorTheme, isDark: boolean) => StyleSheet.create({
     flexWrap: 'wrap',
   },
   categoryBadge: {
-    backgroundColor: colors.surface,
+    backgroundColor: isDarkMode ? colors.surface : '#F1F5F9',
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: isDarkMode ? colors.border : '#E2E8F0',
   },
   categoryBadgeText: {
     fontFamily: 'Poppins_700Bold',
     fontSize: 9,
-    color: colors.textSecondary,
+    color: isDarkMode ? '#94A3B8' : '#475569',
     letterSpacing: 0.4,
   },
   priorityBadge: {
@@ -251,8 +252,8 @@ const getStyles = (colors: ColorTheme, isDark: boolean) => StyleSheet.create({
     height: 22,
     borderRadius: 7,
     borderWidth: 2,
-    borderColor: isDark ? '#334155' : '#D1D9E6',
-    backgroundColor: isDark ? colors.surface : '#FAFAFA',
+    borderColor: isDarkMode ? '#334155' : '#CBD5E1',
+    backgroundColor: isDarkMode ? colors.surface : '#F8FAFC',
   },
   title: {
     fontFamily: 'Poppins_700Bold',
@@ -263,7 +264,7 @@ const getStyles = (colors: ColorTheme, isDark: boolean) => StyleSheet.create({
   },
   titleCompleted: {
     textDecorationLine: 'line-through',
-    color: colors.textSecondary,
+    color: isDarkMode ? '#64748B' : '#94A3B8',
   },
   description: {
     fontFamily: 'Poppins_400Regular',
@@ -273,7 +274,8 @@ const getStyles = (colors: ColorTheme, isDark: boolean) => StyleSheet.create({
     marginBottom: 10,
   },
   descriptionCompleted: {
-    color: '#B0B9C6',
+    color: isDarkMode ? '#64748B' : '#94A3B8',
+    opacity: 0.8,
   },
   footerRow: {
     flexDirection: 'row',
@@ -291,17 +293,17 @@ const getStyles = (colors: ColorTheme, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.surface,
+    backgroundColor: isDarkMode ? colors.surface : '#F8FAFC',
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: isDarkMode ? colors.border : '#E2E8F0',
   },
   metaTagText: {
     fontFamily: 'Poppins_500Medium',
     fontSize: 11,
-    color: colors.textSecondary,
+    color: isDarkMode ? '#94A3B8' : '#475569',
   },
   durationTag: {
     backgroundColor: colors.secondaryLight,
@@ -309,12 +311,12 @@ const getStyles = (colors: ColorTheme, isDark: boolean) => StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor: isDark ? 'rgba(255, 148, 51, 0.3)' : '#FFD5B0',
+    borderColor: isDarkMode ? 'rgba(255, 148, 51, 0.3)' : '#FFD5B0',
   },
   durationText: {
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 10,
-    color: colors.secondary,
+    color: isDarkMode ? '#FF9433' : '#EA580C',
   },
   locationTag: {
     flexDirection: 'row',
