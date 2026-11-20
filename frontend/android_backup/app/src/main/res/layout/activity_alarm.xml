@@ -11,77 +11,114 @@
         android:layout_height="wrap_content"
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="56dp"
-        android:background="#22FF4D4D"
-        android:paddingHorizontal="20dp"
-        android:paddingVertical="8dp"
+        android:layout_marginTop="52dp"
+        android:paddingHorizontal="22dp"
+        android:paddingVertical="9dp"
         android:gravity="center"
         android:orientation="horizontal">
 
         <TextView
+            android:id="@+id/topPillText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="🚨 LOUD EVENT ALARM"
             android:textColor="#FF4D4D"
             android:textSize="12sp"
             android:textStyle="bold"
-            android:letterSpacing="0.1" />
+            android:letterSpacing="0.12" />
     </LinearLayout>
 
-    <!-- Central Hero Container -->
+    <!-- Central Hero Stage -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_centerInParent="true"
         android:gravity="center"
         android:orientation="vertical"
-        android:paddingHorizontal="28dp">
+        android:paddingHorizontal="24dp">
 
-        <!-- Glowing Alert Icon Badge -->
+        <!-- Bell Arena with Concentric Shockwave Rings -->
         <FrameLayout
-            android:layout_width="100dp"
-            android:layout_height="100dp"
-            android:background="#FF7A00"
-            android:layout_marginBottom="32dp">
+            android:id="@+id/bellArena"
+            android:layout_width="220dp"
+            android:layout_height="220dp"
+            android:layout_marginBottom="24dp">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="🔔"
-                android:textSize="48sp" />
+            <!-- Outer Radar Ring 2 -->
+            <View
+                android:id="@+id/pulseRing2"
+                android:layout_width="140dp"
+                android:layout_height="140dp"
+                android:layout_gravity="center" />
+
+            <!-- Outer Radar Ring 1 -->
+            <View
+                android:id="@+id/pulseRing1"
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:layout_gravity="center" />
+
+            <!-- Glowing Bell Card / Circle -->
+            <FrameLayout
+                android:id="@+id/bellBadge"
+                android:layout_width="110dp"
+                android:layout_height="110dp"
+                android:layout_gravity="center">
+
+                <!-- The swinging Bell Icon -->
+                <TextView
+                    android:id="@+id/bellIcon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="🔔"
+                    android:textSize="56sp"
+                    android:includeFontPadding="false" />
+            </FrameLayout>
+
         </FrameLayout>
 
-        <!-- Event Title -->
-        <TextView
-            android:id="@+id/alarmTitle"
-            android:layout_width="wrap_content"
+        <!-- Glassmorphic Info Card -->
+        <LinearLayout
+            android:id="@+id/infoCard"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Event Reminder"
-            android:textColor="#FFFFFF"
-            android:textSize="26sp"
-            android:textStyle="bold"
+            android:orientation="vertical"
             android:gravity="center"
-            android:layout_marginBottom="14dp" />
+            android:paddingHorizontal="22dp"
+            android:paddingVertical="24dp"
+            android:layout_marginBottom="32dp">
 
-        <!-- Event Description / Subtitle -->
-        <TextView
-            android:id="@+id/alarmBody"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Target deadline has arrived. Time to focus on your task!"
-            android:textColor="#CBD5E1"
-            android:textSize="16sp"
-            android:gravity="center"
-            android:lineSpacingExtra="4dp"
-            android:layout_marginBottom="44dp" />
+            <!-- Event Title -->
+            <TextView
+                android:id="@+id/alarmTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Event Reminder"
+                android:textColor="#FFFFFF"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Event Description / Subtitle -->
+            <TextView
+                android:id="@+id/alarmBody"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Target deadline has arrived. Time to focus on your task!"
+                android:textColor="#CBD5E1"
+                android:textSize="15sp"
+                android:gravity="center"
+                android:lineSpacingExtra="4dp" />
+
+        </LinearLayout>
 
         <!-- Stop Alarm Action Button -->
         <Button
             android:id="@+id/alarmDismiss"
             android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:backgroundTint="#FF7A00"
+            android:layout_height="62dp"
             android:textColor="#FFFFFF"
             android:text="STOP ALARM"
             android:textSize="17sp"

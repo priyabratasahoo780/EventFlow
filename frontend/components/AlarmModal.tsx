@@ -188,15 +188,19 @@ export default function AlarmModal({
         )
       );
 
-      // Physical ringing bell vibration
+      // Physical ringing bell vibration (high-energy pendulum swing)
       bellRotation.value = withRepeat(
         withSequence(
-          withTiming(-14, { duration: 80, easing: Easing.linear }),
-          withTiming(14, { duration: 80, easing: Easing.linear }),
-          withTiming(-10, { duration: 70, easing: Easing.linear }),
-          withTiming(10, { duration: 70, easing: Easing.linear }),
-          withTiming(0, { duration: 60, easing: Easing.linear }),
-          withDelay(600, withTiming(0, { duration: 10 }))
+          withTiming(-28, { duration: 85, easing: Easing.inOut(Easing.ease) }),
+          withTiming(28, { duration: 85, easing: Easing.inOut(Easing.ease) }),
+          withTiming(-22, { duration: 75, easing: Easing.inOut(Easing.ease) }),
+          withTiming(22, { duration: 75, easing: Easing.inOut(Easing.ease) }),
+          withTiming(-14, { duration: 65, easing: Easing.inOut(Easing.ease) }),
+          withTiming(14, { duration: 65, easing: Easing.inOut(Easing.ease) }),
+          withTiming(-6, { duration: 55, easing: Easing.inOut(Easing.ease) }),
+          withTiming(6, { duration: 55, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0, { duration: 50, easing: Easing.linear }),
+          withDelay(200, withTiming(0, { duration: 10 }))
         ),
         -1,
         false
@@ -204,9 +208,11 @@ export default function AlarmModal({
 
       bellScale.value = withRepeat(
         withSequence(
-          withTiming(1.08, { duration: 360, easing: Easing.out(Easing.quad) }),
-          withTiming(1, { duration: 360, easing: Easing.in(Easing.quad) }),
-          withDelay(600, withTiming(1, { duration: 10 }))
+          withTiming(1.15, { duration: 240, easing: Easing.out(Easing.back(1.5)) }),
+          withTiming(1.0, { duration: 240, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1.1, { duration: 180, easing: Easing.out(Easing.quad) }),
+          withTiming(1.0, { duration: 180, easing: Easing.inOut(Easing.ease) }),
+          withDelay(200, withTiming(1.0, { duration: 10 }))
         ),
         -1,
         false
@@ -311,20 +317,20 @@ export default function AlarmModal({
       <StatusBar style="light" />
 
       <View style={styles.root}>
-        {/* ── 1. Cosmic Aurora & Alert Gradient ──────────────────────── */}
+        {/*  1. Cosmic Aurora & Alert Gradient  */}
         <LinearGradient
           colors={['#070714', '#150A22', '#220814', '#070714']}
           locations={[0, 0.35, 0.7, 1]}
           style={StyleSheet.absoluteFill}
         />
 
-        {/* ── 2. Ambient Alert Glow Orbs ─────────────────────────────── */}
+        {/*  2. Ambient Alert Glow Orbs  */}
         <Animated.View style={[StyleSheet.absoluteFill, orbAnimStyle]} pointerEvents="none">
           <View style={styles.glowOrbTop} />
           <View style={styles.glowOrbBottom} />
         </Animated.View>
 
-        {/* ── 3. Content Stage ───────────────────────────────────────── */}
+        {/*  3. Content Stage  */}
         <View style={styles.stage}>
 
           {/* Alert Header Pill */}
@@ -351,7 +357,7 @@ export default function AlarmModal({
             <Text style={styles.clockPeriod}>{currentTime.period}</Text>
           </View>
 
-          {/* ── Ringing Bell Hero with Expanding Shockwaves ─────────── */}
+          {/*  Ringing Bell Hero with Expanding Shockwaves  */}
           <View style={[styles.bellArena, { width: BELL_ARENA, height: BELL_ARENA }]}>
             {/* Concentric Radar Rings */}
             <Animated.View style={[styles.shockwaveRing, ring1Style]} />
@@ -373,7 +379,7 @@ export default function AlarmModal({
             </View>
           </View>
 
-          {/* ── Task Details Glassmorphic Card ──────────────────────── */}
+          {/*  Task Details Glassmorphic Card  */}
           <Animated.View style={[styles.eventCard, cardAnimStyle]}>
             {/* Top Tag Row */}
             <View style={styles.cardHeaderRow}>
@@ -416,7 +422,7 @@ export default function AlarmModal({
             </View>
           </Animated.View>
 
-          {/* ── Action Buttons ───────────────────────────────────────── */}
+          {/*  Action Buttons  */}
           <View style={styles.actionsContainer}>
             {/* Primary Action: START TASK NOW */}
             <Pressable
@@ -462,7 +468,7 @@ export default function AlarmModal({
   );
 }
 
-// ─── Stylesheet ───────────────────────────────────────────────────────────────
+//  Stylesheet 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
