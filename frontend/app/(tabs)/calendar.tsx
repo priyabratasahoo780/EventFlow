@@ -20,7 +20,7 @@ import * as Haptics from 'expo-haptics';
 
 export default function CalendarScreen() {
   const router = useRouter();
-  const { getColors } = useThemeStore();
+  const { getColors, isDark } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
   const { events, toggleEventCompletion, deleteEvent } = useEventStore();
@@ -218,7 +218,15 @@ export default function CalendarScreen() {
             </View>
 
             {/* ── SELECTED DATE SUMMARY CARD ── */}
-            <LinearGradient colors={[colors.secondaryLight, colors.secondaryLight]} start={{x:0, y:0}} end={{x:1, y:0}} style={styles.summaryCard}>
+            <LinearGradient
+              colors={isDark ? ['rgba(255, 148, 51, 0.12)', 'rgba(255, 100, 0, 0.06)'] : [colors.secondaryLight, colors.secondaryLight]}
+              start={{x:0, y:0}}
+              end={{x:1, y:0}}
+              style={[
+                styles.summaryCard,
+                isDark && { borderWidth: 1, borderColor: 'rgba(255, 148, 51, 0.22)' },
+              ]}
+            >
               <View style={styles.summaryLeft}>
                 <View style={styles.summaryIconBox}>
                   <CalendarIcon color={colors.secondary} size={18} strokeWidth={2.5} />

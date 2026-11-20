@@ -22,7 +22,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "newArchEnabled": true,
-      "versionCode": 4,
+      "versionCode": 5,
       "permissions": [
         "SCHEDULE_EXACT_ALARM",
         "USE_EXACT_ALARM",

@@ -23,9 +23,9 @@ const getPriorityConfig = (colors: ColorTheme): Record<string, { strip: string; 
 });
 
 export default function EventCard({ event, onPress, onComplete }: EventCardProps) {
-  const { getColors } = useThemeStore();
+  const { getColors, isDark } = useThemeStore();
   const colors = getColors();
-  const styles = getStyles(colors);
+  const styles = getStyles(colors, isDark);
   const isCompleted = event.completed || event.status === 'completed';
   const isInProgress = event.status === 'in_progress';
   const PRIORITY_CONFIG = getPriorityConfig(colors);
@@ -153,7 +153,7 @@ export default function EventCard({ event, onPress, onComplete }: EventCardProps
   );
 }
 
-const getStyles = (colors: ColorTheme) => StyleSheet.create({
+const getStyles = (colors: ColorTheme, isDark: boolean) => StyleSheet.create({
   container: {
     marginHorizontal: 16,
     marginBottom: 12,
@@ -165,22 +165,22 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     flexDirection: 'row',
-    shadowColor: colors.secondary,
+    shadowColor: isDark ? '#000000' : colors.secondary,
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.09,
+    shadowOpacity: isDark ? 0.35 : 0.09,
     shadowRadius: 8,
     elevation: 3,
   },
   cardCompleted: {
-    backgroundColor: '#FAFAFA',
-    borderColor: colors.border,
+    backgroundColor: isDark ? '#111722' : '#F8F9FA',
+    borderColor: isDark ? '#1C2536' : colors.border,
     shadowOpacity: 0.03,
   },
   cardInProgress: {
-    borderColor: colors.primaryLight,
-    backgroundColor: '#FDFCFF',
+    borderColor: colors.primary,
+    backgroundColor: isDark ? 'rgba(107, 95, 242, 0.10)' : '#FDFCFF',
     shadowColor: colors.primary,
-    shadowOpacity: 0.08,
+    shadowOpacity: isDark ? 0.25 : 0.08,
   },
   priorityStrip: {
     width: 5,
@@ -251,8 +251,8 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     height: 22,
     borderRadius: 7,
     borderWidth: 2,
-    borderColor: '#D1D9E6',
-    backgroundColor: '#FAFAFA',
+    borderColor: isDark ? '#334155' : '#D1D9E6',
+    backgroundColor: isDark ? colors.surface : '#FAFAFA',
   },
   title: {
     fontFamily: 'Poppins_700Bold',
@@ -309,7 +309,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor: '#FFD5B0',
+    borderColor: isDark ? 'rgba(255, 148, 51, 0.3)' : '#FFD5B0',
   },
   durationText: {
     fontFamily: 'Poppins_600SemiBold',
