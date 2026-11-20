@@ -7,7 +7,7 @@ import {
   Animated, Dimensions, Easing,
 } from 'react-native';
 import { rs, ms, hs, SCREEN } from '../../constants/responsive';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEventStore } from '../../store/useEventStore';
@@ -73,6 +73,7 @@ const getPriorityConfig = (colors: ColorTheme): Record<string, { strip: string; 
 
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { getColors } = useThemeStore();
   const colors = getColors();
   const s = useMemo(() => getStyles(colors), [colors]);
@@ -1548,7 +1549,7 @@ export default function HomeScreen() {
       >
         <View style={s.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowFilterModal(false)} />
-          <View style={s.filterModalCard}>
+          <View style={[s.filterModalCard, { paddingBottom: Math.max(insets.bottom + 24, 48) }]}>
             <View style={s.filterModalHandle} />
 
             <View style={s.filterModalHeader}>
@@ -2577,7 +2578,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 32,
+    paddingBottom: 48,
     maxHeight: SCREEN.height * 0.85,
     borderWidth: 1.5,
     borderColor: colors.border,
