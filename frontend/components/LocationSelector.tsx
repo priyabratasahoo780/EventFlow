@@ -158,8 +158,8 @@ export default function LocationSelector({ value, onChangeLocation, radius = 500
             <MapPin color={colors.primary} size={18} strokeWidth={2.4} />
           </View>
           <View style={styles.headerTexts}>
-            <Text style={styles.label}>Location & Arrival Geofence</Text>
-            <Text style={styles.hint}>Triggers alarm when you reach</Text>
+            <Text style={styles.label}>Target Location</Text>
+            <Text style={styles.hint}>Search address, use GPS, or pin on map</Text>
           </View>
         </View>
 
@@ -269,48 +269,12 @@ export default function LocationSelector({ value, onChangeLocation, radius = 500
         </Pressable>
       </View>
 
-      {/* RADIUS SELECTOR */}
-      <View style={styles.radiusContainer}>
-        <View style={styles.radiusHeader}>
-          <Text style={styles.radiusLabel}>Remind within:</Text>
-          <Text style={styles.radiusValueTag}>
-            {radius < 1000 ? `${radius}m` : `${radius / 1000}km`}
-          </Text>
-        </View>
-
-        <View style={styles.radiusChips}>
-          {RADII.map((r) => {
-            const isSelected = radius === r.val;
-            return (
-              <Pressable
-                key={r.val}
-                style={({ pressed }) => [
-                  styles.radiusChip,
-                  isSelected && styles.radiusChipActive,
-                  pressed && { opacity: 0.8 },
-                ]}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  if (onChangeRadius) onChangeRadius(r.val);
-                }}
-              >
-                <Text style={[styles.radiusText, isSelected && styles.radiusTextActive]}>
-                  {r.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* ACTIVE GEOFENCE BADGE */}
-      {coords.lat && coords.lng ? (
-        <View style={styles.coordsBadge}>
-          <View style={styles.coordsBadgeIconWrap}>
-            <Check color="#FFF" size={12} strokeWidth={3} />
-          </View>
-          <Text style={styles.coordsText}>
-            📍 Proximity Geofence Active (within {radius < 1000 ? `${radius}m` : `${radius / 1000}km`} of destination)
+      {/* PINNED LOCATION STATUS */}
+      {value ? (
+        <View style={styles.pinnedStatus}>
+          <View style={styles.pinnedDot} />
+          <Text style={styles.pinnedText} numberOfLines={1}>
+            Pinned: {value}
           </Text>
         </View>
       ) : null}
@@ -545,84 +509,29 @@ const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create
     color: '#FFF',
     letterSpacing: 0.5,
   },
-  radiusContainer: {
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0',
-  },
-  radiusHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  radiusLabel: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11.5,
-    color: colors.textSecondary,
-  },
-  radiusValueTag: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 11.5,
-    color: colors.primary,
-  },
-  radiusChips: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  radiusChip: {
-    flex: 1,
-    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : colors.card,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radiusChipActive: {
-    backgroundColor: isDarkMode ? colors.primary : '#0F172A',
-    borderColor: isDarkMode ? colors.primary : '#0F172A',
-    shadowColor: isDarkMode ? colors.primary : '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  radiusText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  radiusTextActive: {
-    color: '#FFF',
-    fontFamily: 'Poppins_700Bold',
-  },
-  coordsBadge: {
+  pinnedStatus: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#DCFCE7',
+    backgroundColor: isDarkMode ? 'rgba(99, 102, 241, 0.15)' : '#EDEAFD',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.35)' : '#86EFAC',
-    marginTop: 12,
+    borderColor: isDarkMode ? 'rgba(99, 102, 241, 0.3)' : '#DDD9F9',
+    marginTop: 10,
   },
-  coordsBadgeIconWrap: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#16A34A',
-    alignItems: 'center',
-    justifyContent: 'center',
+  pinnedDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
   },
-  coordsText: {
+  pinnedText: {
     flex: 1,
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11,
-    color: isDarkMode ? '#4ADE80' : '#15803D',
+    fontSize: 11.5,
+    color: colors.primary,
   },
 });
 
