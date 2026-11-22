@@ -12,6 +12,7 @@ import { socketService } from '../services/socketService';
 import { geofencingService } from '../services/geofencingService';
 import { zenModeService } from '../services/zenModeService';
 import { behaviorService } from '../services/behaviorService';
+import { alarmService } from '../services/alarmService';
 import { useCelebrationStore } from './useCelebrationStore';
 
 // ─── Edge Case Fix #1: UTC-Aware Deadline Parser ─────────────────────────────
@@ -364,10 +365,14 @@ export const useEventStore = create<EventState>((set, get) => ({
       }
       // ─────────────────────────────────────────────────────────────────────────
 
-      // Cancel pending alarms & notifications if completed
+      // Cancel pending alarms, notifications & geofences if completed
       const idsToCancel = targetEvent.reminders ? targetEvent.reminders.flatMap(r => r.notificationIds || []) : [];
       await notificationService.cancelEventNotifications(id, idsToCancel);
       await geofencingService.stopGeofence(id);
+      await alarmService.cancelAlarm(id);
+      if (idsToCancel.length > 0) {
+        await alarmService.cancelEventAlarms(idsToCancel);
+      }
     }
 
     const isCompleted = resolvedStatus === 'completed' || resolvedStatus === 'late_completed';
