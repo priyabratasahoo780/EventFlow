@@ -3,10 +3,12 @@ import * as Location from 'expo-location';
 import * as Notifications from '../mock-expo-notifications';
 import { Event } from '../models/Event';
 import { priorityService } from '../services/priorityService';
+import { alarmService } from '../services/alarmService';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const TRIGGERED_KEY = '@eventflow_geofence_triggered';
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // Load cooldown timestamps from storage
 async function loadTriggered(): Promise<Record<string, number>> {
@@ -128,6 +130,27 @@ export function useLocation(tasks: Event[] = []) {
         const createdAt = task.createdAt ? new Date(task.createdAt).getTime() : now;
         if (now - createdAt < 30000) continue;
 
+        // EC2: Respect Time-Gate window if configured
+        if (task.locationTimeGate) {
+          const currentDate = new Date();
+          const currentHour = currentDate.getHours();
+          const currentDay = WEEKDAY_NAMES[currentDate.getDay()];
+          const { startHour, endHour, days } = task.locationTimeGate;
+
+          const isSameDayGate = startHour <= endHour;
+          let isTimeValid = false;
+
+          if (isSameDayGate) {
+            isTimeValid = currentHour >= startHour && currentHour < endHour;
+          } else {
+            isTimeValid = currentHour >= startHour || currentHour < endHour;
+          }
+
+          if (!days.includes(currentDay) || !isTimeValid) {
+            continue; // Outside allowed time-gate window
+          }
+        }
+
         const targetRadius = (task.locationDetails as any).radius || task.geofenceRadius || 500;
         const dist = priorityService.getDistance(
           userCoords.latitude,
@@ -168,6 +191,17 @@ export function useLocation(tasks: Event[] = []) {
                   } as any,
                   trigger: null,
                 });
+
+                if (task.isCritical) {
+                  await alarmService.scheduleAlarm(
+                    `geo_arr_${task.id}_${Date.now()}`,
+                    Date.now() + 1000,
+                    `🚨 Arrived at ${locationLabel}`,
+                    `Critical Task: ${task.title}`,
+                    task.id,
+                    true
+                  );
+                }
               } catch (notifyErr) {
                 console.warn('Geofence arrival notification error:', notifyErr);
               }
@@ -193,7 +227,7 @@ export function useLocation(tasks: Event[] = []) {
                 const locationLabel = task.location || 'Your Destination';
                 await Notifications.scheduleNotificationAsync({
                   content: {
-                    title: `🚶 Leaving ${locationLabel}`,
+                    title: `🚶 Leaving ${locationLabel}!`,
                     body: `Don't forget: "${task.title}" is associated with this location!`,
                     data: { eventId: task.id, type: 'geofence', triggerType: 'leave' },
                     sound: 'default',
@@ -202,6 +236,17 @@ export function useLocation(tasks: Event[] = []) {
                   } as any,
                   trigger: null,
                 });
+
+                if (task.isCritical) {
+                  await alarmService.scheduleAlarm(
+                    `geo_lev_${task.id}_${Date.now()}`,
+                    Date.now() + 1000,
+                    `🚨 Leaving ${locationLabel}`,
+                    `Critical Task: ${task.title}`,
+                    task.id,
+                    true
+                  );
+                }
               } catch (notifyErr) {
                 console.warn('Geofence leave notification error:', notifyErr);
               }

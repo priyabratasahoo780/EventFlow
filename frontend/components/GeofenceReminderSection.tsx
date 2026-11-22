@@ -89,7 +89,7 @@ function anim() {
   LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 }
 
-// ─── Main Component ──────────────────────────────────────────────────────────
+//  Main Component 
 
 export default function GeofenceReminderSection({ config, hasLocation, onChange }: Props) {
   const { isDark } = useThemeStore();
@@ -99,7 +99,7 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
 
   const [checklistInput, setChecklistInput] = useState('');
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
+  //  Handlers 
 
   const setEnabled = (v: boolean) => {
     if (!hasLocation && v) return;
@@ -131,12 +131,12 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
 
   const timeGateInvalid = config.timeGateEnabled && config.timeGateEndHour <= config.timeGateStartHour;
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  //  Render 
 
   return (
     <View style={s.card}>
 
-      {/* ══ HEADER + MASTER TOGGLE ══════════════════════════════════════════ */}
+      {/*  HEADER + MASTER TOGGLE  */}
       <View style={s.headerRow}>
         <View style={[s.iconBox, { backgroundColor: dark ? 'rgba(99,102,241,0.18)' : '#EDEAFD' }]}>
           <MapPin color={dark ? '#A78BFA' : '#6366F1'} size={18} strokeWidth={2.3} />
@@ -164,11 +164,11 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
         />
       </View>
 
-      {/* ══ BODY ════════════════════════════════════════════════════════════ */}
+      {/*  BODY */}
       {config.locationReminderEnabled && (
         <View style={s.body}>
 
-          {/* ── TRIGGER ──────────────────────────────────────────────────── */}
+          {/*  TRIGGER  */}
           <View style={s.section}>
             <Text style={s.sLabel}>TRIGGER WHEN I...</Text>
             <View style={s.segWrap}>
@@ -195,7 +195,7 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             </View>
           </View>
 
-          {/* ── RADIUS ───────────────────────────────────────────────────── */}
+          {/* ── RADIUS */}
           <View style={s.section}>
             <View style={s.rowBetween}>
               <Text style={s.sLabel}>RADIUS</Text>

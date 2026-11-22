@@ -24,15 +24,36 @@ function getDistanceFromLatLonInM(lat1: number, lon1: number, lat2: number, lon2
 }
 
 // ─── Shared alarm-fire helper ──────────────────────────────────────────────────
-async function fireLocationAlarm(event: Event, triggeredTasks: Record<string, boolean>, taskId: string) {
+async function fireLocationAlarm(
+  event: Event,
+  triggeredTasks: Record<string, boolean>,
+  taskId: string,
+  triggerType: 'arrive' | 'leave' = 'arrive'
+) {
   const alarmService = require('./alarmService').alarmService;
+  const isArrive = triggerType === 'arrive';
+  const locationLabel = event.location || 'Location';
+
+  const notifTitle = isArrive
+    ? `📍 Arrived Near ${locationLabel}!`
+    : `🚶 Leaving ${locationLabel}!`;
+
+  const notifBody = isArrive
+    ? `Task: "${event.title}" is linked to this location. Ready to start?`
+    : `Don't forget: "${event.title}" is linked to this location before you go!`;
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: `📍 Location Reminder`,
-      body: `You're near ${event.location || 'the location'}.\n\nTask: ${event.title}\nDon't forget to complete this task.`,
+      title: notifTitle,
+      body: notifBody,
       sound: true,
-      data: { eventId: event.id || event._id },
+      priority: Notifications.AndroidNotificationPriority.MAX,
+      vibrate: isArrive ? [0, 300, 200, 300] : [0, 250, 150, 250],
+      data: {
+        eventId: event.id || event._id,
+        triggerType,
+        type: 'geofence',
+      },
     },
     trigger: null,
   });
@@ -41,21 +62,20 @@ async function fireLocationAlarm(event: Event, triggeredTasks: Record<string, bo
   await alarmService.scheduleAlarm(
     `geo_${taskId}_${Date.now()}`,
     Date.now() + 1000,
-    '📍 Location Alarm',
-    `Task: ${event.title}\nLocation: ${event.location || 'Unknown'}`,
+    notifTitle,
+    `Task: ${event.title}\nLocation: ${locationLabel}`,
     (event.id || event._id) as string,
     event.isCritical ?? false
   );
 
   triggeredTasks[taskId] = true;
   await AsyncStorage.setItem(TRIGGERED_TASKS_KEY, JSON.stringify(triggeredTasks));
-  console.log(`[Smart Context] 🔔 Alarm fired for task "${event.title}"`);
+  console.log(`[Smart Context] 🔔 Alarm fired (${triggerType}) for task "${event.title}"`);
 
   // ── Geofence Buddy Alert ─────────────────────────────────────────────────
-  // If this is a shared task, notify the owner and other members that I'm near.
-  // This runs fire-and-forget so it never blocks or delays the alarm above.
+  // If this is a shared task, notify the owner and other members that I'm near / leaving.
   if (event.sharedWith && (event.sharedWith as string[]).length > 0) {
-    api.post(`/tasks/${event.id || event._id}/buddy-near`, {}).catch((err: any) => {
+    api.post(`/tasks/${event.id || event._id}/buddy-near`, { triggerType }).catch((err: any) => {
       console.warn('[Buddy Alert] Could not notify task members:', err?.message);
     });
   }
@@ -91,61 +111,103 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
     const event = events.find((e: Event) => e.id === taskId || e._id === taskId);
     if (!event || !event.locationReminderEnabled) return;
 
-    const expectedTrigger = event.triggerType === 'leave'
-      ? Location.GeofencingEventType.Exit
-      : Location.GeofencingEventType.Enter;
+    const isLeave = event.triggerType === 'leave';
 
-    // ── ON EXIT ─────────────────────────────────────────────────────────────
+    // ── CASE A: EVENT TRIGGER TYPE IS 'LEAVE' ─────────────────────────────────
+    if (isLeave) {
+      if (eventType === Location.GeofencingEventType.Enter) {
+        // User entered the location: prime the leave trigger by resetting triggered state
+        if (triggeredTasks[taskId]) {
+          delete triggeredTasks[taskId];
+          await AsyncStorage.setItem(TRIGGERED_TASKS_KEY, JSON.stringify(triggeredTasks));
+          console.log(`[Smart Context] 📍 Entered geofence for Leave task "${event.title}". Primed to trigger on exit.`);
+        }
+        return;
+      }
+
+      if (eventType === Location.GeofencingEventType.Exit) {
+        // User is leaving the location: this is the trigger!
+        if (triggeredTasks[taskId]) {
+          console.log(`[Smart Context] 🚶 Leave task "${event.title}" already triggered.`);
+          return;
+        }
+
+        // Time-Gate check for leave
+        if (event.locationTimeGate) {
+          const now = new Date();
+          const currentHour = now.getHours();
+          const currentDay = WEEKDAY_NAMES[now.getDay()];
+          const { startHour, endHour, days } = event.locationTimeGate;
+
+          const isSameDayGate = startHour <= endHour;
+          let isTimeValid = false;
+
+          if (isSameDayGate) {
+            isTimeValid = currentHour >= startHour && currentHour < endHour;
+          } else {
+            isTimeValid = currentHour >= startHour || currentHour < endHour;
+          }
+
+          if (!days.includes(currentDay) || !isTimeValid) {
+            console.log(`[Smart Context] EC2: ⏰ Time gate blocked for leave task "${event.title}".`);
+            return;
+          }
+        }
+
+        // Fire leave alarm!
+        await fireLocationAlarm(event, triggeredTasks, taskId, 'leave');
+        return;
+      }
+    }
+
+    // ── CASE B: EVENT TRIGGER TYPE IS 'ARRIVE' ────────────────────────────────
+    // On exit: clear triggered tasks so user can receive arrival alarm again next time
     if (eventType === Location.GeofencingEventType.Exit) {
       if (pendingExitTasks[taskId]) {
-        // EC4: User physically left after a Pending-Exit snooze — reset triggered so
-        // the alarm re-fires on their next entry.
         delete pendingExitTasks[taskId];
         delete triggeredTasks[taskId];
         await AsyncStorage.setItem(PENDING_EXIT_KEY, JSON.stringify(pendingExitTasks));
         await AsyncStorage.setItem(TRIGGERED_TASKS_KEY, JSON.stringify(triggeredTasks));
-        console.log(`[Smart Context] EC4: 🚶 "${event.title}" exited. Pending-exit cleared — ready to re-trigger on re-entry.`);
+        console.log(`[Smart Context] EC4: 🚶 "${event.title}" exited. Ready to re-trigger on next arrival.`);
         return;
       }
-      // Normal exit: clear triggered so alarm can fire again on next arrival
       if (triggeredTasks[taskId]) {
         delete triggeredTasks[taskId];
         await AsyncStorage.setItem(TRIGGERED_TASKS_KEY, JSON.stringify(triggeredTasks));
+        console.log(`[Smart Context] 🚶 Reset arrive trigger for "${event.title}" after exit.`);
       }
       return;
     }
 
-    // ── ON ENTER ────────────────────────────────────────────────────────────
-    if (eventType !== expectedTrigger) return;
+    // On enter: verify if arrival alarm should fire
+    if (eventType !== Location.GeofencingEventType.Enter) return;
     if (triggeredTasks[taskId]) return; // Already triggered
 
     // ==== EC1: Drive-By Prevention (Speed & 3-min Dwell Time) ====
-    if (expectedTrigger === Location.GeofencingEventType.Enter) {
-      let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      let speedMPH = (loc.coords.speed || 0) * 2.23694;
-      console.log(`[Smart Context] EC1: Enter detected — speed ${speedMPH.toFixed(1)} mph`);
+    let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    let speedMPH = (loc.coords.speed || 0) * 2.23694;
+    console.log(`[Smart Context] EC1: Enter detected — speed ${speedMPH.toFixed(1)} mph`);
 
-      if (speedMPH > 15) {
-        console.log(`[Smart Context] EC1: 🚗 Drive-by suspected. Waiting 3 min for dwell check...`);
-        await new Promise(resolve => setTimeout(resolve, 3 * 60 * 1000));
+    if (speedMPH > 15) {
+      console.log(`[Smart Context] EC1: 🚗 Drive-by suspected. Waiting 3 min for dwell check...`);
+      await new Promise(resolve => setTimeout(resolve, 3 * 60 * 1000));
 
-        loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        speedMPH = (loc.coords.speed || 0) * 2.23694;
-        const distance = getDistanceFromLatLonInM(
-          loc.coords.latitude, loc.coords.longitude,
-          region.latitude, region.longitude
-        );
+      loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      speedMPH = (loc.coords.speed || 0) * 2.23694;
+      const distance = getDistanceFromLatLonInM(
+        loc.coords.latitude, loc.coords.longitude,
+        region.latitude, region.longitude
+      );
 
-        if (distance > region.radius) {
-          console.log(`[Smart Context] EC1: ❌ Left during dwell (${distance.toFixed(0)}m > ${region.radius}m). Aborted.`);
-          return;
-        }
-        if (speedMPH > 15) {
-          console.log(`[Smart Context] EC1: ❌ Still moving at ${speedMPH.toFixed(1)} mph. Aborted.`);
-          return;
-        }
-        console.log(`[Smart Context] EC1: ✅ Dwell check passed. Continuing...`);
+      if (distance > region.radius) {
+        console.log(`[Smart Context] EC1: ❌ Left during dwell (${distance.toFixed(0)}m > ${region.radius}m). Aborted.`);
+        return;
       }
+      if (speedMPH > 15) {
+        console.log(`[Smart Context] EC1: ❌ Still moving at ${speedMPH.toFixed(1)} mph. Aborted.`);
+        return;
+      }
+      console.log(`[Smart Context] EC1: ✅ Dwell check passed. Continuing...`);
     }
     // =============================================================
 
@@ -160,10 +222,8 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
       let isTimeValid = false;
 
       if (isSameDayGate) {
-        // Normal case (e.g., 9 AM to 5 PM)
         isTimeValid = currentHour >= startHour && currentHour < endHour;
       } else {
-        // Midnight wrap-around case (e.g., 10 PM to 6 AM)
         isTimeValid = currentHour >= startHour || currentHour < endHour;
       }
 
@@ -172,7 +232,7 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
           `[Smart Context] EC2: ⏰ Time gate blocked — ${currentDay} ${currentHour}:xx ` +
           `is outside allowed windows. Alarm skipped.`
         );
-        return; // <--- Aborts the alarm!
+        return;
       }
       console.log(`[Smart Context] EC2: ✅ Time gate passed — ${currentDay} ${currentHour}:xx is allowed.`);
     }
@@ -183,13 +243,13 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
       console.log(`[Smart Context] EC4: 🔁 Re-entry for pending_exit task "${event.title}". Firing alarm.`);
       delete pendingExitTasks[taskId];
       await AsyncStorage.setItem(PENDING_EXIT_KEY, JSON.stringify(pendingExitTasks));
-      await fireLocationAlarm(event, triggeredTasks, taskId);
+      await fireLocationAlarm(event, triggeredTasks, taskId, 'arrive');
       return;
     }
     // =================================================
 
-    // All checks passed — fire alarm
-    await fireLocationAlarm(event, triggeredTasks, taskId);
+    // All checks passed — fire arrive alarm
+    await fireLocationAlarm(event, triggeredTasks, taskId, 'arrive');
 
   } catch (e) {
     console.error('[Smart Context] Failed to handle geofencing event:', e);

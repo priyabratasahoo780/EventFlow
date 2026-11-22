@@ -198,21 +198,33 @@ export default function LocationArrivalModal({
               onPress={handleStart}
             >
               <CheckCircle2 color="#FFF" size={20} strokeWidth={2.5} />
-              <Text style={styles.startBtnText}>START TASK NOW</Text>
+              <Text style={styles.startBtnText}>
+                {isArrive ? 'START TASK NOW' : 'VIEW TASK & DETAILS'}
+              </Text>
             </Pressable>
 
-            {/* EC4: Smart Snooze Button */}
+            {/* EC4: Smart Snooze & Dismiss Row */}
             {!showSnoozeMenu ? (
-              <Pressable
-                style={({ pressed }) => [styles.snoozeBtn, { opacity: pressed ? 0.7 : 1 }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowSnoozeMenu(true);
-                }}
-              >
-                <AlarmClock color={colors.textSecondary} size={18} strokeWidth={2.5} />
-                <Text style={styles.snoozeBtnText}>SNOOZE</Text>
-              </Pressable>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <Pressable
+                  style={({ pressed }) => [styles.snoozeBtn, { flex: 1, opacity: pressed ? 0.7 : 1 }]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowSnoozeMenu(true);
+                  }}
+                >
+                  <AlarmClock color={colors.textSecondary} size={17} strokeWidth={2.4} />
+                  <Text style={styles.snoozeBtnText}>SNOOZE</Text>
+                </Pressable>
+
+                <Pressable
+                  style={({ pressed }) => [styles.dismissBtn, { flex: 1, opacity: pressed ? 0.7 : 1 }]}
+                  onPress={handleDismiss}
+                >
+                  <X color={colors.textSecondary} size={17} strokeWidth={2.4} />
+                  <Text style={styles.dismissBtnText}>DISMISS</Text>
+                </Pressable>
+              </View>
             ) : (
               <View style={styles.snoozeMenu}>
                 <Text style={styles.snoozeMenuTitle}>⏱ Snooze until...</Text>
