@@ -26,6 +26,7 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Animated, {
   useSharedValue,
@@ -73,6 +74,17 @@ export default function AlarmModal({
   onStartTask,
   onSnooze,
 }: Props) {
+  const insets = useSafeAreaInsets();
+  const isShortScreen = SCREEN_HEIGHT < 720;
+  const topPadding = Math.max(
+    insets.top + (Platform.OS === 'ios' ? 12 : 16),
+    Platform.OS === 'ios' ? 56 : 48
+  );
+  const bottomPadding = Math.max(
+    insets.bottom + (Platform.OS === 'android' ? 24 : 16),
+    Platform.OS === 'android' ? 76 : 48
+  );
+
   const { isDark } = useThemeStore();
   const isDarkMode = isDark();
 
@@ -304,7 +316,7 @@ export default function AlarmModal({
     return null;
   }
 
-  const BELL_ARENA = 140;
+  const BELL_ARENA = isShortScreen ? 115 : 135;
 
   return (
     <Modal
@@ -331,7 +343,7 @@ export default function AlarmModal({
         </Animated.View>
 
         {/*  3. Content Stage  */}
-        <View style={styles.stage}>
+        <View style={[styles.stage, { paddingTop: topPadding, paddingBottom: bottomPadding }]}>
 
           {/* Alert Header Pill */}
           <View style={styles.alertPillContainer}>
@@ -503,8 +515,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: Platform.OS === 'ios' ? 60 : 44,
-    paddingBottom: Platform.OS === 'ios' ? 44 : 28,
   },
 
   // Alert Pill Header
@@ -543,7 +553,7 @@ const styles = StyleSheet.create({
   },
   clockNumbers: {
     fontFamily: 'Poppins_800ExtraBold',
-    fontSize: 54,
+    fontSize: SCREEN_HEIGHT < 720 ? 46 : 52,
     color: '#FFFFFF',
     letterSpacing: -1,
   },
@@ -557,12 +567,12 @@ const styles = StyleSheet.create({
   bellArena: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 10,
+    marginVertical: SCREEN_HEIGHT < 720 ? 4 : 8,
   },
   shockwaveRing: {
     position: 'absolute',
-    width: 140,
-    height: 140,
+    width: '100%',
+    height: '100%',
     borderRadius: 70,
     borderWidth: 2,
     borderColor: 'rgba(255, 122, 0, 0.65)',
@@ -588,11 +598,11 @@ const styles = StyleSheet.create({
   eventCard: {
     width: '100%',
     backgroundColor: 'rgba(26, 26, 46, 0.85)',
-    borderRadius: 26,
+    borderRadius: 24,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 122, 0, 0.28)',
-    padding: 20,
-    gap: 12,
+    padding: SCREEN_HEIGHT < 720 ? 14 : 18,
+    gap: SCREEN_HEIGHT < 720 ? 8 : 10,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.4,
