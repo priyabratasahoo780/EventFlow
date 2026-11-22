@@ -1,12 +1,4 @@
-/**
- * withAlarmManager.js
- * Expo Config Plugin — ensures AlarmReceiver, AlarmActivity, and all
- * required permissions are in the generated AndroidManifest.xml when
- * running `npx expo run:android` or `eas build`.
- *
- * NOTE: The android_backup folder already contains these edits.
- * This plugin handles FRESH `npx expo prebuild` regeneration.
- */
+// Config plugin for AlarmReceiver, AlarmActivity, and permissions
 const { withAndroidManifest, withDangerousMod } = require("@expo/config-plugins");
 const path = require("path");
 const fs = require("fs");

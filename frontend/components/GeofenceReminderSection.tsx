@@ -1,15 +1,4 @@
-/**
- * GeofenceReminderSection.tsx  — v3 Perfect UI/UX
- * ─────────────────────────────────────────────────────────────────────────────
- * Completely redesigned layout:
- *  • FROM / UNTIL hours → stacked columns with consistent 3-per-row grids
- *  • Active Days → evenly spaced full-width pill row
- *  • Critical Task & Checklist → polished card rows
- *  • Full Light + Dark mode
- *  • LayoutAnimation on expand/collapse
- * ─────────────────────────────────────────────────────────────────────────────
- */
-
+// Geofence Reminder Section
 import React, { useState } from 'react';
 import {
   View,

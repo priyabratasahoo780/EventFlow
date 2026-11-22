@@ -1,10 +1,4 @@
-/**
- * server.js — EventFlow API Entry Point
- * ─────────────────────────────────────────────────────────────────────────────
- * Bootstraps the HTTP server, validates environment, wires socket.io,
- * and starts listening. All socket and app config lives in src/.
- */
-
+// EventFlow API Server Entry Point
 require('dotenv').config();
 
 const http = require('http');

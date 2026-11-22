@@ -1,12 +1,4 @@
-/**
- * alarmService.ts
- * ────────────────────────────────────────────────────────────────────────────
- * JavaScript API over the native AlarmManagerModule (Kotlin).
- *
- * Works ONLY in a custom Development Build / APK  (not in Expo Go).
- * Falls back gracefully (no-op) on iOS or when module is unavailable.
- */
-
+// AlarmService API for native Android AlarmManagerModule
 import { NativeModules, Platform, Alert } from "react-native";
 import { Event, ReminderConfig } from "../models/Event";
 import { subMinutes, subHours, subDays } from "date-fns";
