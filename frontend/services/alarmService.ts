@@ -29,7 +29,7 @@ const { AlarmManagerModule } = NativeModules as {
 
 const isAvailable = Platform.OS === "android" && !!AlarmManagerModule;
 
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 export const alarmService = {
   /** Check & request exact alarm permission (Android 12+). */

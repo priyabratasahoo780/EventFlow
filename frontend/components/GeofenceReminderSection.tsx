@@ -1,4 +1,4 @@
-// Geofence Reminder Section
+// Geofence Reminder Section — Ultra Polished UI/UX
 import React, { useState } from 'react';
 import {
   View,
@@ -10,7 +10,6 @@ import {
   LayoutAnimation,
   UIManager,
   Platform,
-  ScrollView,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
@@ -21,7 +20,12 @@ import {
   Plus,
   Navigation2,
   List,
-  ChevronRight,
+  Minus,
+  Check,
+  Briefcase,
+  Sun,
+  Sunset,
+  Moon,
 } from 'lucide-react-native';
 import { useThemeStore } from '../store/useThemeStore';
 import { ChecklistItem } from '../models/Event';
@@ -29,8 +33,6 @@ import { ChecklistItem } from '../models/Event';
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
-
-//  Types
 
 export interface GeofenceConfig {
   locationReminderEnabled: boolean;
@@ -50,35 +52,43 @@ interface Props {
   onChange: (updated: Partial<GeofenceConfig>) => void;
 }
 
-// Constants 
-
 const RADII = [
-  { label: '100m',  val: 100  },
-  { label: '250m',  val: 250  },
-  { label: '500m',  val: 500  },
-  { label: '1km',   val: 1000 },
+  { label: '100m', val: 100 },
+  { label: '250m', val: 250 },
+  { label: '500m', val: 500 },
+  { label: '1km', val: 1000 },
 ];
 
-// 3-per-row for FROM (6 → 12 = 7 hours)
-const FROM_HOURS  = [6, 7, 8, 9, 10, 11, 12];
-// 2-per-row for UNTIL (13 → 20 = 8 hours)
+const PRESETS = [
+  { label: 'Work (9-5)', icon: Briefcase, start: 9, end: 17 },
+  { label: 'Morning (8-1)', icon: Sun, start: 8, end: 13 },
+  { label: 'Evening (5-9)', icon: Sunset, start: 17, end: 21 },
+  { label: 'All Day', icon: Moon, start: 0, end: 24 },
+];
+
+const FROM_HOURS = [6, 7, 8, 9, 10, 11, 12];
 const UNTIL_HOURS = [13, 14, 15, 16, 17, 18, 19, 20];
 
 const DAYS = [
-  { key: 'Monday',    short: 'Mon' },
-  { key: 'Tuesday',   short: 'Tue' },
+  { key: 'Monday', short: 'Mon' },
+  { key: 'Tuesday', short: 'Tue' },
   { key: 'Wednesday', short: 'Wed' },
-  { key: 'Thursday',  short: 'Thu' },
-  { key: 'Friday',    short: 'Fri' },
-  { key: 'Saturday',  short: 'Sat' },
-  { key: 'Sunday',    short: 'Sun' },
+  { key: 'Thursday', short: 'Thu' },
+  { key: 'Friday', short: 'Fri' },
+  { key: 'Saturday', short: 'Sat' },
+  { key: 'Sunday', short: 'Sun' },
 ];
+
+const formatHourDisplay = (h: number): string => {
+  if (h === 0 || h === 24) return '12:00 AM';
+  if (h === 12) return '12:00 PM';
+  if (h > 12) return `${h - 12}:00 PM`;
+  return `${h}:00 AM`;
+};
 
 function anim() {
   LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 }
-
-//  Main Component 
 
 export default function GeofenceReminderSection({ config, hasLocation, onChange }: Props) {
   const { isDark } = useThemeStore();
@@ -87,8 +97,6 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
   const s = styles(dark);
 
   const [checklistInput, setChecklistInput] = useState('');
-
-  //  Handlers 
 
   const setEnabled = (v: boolean) => {
     if (!hasLocation && v) return;
@@ -107,39 +115,49 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
 
   const removeItem = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onChange({ checklist: config.checklist.filter(ci => ci.id !== id) });
+    onChange({ checklist: config.checklist.filter((ci) => ci.id !== id) });
   };
 
   const toggleDay = (key: string) => {
     Haptics.selectionAsync();
     const next = config.timeGateDays.includes(key)
-      ? config.timeGateDays.filter(d => d !== key)
+      ? config.timeGateDays.filter((d) => d !== key)
       : [...config.timeGateDays, key];
     onChange({ timeGateDays: next });
   };
 
-  const timeGateInvalid = config.timeGateEnabled && config.timeGateEndHour <= config.timeGateStartHour;
+  const stepHour = (type: 'start' | 'end', delta: number) => {
+    Haptics.selectionAsync();
+    if (type === 'start') {
+      const next = Math.max(0, Math.min(23, config.timeGateStartHour + delta));
+      onChange({ timeGateStartHour: next });
+    } else {
+      const next = Math.max(1, Math.min(24, config.timeGateEndHour + delta));
+      onChange({ timeGateEndHour: next });
+    }
+  };
 
-  //  Render 
+  const timeGateInvalid =
+    config.timeGateEnabled &&
+    config.timeGateStartHour !== 0 &&
+    config.timeGateEndHour !== 24 &&
+    config.timeGateEndHour <= config.timeGateStartHour;
 
   return (
     <View style={s.card}>
-
-      {/*  HEADER + MASTER TOGGLE  */}
+      {/* ── 1. MASTER HEADER & TOGGLE ── */}
       <View style={s.headerRow}>
-        <View style={[s.iconBox, { backgroundColor: dark ? 'rgba(99,102,241,0.18)' : '#EDEAFD' }]}>
-          <MapPin color={dark ? '#A78BFA' : '#6366F1'} size={18} strokeWidth={2.3} />
+        <View style={s.iconBox}>
+          <MapPin color={dark ? '#A78BFA' : '#6366F1'} size={18} strokeWidth={2.4} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[s.headerTitle, { color: dark ? '#A78BFA' : '#4F46E5' }]}>
-            Location Reminder
-          </Text>
+          <Text style={s.headerTitle}>Location Reminder</Text>
           <Text style={s.headerSub} numberOfLines={1}>
             {!hasLocation
-              ? 'Set a location above to enable'
+              ? 'Set a location pin above first'
               : config.locationReminderEnabled
-              ? '📍 Geofence active & watching'
-              : 'Enable to trigger alarm on arrival'}
+              ? '📍 Geofence actively watching'
+              : 'Trigger alarms on arrival or departure'}
           </Text>
         </View>
         <Switch
@@ -153,30 +171,32 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
         />
       </View>
 
-      {/*  BODY */}
+      {/* ── 2. EXPANDED CONTENT ── */}
       {config.locationReminderEnabled && (
         <View style={s.body}>
-
-          {/*  TRIGGER  */}
+          {/* Trigger Segmented Control */}
           <View style={s.section}>
-            <Text style={s.sLabel}>TRIGGER WHEN I...</Text>
+            <Text style={s.sLabel}>TRIGGER EVENT</Text>
             <View style={s.segWrap}>
-              {(['arrive', 'leave'] as const).map(type => {
+              {(['arrive', 'leave'] as const).map((type) => {
                 const active = config.triggerType === type;
                 return (
                   <Pressable
                     key={type}
                     style={[s.seg, active && s.segOn]}
-                    onPress={() => { Haptics.selectionAsync(); onChange({ triggerType: type }); }}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      onChange({ triggerType: type });
+                    }}
                   >
                     <Navigation2
                       color={active ? '#FFF' : c.muted}
-                      size={13}
+                      size={14}
                       strokeWidth={2.5}
                       style={{ transform: [{ rotate: type === 'leave' ? '180deg' : '0deg' }] }}
                     />
                     <Text style={[s.segTxt, active && s.segTxtOn]}>
-                      {type === 'arrive' ? 'Arrive' : 'Leave'}
+                      {type === 'arrive' ? 'When I Arrive' : 'When I Leave'}
                     </Text>
                   </Pressable>
                 );
@@ -184,24 +204,20 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             </View>
           </View>
 
-          {/* ── RADIUS */}
+          {/* Radius Selector */}
           <View style={s.section}>
-            <View style={s.rowBetween}>
-              <Text style={s.sLabel}>RADIUS</Text>
-              <View style={s.badge}>
-                <Text style={[s.badgeTxt, { color: dark ? '#A78BFA' : '#4F46E5' }]}>
-                  {config.geofenceRadius < 1000 ? `${config.geofenceRadius}m` : `${config.geofenceRadius / 1000}km`}
-                </Text>
-              </View>
-            </View>
+            <Text style={s.sLabel}>GEOFENCE RADIUS</Text>
             <View style={s.radiusRow}>
-              {RADII.map(r => {
+              {RADII.map((r) => {
                 const on = config.geofenceRadius === r.val;
                 return (
                   <Pressable
                     key={r.val}
                     style={[s.rChip, on && s.rChipOn]}
-                    onPress={() => { Haptics.selectionAsync(); onChange({ geofenceRadius: r.val }); }}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      onChange({ geofenceRadius: r.val });
+                    }}
                   >
                     <Text style={[s.rTxt, on && s.rTxtOn]}>{r.label}</Text>
                   </Pressable>
@@ -210,96 +226,165 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             </View>
           </View>
 
-          {/* ── TIME-GATE ────────────────────────────────────────────────── */}
+          {/* ── 3. TIME-GATE WINDOW BOX ── */}
           <View style={[s.section, s.box]}>
-            {/* Toggle header */}
             <View style={s.rowBetween}>
               <View style={s.rowGap}>
-                <Clock color={dark ? '#FCD34D' : '#D97706'} size={15} strokeWidth={2.4} />
-                <Text style={[s.boxTitle, { color: dark ? '#E5E7EB' : '#111827' }]}>
-                  ⏰ TIME-GATE THIS REMINDER
-                </Text>
+                <Clock color="#F59E0B" size={16} strokeWidth={2.4} />
+                <View>
+                  <Text style={s.boxTitle}>Time-Gate Reminder</Text>
+                  <Text style={s.boxSub}>Only trigger alarm within this schedule</Text>
+                </View>
               </View>
               <Switch
                 value={config.timeGateEnabled}
-                onValueChange={v => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); anim(); onChange({ timeGateEnabled: v }); }}
-                trackColor={{ false: c.switchOff, true: '#F97316' }}
+                onValueChange={(v) => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  anim();
+                  onChange({ timeGateEnabled: v });
+                }}
+                trackColor={{ false: c.switchOff, true: '#FF7A00' }}
                 thumbColor="#FFFFFF"
                 ios_backgroundColor={c.switchOff}
               />
             </View>
-            <Text style={s.boxSub}>
-              Alarm will only fire if triggered within this time window.
-            </Text>
 
             {config.timeGateEnabled && (
               <View style={{ marginTop: 14 }}>
+                {/* Quick Presets */}
+                <Text style={s.subSectionLabel}>QUICK PRESETS</Text>
+                <View style={s.presetRow}>
+                  {PRESETS.map((preset) => {
+                    const active =
+                      config.timeGateStartHour === preset.start &&
+                      config.timeGateEndHour === preset.end;
+                    const IconComp = preset.icon;
+                    return (
+                      <Pressable
+                        key={preset.label}
+                        style={[s.presetChip, active && s.presetChipActive]}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          onChange({
+                            timeGateStartHour: preset.start,
+                            timeGateEndHour: preset.end,
+                          });
+                        }}
+                      >
+                        <IconComp color={active ? '#FFF' : c.muted} size={12} strokeWidth={2.4} />
+                        <Text style={[s.presetTxt, active && s.presetTxtActive]}>
+                          {preset.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
 
-                {/* FROM + UNTIL side by side */}
+                {/* Symmetrical Hour Selector Columns */}
                 <View style={s.hoursContainer}>
-
-                  {/* FROM column */}
+                  {/* FROM COLUMN */}
                   <View style={s.hourCol}>
-                    <Text style={[s.colLabel, { color: c.muted }]}>FROM (hour)</Text>
-                    {/* 3 per row */}
-                    {[0, 3, 6].map(rowStart => (
-                      <View key={rowStart} style={s.hourRow3}>
-                        {FROM_HOURS.slice(rowStart, rowStart + 3).map(h => {
-                          const on = config.timeGateStartHour === h;
-                          return (
-                            <Pressable
-                              key={h}
-                              style={[s.hChip, on && s.hChipOn, { flex: 1 }]}
-                              onPress={() => { Haptics.selectionAsync(); onChange({ timeGateStartHour: h }); }}
-                            >
-                              <Text style={[s.hTxt, on && s.hTxtOn]}>{h}:00</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    ))}
+                    <Text style={s.colHeader}>FROM</Text>
+                    <View style={s.stepperBox}>
+                      <Pressable
+                        onPress={() => stepHour('start', -1)}
+                        style={s.stepperBtn}
+                        hitSlop={6}
+                      >
+                        <Minus color={c.muted} size={14} strokeWidth={2.6} />
+                      </Pressable>
+                      <Text style={s.stepperValue}>
+                        {formatHourDisplay(config.timeGateStartHour)}
+                      </Text>
+                      <Pressable
+                        onPress={() => stepHour('start', 1)}
+                        style={s.stepperBtn}
+                        hitSlop={6}
+                      >
+                        <Plus color={c.muted} size={14} strokeWidth={2.6} />
+                      </Pressable>
+                    </View>
+
+                    {/* Symmetrical 2-per-row chips */}
+                    <View style={s.hourWrapGrid}>
+                      {FROM_HOURS.map((h) => {
+                        const on = config.timeGateStartHour === h;
+                        return (
+                          <Pressable
+                            key={h}
+                            style={[s.hChip, on && s.hChipOn]}
+                            onPress={() => {
+                              Haptics.selectionAsync();
+                              onChange({ timeGateStartHour: h });
+                            }}
+                          >
+                            <Text style={[s.hTxt, on && s.hTxtOn]}>{h}:00</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                   </View>
 
-                  {/* Divider */}
                   <View style={s.hourDivider} />
 
-                  {/* UNTIL column */}
+                  {/* UNTIL COLUMN */}
                   <View style={s.hourCol}>
-                    <Text style={[s.colLabel, { color: c.muted }]}>UNTIL (hour)</Text>
-                    {/* 2 per row */}
-                    {[0, 2, 4, 6].map(rowStart => (
-                      <View key={rowStart} style={s.hourRow2}>
-                        {UNTIL_HOURS.slice(rowStart, rowStart + 2).map(h => {
-                          const on = config.timeGateEndHour === h;
-                          return (
-                            <Pressable
-                              key={h}
-                              style={[s.hChip, on && s.hChipOn, { flex: 1 }]}
-                              onPress={() => { Haptics.selectionAsync(); onChange({ timeGateEndHour: h }); }}
-                            >
-                              <Text style={[s.hTxt, on && s.hTxtOn]}>{h}:00</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    ))}
+                    <Text style={s.colHeader}>UNTIL</Text>
+                    <View style={s.stepperBox}>
+                      <Pressable
+                        onPress={() => stepHour('end', -1)}
+                        style={s.stepperBtn}
+                        hitSlop={6}
+                      >
+                        <Minus color={c.muted} size={14} strokeWidth={2.6} />
+                      </Pressable>
+                      <Text style={s.stepperValue}>
+                        {formatHourDisplay(config.timeGateEndHour)}
+                      </Text>
+                      <Pressable
+                        onPress={() => stepHour('end', 1)}
+                        style={s.stepperBtn}
+                        hitSlop={6}
+                      >
+                        <Plus color={c.muted} size={14} strokeWidth={2.6} />
+                      </Pressable>
+                    </View>
+
+                    {/* Symmetrical 2-per-row chips */}
+                    <View style={s.hourWrapGrid}>
+                      {UNTIL_HOURS.map((h) => {
+                        const on = config.timeGateEndHour === h;
+                        return (
+                          <Pressable
+                            key={h}
+                            style={[s.hChip, on && s.hChipOn]}
+                            onPress={() => {
+                              Haptics.selectionAsync();
+                              onChange({ timeGateEndHour: h });
+                            }}
+                          >
+                            <Text style={[s.hTxt, on && s.hTxtOn]}>{h}:00</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                   </View>
                 </View>
 
-                {/* Validation warning */}
+                {/* Validation Warning */}
                 {timeGateInvalid && (
                   <View style={s.warn}>
-                    <AlertTriangle color="#F59E0B" size={12} strokeWidth={2.5} />
-                    <Text style={s.warnTxt}>"Until" must be later than "From" hour.</Text>
+                    <AlertTriangle color="#F59E0B" size={13} strokeWidth={2.5} />
+                    <Text style={s.warnTxt}>
+                      "Until" time must be later than "From" time.
+                    </Text>
                   </View>
                 )}
 
-                {/* Active Days */}
-                <Text style={[s.colLabel, { color: c.muted, marginTop: 14, marginBottom: 8 }]}>
-                  ACTIVE DAYS
-                </Text>
+                {/* Active Days (Even 7-day pill row) */}
+                <Text style={[s.subSectionLabel, { marginTop: 14 }]}>ACTIVE DAYS</Text>
                 <View style={s.daysRow}>
-                  {DAYS.map(d => {
+                  {DAYS.map((d) => {
                     const on = config.timeGateDays.includes(d.key);
                     return (
                       <Pressable
@@ -316,27 +401,27 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             )}
           </View>
 
-          {/* ── CRITICAL TASK ────────────────────────────────────────────── */}
+          {/* ── 4. CRITICAL TASK BOX ── */}
           <View style={[s.section, s.box]}>
             <View style={s.rowBetween}>
               <View style={s.rowGap}>
                 <AlertTriangle
                   color={config.isCritical ? '#EF4444' : c.muted}
-                  size={15}
+                  size={16}
                   strokeWidth={2.4}
                 />
                 <View>
                   <Text style={[s.boxTitle, config.isCritical && { color: '#EF4444' }]}>
-                    🚨 Critical Task
+                    Critical Task Override
                   </Text>
                   <Text style={s.boxSub}>
-                    Override silent mode & max volume when{'\n'}alarm fires.
+                    Rings at maximum volume even if phone is on silent
                   </Text>
                 </View>
               </View>
               <Switch
                 value={config.isCritical}
-                onValueChange={v => {
+                onValueChange={(v) => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   anim();
                   onChange({ isCritical: v });
@@ -348,31 +433,26 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             </View>
           </View>
 
-          {/* ── LOCATION CHECKLIST ───────────────────────────────────────── */}
+          {/* ── 5. LOCATION CHECKLIST BOX ── */}
           <View style={[s.section, s.box]}>
-            {/* Title */}
-            <View style={[s.rowGap, { marginBottom: 4 }]}>
-              <List color={dark ? '#34D399' : '#10B981'} size={15} strokeWidth={2.4} />
+            <View style={[s.rowGap, { marginBottom: 6 }]}>
+              <List color="#10B981" size={16} strokeWidth={2.4} />
               <View>
-                <Text style={[s.boxTitle, { color: dark ? '#E5E7EB' : '#111827' }]}>
-                  📋 LOCATION CHECKLIST
-                  <Text style={[s.boxTitle, { color: c.muted, fontFamily: 'Poppins_500Medium' }]}>
-                    {' '}(OPTIONAL)
-                  </Text>
-                </Text>
+                <Text style={s.boxTitle}>Location Checklist</Text>
                 <Text style={s.boxSub}>
-                  Items shown when you arrive (e.g. Shopping List)
+                  Items to show upon arrival (e.g. Shopping List)
                 </Text>
               </View>
             </View>
 
-            {/* Items list */}
             {config.checklist.length > 0 && (
-              <View style={{ marginTop: 10, gap: 6 }}>
-                {config.checklist.map(item => (
+              <View style={{ marginTop: 8, gap: 6 }}>
+                {config.checklist.map((item) => (
                   <View key={item.id} style={s.clItem}>
                     <View style={s.clDot} />
-                    <Text style={s.clTxt} numberOfLines={2}>{item.text}</Text>
+                    <Text style={s.clTxt} numberOfLines={2}>
+                      {item.text}
+                    </Text>
                     <Pressable onPress={() => removeItem(item.id)} hitSlop={12}>
                       <X color={c.muted} size={14} strokeWidth={2.5} />
                     </Pressable>
@@ -381,7 +461,6 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
               </View>
             )}
 
-            {/* Add input */}
             <View style={s.clInputRow}>
               <TextInput
                 style={s.clInput}
@@ -401,67 +480,61 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
               </Pressable>
             </View>
           </View>
-
         </View>
       )}
     </View>
   );
 }
 
-// ─── Color tokens ────────────────────────────────────────────────────────────
-
 function colors(dark: boolean) {
   return {
-    border:      dark ? 'rgba(255,255,255,0.09)' : '#E5E7EB',
-    surface:     dark ? 'rgba(255,255,255,0.04)' : '#FFFFFF',
-    muted:       dark ? '#6B7280' : '#94A3B8',
-    text:        dark ? '#E5E7EB' : '#111827',
-    switchOff:   dark ? '#374151' : '#D1D5DB',
-    placeholder: dark ? '#4B5563' : '#94A3B8',
+    border: dark ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
+    surface: dark ? '#1A182E' : '#FFFFFF',
+    cardBg: dark ? '#131122' : '#F8FAFC',
+    muted: dark ? '#94A3B8' : '#64748B',
+    text: dark ? '#F8FAFC' : '#0F172A',
+    switchOff: dark ? '#334155' : '#CBD5E1',
+    placeholder: dark ? '#475569' : '#94A3B8',
   };
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
-
 function styles(dark: boolean) {
-  const c      = colors(dark);
-  const radius = 20;
+  const c = colors(dark);
 
   return StyleSheet.create({
-
     card: {
       marginTop: 20,
-      borderRadius: radius,
+      borderRadius: 22,
       borderWidth: 1.5,
-      borderColor: dark ? 'rgba(99,102,241,0.3)' : '#DDD9F9',
-      backgroundColor: dark ? '#141222' : '#F9F8FE',
+      borderColor: dark ? 'rgba(99,102,241,0.25)' : '#E2E8F0',
+      backgroundColor: c.cardBg,
       overflow: 'hidden',
-      shadowColor: dark ? '#000' : '#4F46E5',
+      shadowColor: '#000',
       shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: dark ? 0.4 : 0.07,
-      shadowRadius: 18,
-      elevation: 5,
+      shadowOpacity: dark ? 0.35 : 0.05,
+      shadowRadius: 16,
+      elevation: 4,
     },
-
-    // ── Header ──────────────────────────────────────────────────────────────
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 16,
-      paddingVertical: 15,
+      paddingVertical: 14,
       gap: 12,
     },
     iconBox: {
-      width: 40,
-      height: 40,
-      borderRadius: 13,
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: dark ? 'rgba(99,102,241,0.18)' : '#EDEAFD',
       alignItems: 'center',
       justifyContent: 'center',
     },
     headerTitle: {
       fontFamily: 'Poppins_700Bold',
-      fontSize: 14.5,
-      letterSpacing: -0.1,
+      fontSize: 14,
+      color: dark ? '#A78BFA' : '#4F46E5',
+      letterSpacing: -0.2,
     },
     headerSub: {
       fontFamily: 'Poppins_400Regular',
@@ -469,37 +542,39 @@ function styles(dark: boolean) {
       color: c.muted,
       marginTop: 1,
     },
-
-    // ── Body ────────────────────────────────────────────────────────────────
     body: {
       paddingHorizontal: 14,
-      paddingBottom: 18,
+      paddingBottom: 16,
       borderTopWidth: 1,
-      borderTopColor: dark ? 'rgba(255,255,255,0.06)' : '#EAE7FB',
+      borderTopColor: c.border,
     },
-
-    section: { marginTop: 14 },
-
+    section: {
+      marginTop: 14,
+    },
     box: {
       backgroundColor: c.surface,
-      borderRadius: 14,
+      borderRadius: 16,
       borderWidth: 1,
       borderColor: c.border,
-      padding: 13,
+      padding: 14,
     },
-
-    // ── Labels ──────────────────────────────────────────────────────────────
     sLabel: {
       fontFamily: 'Poppins_700Bold',
-      fontSize: 10.5,
-      letterSpacing: 0.7,
-      textTransform: 'uppercase',
+      fontSize: 11,
+      letterSpacing: 0.6,
       color: c.muted,
       marginBottom: 8,
     },
+    subSectionLabel: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 10,
+      letterSpacing: 0.6,
+      color: c.muted,
+      marginBottom: 6,
+    },
     boxTitle: {
       fontFamily: 'Poppins_700Bold',
-      fontSize: 12.5,
+      fontSize: 13,
       color: c.text,
     },
     boxSub: {
@@ -507,17 +582,7 @@ function styles(dark: boolean) {
       fontSize: 10.5,
       color: c.muted,
       marginTop: 2,
-      lineHeight: 15,
     },
-    colLabel: {
-      fontFamily: 'Poppins_700Bold',
-      fontSize: 10,
-      letterSpacing: 0.6,
-      textTransform: 'uppercase',
-      marginBottom: 7,
-    },
-
-    // ── Layout helpers ───────────────────────────────────────────────────────
     rowBetween: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -525,77 +590,63 @@ function styles(dark: boolean) {
     },
     rowGap: {
       flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 8,
+      alignItems: 'center',
+      gap: 10,
       flex: 1,
     },
-
-    // ── Badge ────────────────────────────────────────────────────────────────
-    badge: {
-      backgroundColor: dark ? 'rgba(99,102,241,0.15)' : '#EDEAFD',
-      paddingHorizontal: 10,
-      paddingVertical: 3,
-      borderRadius: 20,
-    },
-    badgeTxt: {
-      fontFamily: 'Poppins_700Bold',
-      fontSize: 11,
-    },
-
-    // ── Arrive / Leave segment ───────────────────────────────────────────────
     segWrap: {
       flexDirection: 'row',
-      backgroundColor: dark ? 'rgba(255,255,255,0.06)' : '#EDEAFD',
-      borderRadius: 13,
+      backgroundColor: dark ? 'rgba(255,255,255,0.05)' : '#EDEAFD',
+      borderRadius: 12,
       padding: 3,
-      gap: 3,
+      gap: 4,
     },
     seg: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 11,
-      borderRadius: 11,
-      gap: 6,
+      paddingVertical: 10,
+      borderRadius: 10,
+      gap: 8,
     },
     segOn: {
       backgroundColor: '#4F46E5',
       shadowColor: '#4F46E5',
-      shadowOffset: { width: 0, height: 4 },
+      shadowOffset: { width: 0, height: 3 },
       shadowOpacity: 0.35,
-      shadowRadius: 8,
-      elevation: 4,
+      shadowRadius: 6,
+      elevation: 3,
     },
     segTxt: {
       fontFamily: 'Poppins_600SemiBold',
-      fontSize: 13,
+      fontSize: 12.5,
       color: c.muted,
     },
-    segTxtOn: { color: '#FFFFFF' },
-
-    // ── Radius ───────────────────────────────────────────────────────────────
+    segTxtOn: {
+      color: '#FFFFFF',
+    },
     radiusRow: {
       flexDirection: 'row',
-      gap: 7,
+      gap: 8,
     },
     rChip: {
       flex: 1,
       paddingVertical: 9,
       borderRadius: 10,
-      borderWidth: 1.3,
+      borderWidth: 1.2,
       borderColor: c.border,
       backgroundColor: c.surface,
       alignItems: 'center',
     },
     rChipOn: {
-      backgroundColor: '#F97316',
-      borderColor: '#F97316',
-      shadowColor: '#F97316',
-      shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: 0.3,
-      shadowRadius: 6,
-      elevation: 3,
+      backgroundColor: '#FF7A00',
+      borderColor: '#FF7A00',
+      shadowColor: '#FF7A00',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 2,
     },
     rTxt: {
       fontFamily: 'Poppins_600SemiBold',
@@ -606,8 +657,36 @@ function styles(dark: boolean) {
       color: '#FFFFFF',
       fontFamily: 'Poppins_700Bold',
     },
-
-    // ── Hour grid ────────────────────────────────────────────────────────────
+    presetRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginBottom: 12,
+    },
+    presetChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: dark ? 'rgba(255,255,255,0.03)' : '#F1F5F9',
+    },
+    presetChipActive: {
+      backgroundColor: '#FF7A00',
+      borderColor: '#FF7A00',
+    },
+    presetTxt: {
+      fontFamily: 'Poppins_500Medium',
+      fontSize: 10.5,
+      color: c.muted,
+    },
+    presetTxtActive: {
+      color: '#FFFFFF',
+      fontFamily: 'Poppins_600SemiBold',
+    },
     hoursContainer: {
       flexDirection: 'row',
       gap: 10,
@@ -615,33 +694,61 @@ function styles(dark: boolean) {
     hourCol: {
       flex: 1,
     },
+    colHeader: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 10,
+      letterSpacing: 0.6,
+      color: c.muted,
+      marginBottom: 4,
+    },
+    stepperBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: dark ? 'rgba(255,255,255,0.04)' : '#F8FAFC',
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 10,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      marginBottom: 8,
+    },
+    stepperBtn: {
+      width: 24,
+      height: 24,
+      borderRadius: 6,
+      backgroundColor: dark ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stepperValue: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 11.5,
+      color: c.text,
+    },
     hourDivider: {
       width: 1,
       backgroundColor: c.border,
       marginVertical: 4,
     },
-    hourRow3: {
+    hourWrapGrid: {
       flexDirection: 'row',
-      gap: 4,
-      marginBottom: 4,
-    },
-    hourRow2: {
-      flexDirection: 'row',
-      gap: 4,
-      marginBottom: 4,
+      flexWrap: 'wrap',
+      gap: 5,
     },
     hChip: {
+      width: '30%',
       paddingVertical: 6,
-      borderRadius: 8,
+      borderRadius: 7,
       borderWidth: 1,
       borderColor: c.border,
-      backgroundColor: c.surface,
+      backgroundColor: dark ? 'rgba(255,255,255,0.02)' : '#F8FAFC',
       alignItems: 'center',
       justifyContent: 'center',
     },
     hChipOn: {
-      backgroundColor: '#F97316',
-      borderColor: '#F97316',
+      backgroundColor: '#FF7A00',
+      borderColor: '#FF7A00',
     },
     hTxt: {
       fontFamily: 'Poppins_500Medium',
@@ -652,8 +759,6 @@ function styles(dark: boolean) {
       color: '#FFFFFF',
       fontFamily: 'Poppins_700Bold',
     },
-
-    // ── Validation warning ───────────────────────────────────────────────────
     warn: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -671,8 +776,6 @@ function styles(dark: boolean) {
       color: '#D97706',
       flex: 1,
     },
-
-    // ── Active days ──────────────────────────────────────────────────────────
     daysRow: {
       flexDirection: 'row',
       gap: 5,
@@ -680,15 +783,15 @@ function styles(dark: boolean) {
     dayChip: {
       flex: 1,
       paddingVertical: 7,
-      borderRadius: 9,
-      borderWidth: 1.3,
+      borderRadius: 8,
+      borderWidth: 1.2,
       borderColor: c.border,
       backgroundColor: c.surface,
       alignItems: 'center',
     },
     dayChipOn: {
-      backgroundColor: '#F97316',
-      borderColor: '#F97316',
+      backgroundColor: '#FF7A00',
+      borderColor: '#FF7A00',
     },
     dayTxt: {
       fontFamily: 'Poppins_600SemiBold',
@@ -698,63 +801,55 @@ function styles(dark: boolean) {
     dayTxtOn: {
       color: '#FFFFFF',
     },
-
-    // ── Checklist ────────────────────────────────────────────────────────────
     clItem: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-      backgroundColor: dark ? 'rgba(255,255,255,0.05)' : '#F3F4F6',
+      backgroundColor: dark ? 'rgba(255,255,255,0.04)' : '#F8FAFC',
       borderRadius: 10,
       paddingHorizontal: 12,
-      paddingVertical: 10,
+      paddingVertical: 8,
       borderWidth: 1,
       borderColor: c.border,
     },
     clDot: {
-      width: 16,
-      height: 16,
-      borderRadius: 8,
+      width: 14,
+      height: 14,
+      borderRadius: 7,
       borderWidth: 2,
-      borderColor: dark ? '#6366F1' : '#4F46E5',
-      flexShrink: 0,
+      borderColor: '#10B981',
     },
     clTxt: {
       flex: 1,
       fontFamily: 'Poppins_500Medium',
-      fontSize: 13,
+      fontSize: 12.5,
       color: c.text,
     },
     clInputRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      marginTop: 10,
+      marginTop: 8,
     },
     clInput: {
       flex: 1,
-      height: 44,
-      backgroundColor: c.surface,
-      borderRadius: 12,
-      borderWidth: 1.3,
+      height: 40,
+      backgroundColor: dark ? 'rgba(255,255,255,0.04)' : '#F8FAFC',
+      borderRadius: 10,
+      borderWidth: 1,
       borderColor: c.border,
-      paddingHorizontal: 14,
+      paddingHorizontal: 12,
       fontFamily: 'Poppins_500Medium',
-      fontSize: 13,
+      fontSize: 12.5,
       color: c.text,
     },
     clAddBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      backgroundColor: '#F97316',
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: '#FF7A00',
       alignItems: 'center',
       justifyContent: 'center',
-      shadowColor: '#F97316',
-      shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: 0.35,
-      shadowRadius: 6,
-      elevation: 3,
     },
   });
 }
