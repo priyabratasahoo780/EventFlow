@@ -1,14 +1,37 @@
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, Pressable, ScrollView, ActivityIndicator, Image } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  Alert,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import GoogleButton from '../../components/GoogleButton';
 import api from '../../services/api';
 import { useAuthStore, UserProfile } from '../../store/useAuthStore';
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff, Check, X, ShieldCheck } from 'lucide-react-native';
+import {
+  Eye,
+  EyeOff,
+  Check,
+  X,
+  ShieldCheck,
+  User,
+  AtSign,
+  Mail,
+  MapPin,
+  Lock,
+} from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
@@ -16,11 +39,17 @@ import * as yup from 'yup';
 import { useGoogleAuth } from '../../services/clerkAuth';
 
 const validationSchema = yup.object().shape({
-  name: yup.string().trim().required('Full Name is required'),
-  username: yup.string().trim().required('Username is required'),
+  name: yup.string().trim().min(2, 'Name is too short').required('Full Name is required'),
+  username: yup
+    .string()
+    .trim()
+    .min(3, 'Username must be at least 3 characters')
+    .matches(/^[a-zA-Z0-9_]+$/, 'Only letters, numbers, and underscores allowed')
+    .required('Username is required'),
   email: yup.string().email('Invalid email address').trim().required('Email is required'),
   city: yup.string().trim().required('City is required'),
-  password: yup.string()
+  password: yup
+    .string()
     .min(8, 'Password must be at least 8 characters')
     .matches(/[A-Z]/, 'Password requires an uppercase letter')
     .matches(/[a-z]/, 'Password requires a lowercase letter')
@@ -33,12 +62,13 @@ export default function RegisterScreen() {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  
+
   const [showPassword, setShowPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  
-  const login = useAuthStore(state => state.login);
+
+  const login = useAuthStore((state) => state.login);
   const router = useRouter();
 
   const { signInWithGoogle } = useGoogleAuth();
@@ -49,7 +79,7 @@ export default function RegisterScreen() {
     onSubmit: async (values) => {
       setLoading(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      
+
       const cleanEmail = values.email.trim().toLowerCase();
       const cleanUsername = (values.username || values.name.split(' ')[0]).trim().toLowerCase();
       const cleanName = values.name.trim();
@@ -60,7 +90,7 @@ export default function RegisterScreen() {
           username: cleanUsername,
           email: cleanEmail,
           city: values.city.trim(),
-          password: values.password
+          password: values.password,
         });
         await login(res.data.token, res.data.user);
         router.replace('/(tabs)');
@@ -69,26 +99,22 @@ export default function RegisterScreen() {
         if (serverError) {
           const errStr = String(serverError).toLowerCase();
           if (errStr.includes('already') || errStr.includes('exist')) {
-            Alert.alert(
-              'Account Exists',
-              'You already have an account! Please log in instead.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Go to Login', onPress: () => router.push('/(auth)/login') }
-              ]
-            );
+            Alert.alert('Account Exists', 'You already have an account! Please log in instead.', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Go to Login', onPress: () => router.push('/(auth)/login') },
+            ]);
           } else {
             Alert.alert('Registration Notice', serverError);
           }
         } else {
-          // Unreachable backend / network fallback session
+          // Unreachable backend fallback session
           const localUser: UserProfile = {
             _id: 'local_user_' + Date.now(),
             uniqueId: 'FOCUS' + Math.floor(100000 + Math.random() * 900000),
             name: cleanName,
             username: cleanUsername,
             email: cleanEmail,
-            profilePhoto: ''
+            profilePhoto: '',
           };
           await login('local_demo_token', localUser);
           router.replace('/(tabs)');
@@ -115,13 +141,13 @@ export default function RegisterScreen() {
 
     try {
       const result = await signInWithGoogle();
-      
+
       if (result?.user?.email) {
         try {
           const res = await api.post('/auth/google', {
             email: result.user.email,
             name: result.user.name || formik.values.name.trim() || 'Google User',
-            profilePhoto: result.user.profilePhoto || ''
+            profilePhoto: result.user.profilePhoto || '',
           });
 
           await login(res.data.token, res.data.user);
@@ -133,13 +159,13 @@ export default function RegisterScreen() {
           const getRandom = (set: string) => set[Math.floor(Math.random() * set.length)];
           const chars = [
             getRandom(uppers), getRandom(lowers), getRandom(numbers), getRandom(symbols),
-            getRandom(uppers), getRandom(lowers), getRandom(numbers), getRandom(symbols)
+            getRandom(uppers), getRandom(lowers), getRandom(numbers), getRandom(symbols),
           ];
           for (let i = chars.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [chars[i], chars[j]] = [chars[j], chars[i]];
           }
-          const randomId = chars.join(''); // Exact 8 characters
+          const randomId = chars.join('');
 
           const fallbackUser: UserProfile = {
             _id: 'google_user_' + Date.now(),
@@ -147,7 +173,7 @@ export default function RegisterScreen() {
             name: result.user.name || formik.values.name.trim() || 'Google User',
             username: (result.user.email.split('@')[0] || 'googleuser').replace(/[^a-zA-Z0-9_]/g, ''),
             email: result.user.email,
-            profilePhoto: result.user.profilePhoto || ''
+            profilePhoto: result.user.profilePhoto || '',
           };
           await login('google_session_token_' + Date.now(), fallbackUser);
         }
@@ -155,7 +181,6 @@ export default function RegisterScreen() {
         router.replace('/(tabs)');
       }
     } catch (err: any) {
-      console.warn('Google sign-up notice:', err);
       if (err?.code !== 'ERR_REQUEST_CANCELED' && !err?.message?.includes('cancel')) {
         Alert.alert('Google Sign-Up', 'Could not complete Google sign-up. Please try again.');
       }
@@ -165,309 +190,587 @@ export default function RegisterScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {/* Brand Header */}
-        <View style={styles.brandRow}>
-          <View style={styles.brandIcon}>
-            <Image
-              source={require('../../assets/images/icon_squared.png')}
-              style={styles.brandIconImage}
-              resizeMode="cover"
-            />
-          </View>
-          <View>
-            <Text style={styles.appName}>EVENTFLOW</Text>
-            <Text style={styles.tagline}>Create your account to get started.</Text>
-          </View>
-        </View>
-        <Text style={styles.title}>SIGN UP</Text>
-        
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>FULL NAME</Text>
-          <TextInput 
-            style={[styles.input, formik.touched.name && formik.errors.name ? { borderColor: colors.error } : null]} 
-            placeholder="John Doe"
-            placeholderTextColor="#888"
-            value={formik.values.name} 
-            onChangeText={formik.handleChange('name')} 
-            onBlur={formik.handleBlur('name')}
-          />
-          {formik.touched.name && formik.errors.name && (
-            <Text style={styles.errorText}>{formik.errors.name}</Text>
-          )}
-
-          <Text style={styles.label}>USERNAME</Text>
-          <TextInput 
-            style={[styles.input, formik.touched.username && formik.errors.username ? { borderColor: colors.error } : null]} 
-            placeholder="johndoe"
-            placeholderTextColor="#888"
-            value={formik.values.username} 
-            onChangeText={formik.handleChange('username')} 
-            onBlur={formik.handleBlur('username')}
-            autoCapitalize="none" 
-          />
-          {formik.touched.username && formik.errors.username && (
-            <Text style={styles.errorText}>{formik.errors.username}</Text>
-          )}
-          
-          <Text style={styles.label}>EMAIL</Text>
-          <TextInput 
-            style={[styles.input, formik.touched.email && formik.errors.email ? { borderColor: colors.error } : null]} 
-            placeholder="john@example.com"
-            placeholderTextColor="#888"
-            value={formik.values.email} 
-            onChangeText={formik.handleChange('email')} 
-            onBlur={formik.handleBlur('email')}
-            autoCapitalize="none" 
-            keyboardType="email-address" 
-          />
-          {formik.touched.email && formik.errors.email && (
-            <Text style={styles.errorText}>{formik.errors.email}</Text>
-          )}
-          
-          <Text style={styles.label}>CITY</Text>
-          <TextInput 
-            style={[styles.input, formik.touched.city && formik.errors.city ? { borderColor: colors.error } : null]} 
-            placeholder="New York"
-            placeholderTextColor="#888"
-            value={formik.values.city} 
-            onChangeText={formik.handleChange('city')} 
-            onBlur={formik.handleBlur('city')}
-          />
-          {formik.touched.city && formik.errors.city && (
-            <Text style={styles.errorText}>{formik.errors.city}</Text>
-          )}
-          
-          <Text style={styles.label}>PASSWORD</Text>
-          <View style={[styles.passwordWrapper, formik.touched.password && formik.errors.password ? { borderColor: colors.error } : null]}>
-            <TextInput 
-              style={styles.passwordInput} 
-              placeholder="••••••••"
-              placeholderTextColor="#888"
-              value={formik.values.password} 
-              onChangeText={formik.handleChange('password')} 
-              onBlur={formik.handleBlur('password')}
-              secureTextEntry={!showPassword} 
-            />
-            <Pressable style={styles.eyeBtn} onPress={() => setShowPassword(!showPassword)}>
-              {showPassword ? <EyeOff color="#000" size={22} /> : <Eye color="#000" size={22} />}
-            </Pressable>
-          </View>
-          {formik.touched.password && formik.errors.password && (
-            <Text style={styles.errorText}>{formik.errors.password}</Text>
-          )}
-
-          {/* Password Strength Indicator */}
-          {password.length > 0 && (
-            <View style={{ marginTop: 10, padding: 12, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <ShieldCheck color={isPasswordStrong ? '#10B981' : passedCount >= 3 ? '#F59E0B' : '#EF4444'} size={16} />
-                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: isPasswordStrong ? '#10B981' : passedCount >= 3 ? '#F59E0B' : '#EF4444' }}>
-                    {isPasswordStrong ? 'STRONG PASSWORD' : passedCount >= 3 ? 'MEDIUM PASSWORD' : 'WEAK PASSWORD'}
-                  </Text>
-                </View>
-                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: colors.textSecondary }}>{passedCount}/5 Met</Text>
-              </View>
-
-              {/* Progress bar */}
-              <View style={{ height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
-                <View style={{ height: '100%', width: `${(passedCount / 5) * 100}%`, backgroundColor: isPasswordStrong ? '#10B981' : passedCount >= 3 ? '#F59E0B' : '#EF4444' }} />
-              </View>
-
-              {/* Rules checklist */}
-              <View style={{ gap: 4 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {hasMinLength ? <Check color="#10B981" size={13} strokeWidth={3} /> : <X color="#9CA3AF" size={13} strokeWidth={2} />}
-                  <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: hasMinLength ? '#10B981' : colors.textSecondary }}>At least 8 characters</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {hasUpper && hasLower ? <Check color="#10B981" size={13} strokeWidth={3} /> : <X color="#9CA3AF" size={13} strokeWidth={2} />}
-                  <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: hasUpper && hasLower ? '#10B981' : colors.textSecondary }}>Uppercase (A-Z) & Lowercase (a-z)</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {hasNumber ? <Check color="#10B981" size={13} strokeWidth={3} /> : <X color="#9CA3AF" size={13} strokeWidth={2} />}
-                  <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: hasNumber ? '#10B981' : colors.textSecondary }}>At least 1 number (0-9)</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {hasSymbol ? <Check color="#10B981" size={13} strokeWidth={3} /> : <X color="#9CA3AF" size={13} strokeWidth={2} />}
-                  <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: hasSymbol ? '#10B981' : colors.textSecondary }}>At least 1 special symbol (!@#$%^&*)</Text>
-                </View>
-              </View>
-            </View>
-          )}
-        </View>
-
-        <Pressable
-          onPress={() => formik.handleSubmit()}
-          disabled={loading}
-          style={({ pressed }) => [pressed && { opacity: 0.88 }]}
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
         >
-          <LinearGradient
-            colors={loading ? ['#FFB86A', '#FF9840'] : [colors.secondary, colors.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.registerBtn}
+          {/* Brand Header */}
+          <View style={styles.brandRow}>
+            <View style={styles.brandIcon}>
+              <Image
+                source={require('../../assets/images/icon_squared.png')}
+                style={styles.brandIconImage}
+                resizeMode="cover"
+              />
+            </View>
+            <View>
+              <Text style={styles.appName}>EVENTFLOW</Text>
+              <Text style={styles.tagline}>Focus on the right task at the right time.</Text>
+            </View>
+          </View>
+
+          {/* Heading */}
+          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.subtitle}>Sign up to organize and supercharge your focus</Text>
+
+          <View style={styles.formContainer}>
+            {/* Full Name */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>FULL NAME</Text>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  focusedField === 'name' && styles.inputWrapperFocused,
+                  formik.touched.name && formik.errors.name && { borderColor: colors.error },
+                ]}
+              >
+                <User
+                  color={focusedField === 'name' ? colors.secondary : colors.textSecondary}
+                  size={18}
+                  strokeWidth={2}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="John Doe"
+                  placeholderTextColor={colors.textSecondary}
+                  value={formik.values.name}
+                  onChangeText={formik.handleChange('name')}
+                  onFocus={() => setFocusedField('name')}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    formik.handleBlur('name')('name');
+                  }}
+                  autoCapitalize="words"
+                  textContentType="name"
+                  autoComplete="name"
+                />
+              </View>
+              {formik.touched.name && formik.errors.name && (
+                <Text style={styles.errorText}>{formik.errors.name}</Text>
+              )}
+            </View>
+
+            {/* Username */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>USERNAME</Text>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  focusedField === 'username' && styles.inputWrapperFocused,
+                  formik.touched.username && formik.errors.username && { borderColor: colors.error },
+                ]}
+              >
+                <AtSign
+                  color={focusedField === 'username' ? colors.secondary : colors.textSecondary}
+                  size={18}
+                  strokeWidth={2}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="johndoe"
+                  placeholderTextColor={colors.textSecondary}
+                  value={formik.values.username}
+                  onChangeText={(val) =>
+                    formik.setFieldValue('username', val.toLowerCase().replace(/[^a-z0-9_]/g, ''))
+                  }
+                  onFocus={() => setFocusedField('username')}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    formik.handleBlur('username')('username');
+                  }}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  textContentType="username"
+                  autoComplete="username"
+                />
+              </View>
+              {formik.touched.username && formik.errors.username && (
+                <Text style={styles.errorText}>{formik.errors.username}</Text>
+              )}
+            </View>
+
+            {/* Email */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>EMAIL</Text>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  focusedField === 'email' && styles.inputWrapperFocused,
+                  formik.touched.email && formik.errors.email && { borderColor: colors.error },
+                ]}
+              >
+                <Mail
+                  color={focusedField === 'email' ? colors.secondary : colors.textSecondary}
+                  size={18}
+                  strokeWidth={2}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="john@example.com"
+                  placeholderTextColor={colors.textSecondary}
+                  value={formik.values.email}
+                  onChangeText={formik.handleChange('email')}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    formik.handleBlur('email')('email');
+                  }}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  textContentType="emailAddress"
+                  autoComplete="email"
+                />
+              </View>
+              {formik.touched.email && formik.errors.email && (
+                <Text style={styles.errorText}>{formik.errors.email}</Text>
+              )}
+            </View>
+
+            {/* City */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>CITY</Text>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  focusedField === 'city' && styles.inputWrapperFocused,
+                  formik.touched.city && formik.errors.city && { borderColor: colors.error },
+                ]}
+              >
+                <MapPin
+                  color={focusedField === 'city' ? colors.secondary : colors.textSecondary}
+                  size={18}
+                  strokeWidth={2}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="New York"
+                  placeholderTextColor={colors.textSecondary}
+                  value={formik.values.city}
+                  onChangeText={formik.handleChange('city')}
+                  onFocus={() => setFocusedField('city')}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    formik.handleBlur('city')('city');
+                  }}
+                  autoCapitalize="words"
+                />
+              </View>
+              {formik.touched.city && formik.errors.city && (
+                <Text style={styles.errorText}>{formik.errors.city}</Text>
+              )}
+            </View>
+
+            {/* Password */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>PASSWORD</Text>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  focusedField === 'password' && styles.inputWrapperFocused,
+                  formik.touched.password && formik.errors.password && { borderColor: colors.error },
+                ]}
+              >
+                <Lock
+                  color={focusedField === 'password' ? colors.secondary : colors.textSecondary}
+                  size={18}
+                  strokeWidth={2}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="••••••••"
+                  placeholderTextColor={colors.textSecondary}
+                  value={formik.values.password}
+                  onChangeText={formik.handleChange('password')}
+                  onFocus={() => setFocusedField('password')}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    formik.handleBlur('password')('password');
+                  }}
+                  secureTextEntry={!showPassword}
+                  textContentType="newPassword"
+                />
+                <Pressable
+                  style={styles.eyeBtn}
+                  onPress={() => setShowPassword(!showPassword)}
+                  hitSlop={10}
+                >
+                  {showPassword ? (
+                    <EyeOff color={colors.textSecondary} size={18} />
+                  ) : (
+                    <Eye color={colors.textSecondary} size={18} />
+                  )}
+                </Pressable>
+              </View>
+              {formik.touched.password && formik.errors.password && (
+                <Text style={styles.errorText}>{formik.errors.password}</Text>
+              )}
+
+              {/* Password Strength Indicator */}
+              {password.length > 0 && (
+                <View style={styles.strengthBox}>
+                  <View style={styles.strengthHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <ShieldCheck
+                        color={isPasswordStrong ? '#10B981' : passedCount >= 3 ? '#F59E0B' : '#EF4444'}
+                        size={16}
+                      />
+                      <Text
+                        style={[
+                          styles.strengthTitle,
+                          {
+                            color: isPasswordStrong
+                              ? '#10B981'
+                              : passedCount >= 3
+                              ? '#F59E0B'
+                              : '#EF4444',
+                          },
+                        ]}
+                      >
+                        {isPasswordStrong
+                          ? 'STRONG PASSWORD'
+                          : passedCount >= 3
+                          ? 'MEDIUM PASSWORD'
+                          : 'WEAK PASSWORD'}
+                      </Text>
+                    </View>
+                    <Text style={styles.strengthCount}>{passedCount}/5 Met</Text>
+                  </View>
+
+                  {/* Progress bar */}
+                  <View style={styles.strengthBarBg}>
+                    <View
+                      style={[
+                        styles.strengthBarFill,
+                        {
+                          width: `${(passedCount / 5) * 100}%`,
+                          backgroundColor: isPasswordStrong
+                            ? '#10B981'
+                            : passedCount >= 3
+                            ? '#F59E0B'
+                            : '#EF4444',
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  {/* Rules checklist */}
+                  <View style={{ gap: 5 }}>
+                    <View style={styles.ruleItem}>
+                      {hasMinLength ? (
+                        <Check color="#10B981" size={13} strokeWidth={3} />
+                      ) : (
+                        <X color={colors.textSecondary} size={13} strokeWidth={2} />
+                      )}
+                      <Text
+                        style={[
+                          styles.ruleText,
+                          { color: hasMinLength ? '#10B981' : colors.textSecondary },
+                        ]}
+                      >
+                        At least 8 characters
+                      </Text>
+                    </View>
+                    <View style={styles.ruleItem}>
+                      {hasUpper && hasLower ? (
+                        <Check color="#10B981" size={13} strokeWidth={3} />
+                      ) : (
+                        <X color={colors.textSecondary} size={13} strokeWidth={2} />
+                      )}
+                      <Text
+                        style={[
+                          styles.ruleText,
+                          { color: hasUpper && hasLower ? '#10B981' : colors.textSecondary },
+                        ]}
+                      >
+                        Uppercase (A-Z) & Lowercase (a-z)
+                      </Text>
+                    </View>
+                    <View style={styles.ruleItem}>
+                      {hasNumber ? (
+                        <Check color="#10B981" size={13} strokeWidth={3} />
+                      ) : (
+                        <X color={colors.textSecondary} size={13} strokeWidth={2} />
+                      )}
+                      <Text
+                        style={[
+                          styles.ruleText,
+                          { color: hasNumber ? '#10B981' : colors.textSecondary },
+                        ]}
+                      >
+                        At least 1 number (0-9)
+                      </Text>
+                    </View>
+                    <View style={styles.ruleItem}>
+                      {hasSymbol ? (
+                        <Check color="#10B981" size={13} strokeWidth={3} />
+                      ) : (
+                        <X color={colors.textSecondary} size={13} strokeWidth={2} />
+                      )}
+                      <Text
+                        style={[
+                          styles.ruleText,
+                          { color: hasSymbol ? '#10B981' : colors.textSecondary },
+                        ]}
+                      >
+                        At least 1 special symbol (!@#$%^&*)
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Submit Button */}
+          <Pressable
+            onPress={() => formik.handleSubmit()}
+            disabled={loading}
+            style={({ pressed }) => [pressed && { opacity: 0.88 }]}
           >
-            {loading
-              ? <ActivityIndicator size="small" color="#FFF" />
-              : <Text style={styles.registerBtnText}>Create Account</Text>
-            }
-          </LinearGradient>
-        </Pressable>
+            <LinearGradient
+              colors={loading ? ['#FFB86A', '#FF9840'] : [colors.secondary, colors.secondary]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.registerBtn}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.registerBtnText}>Create Account</Text>
+              )}
+            </LinearGradient>
+          </Pressable>
 
-        <View style={styles.orDividerRow}>
-          <View style={styles.orLine} />
-          <Text style={styles.orText}>OR</Text>
-          <View style={styles.orLine} />
-        </View>
+          {/* Divider */}
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
-        <GoogleButton onPress={handleGoogleSignUp} loading={googleLoading} title="SIGN UP WITH GOOGLE" />
-        
-        <Pressable onPress={() => router.back()} style={styles.link}>
-          <Text style={styles.linkText}>Already have an account? Log in</Text>
-        </Pressable>
-      </ScrollView>
+          {/* Google Sign Up */}
+          <GoogleButton
+            onPress={handleGoogleSignUp}
+            loading={googleLoading}
+            title="CONTINUE WITH GOOGLE"
+          />
+
+          {/* Login Link */}
+          <Pressable onPress={() => router.push('/(auth)/login')} style={styles.loginRow}>
+            <Text style={styles.loginText}>Already have an account? </Text>
+            <Text style={styles.loginLink}>Log in</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const getStyles = (colors: ColorTheme) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: 24, paddingBottom: 60 },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 6,
-    marginBottom: 16,
-  },
-  brandIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    overflow: 'hidden',
-    shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  brandIconImage: {
-    width: '100%',
-    height: '100%',
-  },
-  appName: {
-    fontFamily: 'Poppins_800ExtraBold',
-    fontSize: 14,
-    color: colors.secondary,
-    letterSpacing: 2,
-  },
-  tagline: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  title: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 28,
-    color: colors.text,
-    marginBottom: 4,
-  },
-  inputContainer: { marginBottom: 16 },
-  label: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11,
-    color: colors.textSecondary,
-    letterSpacing: 0.8,
-    marginBottom: 6,
-    marginTop: 12,
-    textTransform: 'uppercase',
-  },
-  input: {
-    backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 14,
-    padding: 14,
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 15,
-    color: colors.text,
-    shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  passwordWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  passwordInput: {
-    flex: 1,
-    paddingVertical: 14,
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 15,
-    color: colors.text,
-  },
-  eyeBtn: { padding: 6 },
-  registerBtn: {
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.30,
-    shadowRadius: 10,
-    elevation: 6,
-    marginBottom: 8,
-    marginTop: 8,
-  },
-  registerBtnText: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 16,
-    color: colors.card,
-    letterSpacing: 0.3,
-  },
-  orDividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 18,
-    gap: 12,
-  },
-  orLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  orText: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  link: { marginTop: 20, alignItems: 'center' },
-  linkText: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 14,
-    color: colors.secondary,
-  },
-  errorText: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 12,
-    color: colors.error,
-    marginTop: 4,
-    marginLeft: 4,
-  },
-});
+const getStyles = (colors: ColorTheme) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    container: {
+      flexGrow: 1,
+      padding: 24,
+      paddingBottom: 40,
+    },
+    brandRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginBottom: 24,
+    },
+    brandIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 13,
+      overflow: 'hidden',
+      shadowColor: colors.secondary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 6,
+      elevation: 3,
+    },
+    brandIconImage: {
+      width: '100%',
+      height: '100%',
+    },
+    appName: {
+      fontFamily: 'Poppins_800ExtraBold',
+      fontSize: 14,
+      color: colors.secondary,
+      letterSpacing: 2,
+    },
+    tagline: {
+      fontFamily: 'Poppins_400Regular',
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    title: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 28,
+      color: colors.text,
+      marginBottom: 6,
+    },
+    subtitle: {
+      fontFamily: 'Poppins_400Regular',
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginBottom: 24,
+    },
+    formContainer: {
+      marginBottom: 8,
+    },
+    inputGroup: {
+      marginBottom: 16,
+    },
+    label: {
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 11,
+      color: colors.textSecondary,
+      letterSpacing: 0.8,
+      marginBottom: 6,
+    },
+    inputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      paddingHorizontal: 14,
+      gap: 10,
+      shadowColor: colors.secondary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
+      elevation: 2,
+    },
+    inputWrapperFocused: {
+      borderColor: colors.secondary,
+      shadowColor: colors.secondary,
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    input: {
+      flex: 1,
+      paddingVertical: 14,
+      fontFamily: 'Poppins_400Regular',
+      fontSize: 15,
+      color: colors.text,
+    },
+    eyeBtn: {
+      padding: 4,
+    },
+    strengthBox: {
+      marginTop: 10,
+      padding: 12,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    strengthHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+    strengthTitle: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 11.5,
+    },
+    strengthCount: {
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    strengthBarBg: {
+      height: 4,
+      backgroundColor: colors.border,
+      borderRadius: 2,
+      overflow: 'hidden',
+      marginBottom: 10,
+    },
+    strengthBarFill: {
+      height: '100%',
+      borderRadius: 2,
+    },
+    ruleItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    ruleText: {
+      fontFamily: 'Poppins_500Medium',
+      fontSize: 11,
+    },
+    registerBtn: {
+      borderRadius: 14,
+      paddingVertical: 15,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: colors.secondary,
+      shadowOffset: { width: 0, height: 5 },
+      shadowOpacity: 0.3,
+      shadowRadius: 10,
+      elevation: 6,
+      marginBottom: 8,
+      marginTop: 8,
+    },
+    registerBtnText: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 16,
+      color: colors.card,
+      letterSpacing: 0.3,
+    },
+    dividerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 18,
+      gap: 12,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    dividerText: {
+      fontFamily: 'Poppins_500Medium',
+      fontSize: 13,
+      color: colors.textSecondary,
+    },
+    loginRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      marginTop: 20,
+    },
+    loginText: {
+      fontFamily: 'Poppins_400Regular',
+      fontSize: 14,
+      color: colors.textSecondary,
+    },
+    loginLink: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 14,
+      color: colors.secondary,
+    },
+    errorText: {
+      fontFamily: 'Poppins_500Medium',
+      fontSize: 12,
+      color: colors.error,
+      marginTop: 4,
+      marginLeft: 4,
+    },
+  });

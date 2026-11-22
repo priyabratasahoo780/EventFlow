@@ -27,6 +27,7 @@ export default function LoginScreen() {
   const colors = getColors();
   const styles = getStyles(colors);
   const [showPassword, setShowPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [requires2FA, setRequires2FA] = useState(false);
@@ -220,17 +221,27 @@ export default function LoginScreen() {
               {/* Email Input */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>EMAIL OR USERNAME</Text>
-                <View style={[styles.inputWrapper, formik.touched.email && formik.errors.email && { borderColor: colors.error }]}>
-                  <Mail color={colors.textSecondary} size={18} strokeWidth={2} />
+                <View style={[
+                  styles.inputWrapper,
+                  focusedField === 'email' && styles.inputWrapperFocused,
+                  formik.touched.email && formik.errors.email && { borderColor: colors.error },
+                ]}>
+                  <Mail color={focusedField === 'email' ? colors.secondary : colors.textSecondary} size={18} strokeWidth={2} />
                   <TextInput
                     style={styles.input}
                     placeholder="your.email@example.com"
                     placeholderTextColor={colors.textSecondary}
                     value={formik.values.email}
                     onChangeText={formik.handleChange('email')}
-                    onBlur={formik.handleBlur('email')}
+                    onFocus={() => setFocusedField('email')}
+                    onBlur={() => {
+                      setFocusedField(null);
+                      formik.handleBlur('email')('email');
+                    }}
                     autoCapitalize="none"
+                    autoCorrect={false}
                     keyboardType="email-address"
+                    textContentType="username"
                   />
                 </View>
                 {formik.touched.email && formik.errors.email && (
@@ -241,18 +252,27 @@ export default function LoginScreen() {
               {/* Password Input */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>PASSWORD</Text>
-                <View style={[styles.inputWrapper, formik.touched.password && formik.errors.password && { borderColor: colors.error }]}>
-                  <Lock color={colors.textSecondary} size={18} strokeWidth={2} />
+                <View style={[
+                  styles.inputWrapper,
+                  focusedField === 'password' && styles.inputWrapperFocused,
+                  formik.touched.password && formik.errors.password && { borderColor: colors.error },
+                ]}>
+                  <Lock color={focusedField === 'password' ? colors.secondary : colors.textSecondary} size={18} strokeWidth={2} />
                   <TextInput
                     style={styles.input}
                     placeholder="••••••••"
                     placeholderTextColor={colors.textSecondary}
                     value={formik.values.password}
                     onChangeText={formik.handleChange('password')}
-                    onBlur={formik.handleBlur('password')}
+                    onFocus={() => setFocusedField('password')}
+                    onBlur={() => {
+                      setFocusedField(null);
+                      formik.handleBlur('password')('password');
+                    }}
                     secureTextEntry={!showPassword}
+                    textContentType="password"
                   />
-                  <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn} hitSlop={10}>
                     {showPassword
                       ? <EyeOff color={colors.textSecondary} size={18} />
                       : <Eye color={colors.textSecondary} size={18} />
@@ -395,6 +415,13 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
+  },
+  inputWrapperFocused: {
+    borderColor: colors.secondary,
+    shadowColor: colors.secondary,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   input: {
     flex: 1,

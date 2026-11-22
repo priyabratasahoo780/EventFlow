@@ -1,28 +1,40 @@
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, Pressable, ScrollView, ActivityIndicator, Image } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  Alert,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import BrutalButton from '../../components/BrutalButton';
-import { Colors } from '../../constants/Colors';
+import { LinearGradient } from 'expo-linear-gradient';
 import api from '../../services/api';
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff, ArrowLeft, KeyRound } from 'lucide-react-native';
+import { Eye, EyeOff, ArrowLeft, Mail, Lock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
 
 const validationSchema = yup.object().shape({
   email: yup.string().email('Invalid email address').required('Registered email is required'),
-  newPassword: yup.string().min(6, 'New password must be at least 6 characters long').required('New password is required'),
+  newPassword: yup.string().min(8, 'New password must be at least 8 characters long').required('New password is required'),
 });
 
 export default function ForgotPasswordScreen() {
   const { getColors } = useThemeStore();
   const colors = getColors();
   const styles = getStyles(colors);
-  
+
   const [showPassword, setShowPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -36,7 +48,7 @@ export default function ForgotPasswordScreen() {
       try {
         await api.post('/auth/forgot-password', {
           email: values.email.trim().toLowerCase(),
-          newPassword: values.newPassword
+          newPassword: values.newPassword,
         });
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -46,21 +58,19 @@ export default function ForgotPasswordScreen() {
           [
             {
               text: 'GO TO LOGIN',
-              onPress: () => router.replace('/(auth)/login')
-            }
+              onPress: () => router.replace('/(auth)/login'),
+            },
           ]
         );
       } catch (err: any) {
-        const errorMsg = err.response?.data?.error || 'Unable to reset password. Please verify your email.';
-        
-        // Fallback offline mock reset option if server unreachable
+        const errorMsg =
+          err.response?.data?.error || 'Unable to reset password. Please verify your email.';
+
         if (err.message === 'Network Error' || !err.response) {
           Alert.alert(
             'Password Reset',
             'Updated password for offline session. Please log in with your new credentials.',
-            [
-              { text: 'GO TO LOGIN', onPress: () => router.replace('/(auth)/login') }
-            ]
+            [{ text: 'GO TO LOGIN', onPress: () => router.replace('/(auth)/login') }]
           );
         } else {
           Alert.alert('Reset Failed', errorMsg);
@@ -72,129 +82,286 @@ export default function ForgotPasswordScreen() {
   });
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <ArrowLeft size={22} color="#000" />
-          <Text style={styles.backBtnText}>BACK TO LOGIN</Text>
-        </Pressable>
-
-        <View style={styles.headerIcon}>
-          <Image
-            source={require('../../assets/images/icon_squared.png')}
-            style={{ width: '100%', height: '100%', borderRadius: 14 }}
-            resizeMode="cover"
-          />
-        </View>
-
-        <Text style={styles.appName}>EVENTFLOW</Text>
-        <Text style={styles.title}>FORGOT PASSWORD?</Text>
-        <Text style={styles.subtitle}>Enter your account email and choose a new secure password.</Text>
-        
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>REGISTERED EMAIL</Text>
-          <TextInput 
-            style={[styles.input, formik.touched.email && formik.errors.email ? { borderColor: colors.error } : null]} 
-            placeholder="your.email@example.com"
-            placeholderTextColor="#888"
-            value={formik.values.email} 
-            onChangeText={formik.handleChange('email')} 
-            onBlur={formik.handleBlur('email')}
-            autoCapitalize="none" 
-            keyboardType="email-address" 
-          />
-          {formik.touched.email && formik.errors.email && (
-            <Text style={styles.errorText}>{formik.errors.email}</Text>
-          )}
-
-          <Text style={styles.label}>NEW PASSWORD</Text>
-          <View style={[styles.passwordWrapper, formik.touched.newPassword && formik.errors.newPassword ? { borderColor: colors.error } : null]}>
-            <TextInput 
-              style={styles.passwordInput} 
-              placeholder="At least 6 characters"
-              placeholderTextColor="#888"
-              value={formik.values.newPassword} 
-              onChangeText={formik.handleChange('newPassword')} 
-              onBlur={formik.handleBlur('newPassword')}
-              secureTextEntry={!showPassword} 
-            />
-            <Pressable style={styles.eyeBtn} onPress={() => setShowPassword(!showPassword)}>
-              {showPassword ? <EyeOff color="#000" size={22} /> : <Eye color="#000" size={22} />}
-            </Pressable>
-          </View>
-          {formik.touched.newPassword && formik.errors.newPassword && (
-            <Text style={styles.errorText}>{formik.errors.newPassword}</Text>
-          )}
-        </View>
-
-        <BrutalButton 
-          title={loading ? "RESETTING..." : "RESET PASSWORD"} 
-          color={Colors.light.accent} 
-          onPress={() => formik.handleSubmit()} 
-          disabled={loading}
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
         >
-          {loading ? <ActivityIndicator size="small" color="#000" /> : null}
-        </BrutalButton>
-      </ScrollView>
+          {/* Back button */}
+          <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
+            <ArrowLeft size={20} color={colors.text} />
+            <Text style={styles.backBtnText}>Back to Login</Text>
+          </Pressable>
+
+          {/* Brand Row */}
+          <View style={styles.brandRow}>
+            <View style={styles.brandIcon}>
+              <Image
+                source={require('../../assets/images/icon_squared.png')}
+                style={styles.brandIconImage}
+                resizeMode="cover"
+              />
+            </View>
+            <View>
+              <Text style={styles.appName}>EVENTFLOW</Text>
+              <Text style={styles.tagline}>Reset your password securely</Text>
+            </View>
+          </View>
+
+          <Text style={styles.title}>Forgot Password?</Text>
+          <Text style={styles.subtitle}>
+            Enter your account email and choose a new password.
+          </Text>
+
+          {/* Inputs */}
+          <View style={styles.formContainer}>
+            {/* Email */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>REGISTERED EMAIL</Text>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  focusedField === 'email' && styles.inputWrapperFocused,
+                  formik.touched.email && formik.errors.email && { borderColor: colors.error },
+                ]}
+              >
+                <Mail
+                  color={focusedField === 'email' ? colors.secondary : colors.textSecondary}
+                  size={18}
+                  strokeWidth={2}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="your.email@example.com"
+                  placeholderTextColor={colors.textSecondary}
+                  value={formik.values.email}
+                  onChangeText={formik.handleChange('email')}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    formik.handleBlur('email')('email');
+                  }}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                />
+              </View>
+              {formik.touched.email && formik.errors.email && (
+                <Text style={styles.errorText}>{formik.errors.email}</Text>
+              )}
+            </View>
+
+            {/* New Password */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>NEW PASSWORD</Text>
+              <View
+                style={[
+                  styles.inputWrapper,
+                  focusedField === 'newPassword' && styles.inputWrapperFocused,
+                  formik.touched.newPassword &&
+                    formik.errors.newPassword && { borderColor: colors.error },
+                ]}
+              >
+                <Lock
+                  color={focusedField === 'newPassword' ? colors.secondary : colors.textSecondary}
+                  size={18}
+                  strokeWidth={2}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="At least 8 characters"
+                  placeholderTextColor={colors.textSecondary}
+                  value={formik.values.newPassword}
+                  onChangeText={formik.handleChange('newPassword')}
+                  onFocus={() => setFocusedField('newPassword')}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    formik.handleBlur('newPassword')('newPassword');
+                  }}
+                  secureTextEntry={!showPassword}
+                />
+                <Pressable
+                  style={styles.eyeBtn}
+                  onPress={() => setShowPassword(!showPassword)}
+                  hitSlop={10}
+                >
+                  {showPassword ? (
+                    <EyeOff color={colors.textSecondary} size={18} />
+                  ) : (
+                    <Eye color={colors.textSecondary} size={18} />
+                  )}
+                </Pressable>
+              </View>
+              {formik.touched.newPassword && formik.errors.newPassword && (
+                <Text style={styles.errorText}>{formik.errors.newPassword}</Text>
+              )}
+            </View>
+          </View>
+
+          {/* Reset Button */}
+          <Pressable
+            onPress={() => formik.handleSubmit()}
+            disabled={loading}
+            style={({ pressed }) => [pressed && { opacity: 0.88 }]}
+          >
+            <LinearGradient
+              colors={loading ? ['#FFB86A', '#FF9840'] : [colors.secondary, colors.secondary]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.resetBtn}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.resetBtnText}>Reset Password</Text>
+              )}
+            </LinearGradient>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const getStyles = (colors: ColorTheme) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.light.background },
-  scroll: { padding: 24, paddingBottom: 60 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 8 },
-  backBtnText: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#000' },
-  headerIcon: {
-    width: 64, height: 64, borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: Colors.light.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8,
-    elevation: 4, marginBottom: 16
-  },
-  appName: {
-    fontFamily: 'Poppins_800ExtraBold',
-    fontSize: 14,
-    color: Colors.light.primary,
-    letterSpacing: 2,
-  },
-  title: { fontFamily: 'Poppins_800ExtraBold', fontSize: 32, color: '#000', marginBottom: 6 },
-  subtitle: { fontFamily: 'Poppins_500Medium', fontSize: 14, color: '#555', marginBottom: 24 },
-  inputContainer: { marginBottom: 24 },
-  label: { fontFamily: 'Poppins_800ExtraBold', fontSize: 12, color: '#000', marginBottom: 6, marginTop: 12, textTransform: 'uppercase' },
-  input: {
-    backgroundColor: '#FFF', borderWidth: 2, borderColor: '#000', borderRadius: 8, padding: 14,
-    fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#000', shadowColor: '#000', shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 1, shadowRadius: 0, elevation: 4,
-  },
-  passwordWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderWidth: 2,
-    borderColor: '#000',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 4,
-  },
-  passwordInput: {
-    flex: 1,
-    paddingVertical: 14,
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 15,
-    color: '#000',
-  },
-  eyeBtn: {
-    padding: 6,
-  },
-  errorText: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 12,
-    color: colors.error || '#EF4444',
-    marginTop: 4,
-    marginLeft: 4,
-  },
-});
+const getStyles = (colors: ColorTheme) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    container: {
+      flexGrow: 1,
+      padding: 24,
+      paddingBottom: 40,
+    },
+    backBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 20,
+    },
+    backBtnText: {
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 14,
+      color: colors.text,
+    },
+    brandRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginBottom: 24,
+    },
+    brandIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 13,
+      overflow: 'hidden',
+      shadowColor: colors.secondary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 6,
+      elevation: 3,
+    },
+    brandIconImage: {
+      width: '100%',
+      height: '100%',
+    },
+    appName: {
+      fontFamily: 'Poppins_800ExtraBold',
+      fontSize: 14,
+      color: colors.secondary,
+      letterSpacing: 2,
+    },
+    tagline: {
+      fontFamily: 'Poppins_400Regular',
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    title: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 28,
+      color: colors.text,
+      marginBottom: 6,
+    },
+    subtitle: {
+      fontFamily: 'Poppins_400Regular',
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginBottom: 28,
+    },
+    formContainer: {
+      marginBottom: 12,
+    },
+    inputGroup: {
+      marginBottom: 18,
+    },
+    label: {
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 11,
+      color: colors.textSecondary,
+      letterSpacing: 0.8,
+      marginBottom: 6,
+    },
+    inputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      paddingHorizontal: 14,
+      gap: 10,
+      shadowColor: colors.secondary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
+      elevation: 2,
+    },
+    inputWrapperFocused: {
+      borderColor: colors.secondary,
+      shadowColor: colors.secondary,
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    input: {
+      flex: 1,
+      paddingVertical: 14,
+      fontFamily: 'Poppins_400Regular',
+      fontSize: 15,
+      color: colors.text,
+    },
+    eyeBtn: {
+      padding: 4,
+    },
+    resetBtn: {
+      borderRadius: 14,
+      paddingVertical: 15,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: colors.secondary,
+      shadowOffset: { width: 0, height: 5 },
+      shadowOpacity: 0.3,
+      shadowRadius: 10,
+      elevation: 6,
+      marginTop: 8,
+    },
+    resetBtnText: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 16,
+      color: colors.card,
+      letterSpacing: 0.3,
+    },
+    errorText: {
+      fontFamily: 'Poppins_500Medium',
+      fontSize: 12,
+      color: colors.error,
+      marginTop: 4,
+      marginLeft: 4,
+    },
+  });
