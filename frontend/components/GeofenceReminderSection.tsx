@@ -185,15 +185,8 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
           </View>
 
           {/* ── RADIUS */}
-          <View style={s.section}>
-            <View style={s.rowBetween}>
-              <Text style={s.sLabel}>RADIUS</Text>
-              <View style={s.badge}>
-                <Text style={[s.badgeTxt, { color: dark ? '#A78BFA' : '#4F46E5' }]}>
-                  {config.geofenceRadius < 1000 ? `${config.geofenceRadius}m` : `${config.geofenceRadius / 1000}km`}
-                </Text>
-              </View>
-            </View>
+          <View style={[s.section, { marginBottom: 6 }]}>
+            <Text style={s.sLabel}>RADIUS</Text>
             <View style={s.radiusRow}>
               {RADII.map(r => {
                 const on = config.geofenceRadius === r.val;
@@ -217,7 +210,7 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
               <View style={s.rowGap}>
                 <Clock color={dark ? '#FCD34D' : '#D97706'} size={15} strokeWidth={2.4} />
                 <Text style={[s.boxTitle, { color: dark ? '#E5E7EB' : '#111827' }]}>
-                  ⏰ TIME-GATE THIS REMINDER
+                  TIME-GATE THIS REMINDER
                 </Text>
               </View>
               <Switch
@@ -316,7 +309,7 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             )}
           </View>
 
-          {/* ── CRITICAL TASK ────────────────────────────────────────────── */}
+          {/* ── CRITICAL TASK  */}
           <View style={[s.section, s.box]}>
             <View style={s.rowBetween}>
               <View style={s.rowGap}>
@@ -327,7 +320,7 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
                 />
                 <View>
                   <Text style={[s.boxTitle, config.isCritical && { color: '#EF4444' }]}>
-                    🚨 Critical Task
+                    Critical Task
                   </Text>
                   <Text style={s.boxSub}>
                     Override silent mode & max volume when{'\n'}alarm fires.
@@ -355,7 +348,7 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
               <List color={dark ? '#34D399' : '#10B981'} size={15} strokeWidth={2.4} />
               <View>
                 <Text style={[s.boxTitle, { color: dark ? '#E5E7EB' : '#111827' }]}>
-                  📋 LOCATION CHECKLIST
+                  LOCATION CHECKLIST
                   <Text style={[s.boxTitle, { color: c.muted, fontFamily: 'Poppins_500Medium' }]}>
                     {' '}(OPTIONAL)
                   </Text>
@@ -478,14 +471,15 @@ function styles(dark: boolean) {
       borderTopColor: dark ? 'rgba(255,255,255,0.06)' : '#EAE7FB',
     },
 
-    section: { marginTop: 14 },
+    section: { marginTop: 18 },
 
     box: {
       backgroundColor: c.surface,
       borderRadius: 14,
       borderWidth: 1,
       borderColor: c.border,
-      padding: 13,
+      padding: 14,
+      marginTop: 18,
     },
 
     // ── Labels 
@@ -517,7 +511,7 @@ function styles(dark: boolean) {
       marginBottom: 7,
     },
 
-    // ── Layout helpers ───────────────────────────────────────────────────────
+    // ── Layout helpers 
     rowBetween: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -530,19 +524,7 @@ function styles(dark: boolean) {
       flex: 1,
     },
 
-    // ── Badge ────────────────────────────────────────────────────────────────
-    badge: {
-      backgroundColor: dark ? 'rgba(99,102,241,0.15)' : '#EDEAFD',
-      paddingHorizontal: 10,
-      paddingVertical: 3,
-      borderRadius: 20,
-    },
-    badgeTxt: {
-      fontFamily: 'Poppins_700Bold',
-      fontSize: 11,
-    },
-
-    // ── Arrive / Leave segment ───────────────────────────────────────────────
+    // ── Arrive / Leave segment 
     segWrap: {
       flexDirection: 'row',
       backgroundColor: dark ? 'rgba(255,255,255,0.06)' : '#EDEAFD',
@@ -574,10 +556,11 @@ function styles(dark: boolean) {
     },
     segTxtOn: { color: '#FFFFFF' },
 
-    // ── Radius ───────────────────────────────────────────────────────────────
+    // ── Radius 
     radiusRow: {
       flexDirection: 'row',
       gap: 7,
+      marginBottom: 8,
     },
     rChip: {
       flex: 1,
@@ -607,7 +590,7 @@ function styles(dark: boolean) {
       fontFamily: 'Poppins_700Bold',
     },
 
-    // ── Hour grid ────────────────────────────────────────────────────────────
+    // ── Hour grid 
     hoursContainer: {
       flexDirection: 'row',
       gap: 10,
@@ -653,7 +636,7 @@ function styles(dark: boolean) {
       fontFamily: 'Poppins_700Bold',
     },
 
-    // ── Validation warning ───────────────────────────────────────────────────
+    // ── Validation warning 
     warn: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -672,7 +655,7 @@ function styles(dark: boolean) {
       flex: 1,
     },
 
-    // ── Active days ──────────────────────────────────────────────────────────
+    // ── Active days 
     daysRow: {
       flexDirection: 'row',
       gap: 5,
@@ -699,7 +682,7 @@ function styles(dark: boolean) {
       color: '#FFFFFF',
     },
 
-    // ── Checklist ────────────────────────────────────────────────────────────
+    // ── Checklist 
     clItem: {
       flexDirection: 'row',
       alignItems: 'center',
