@@ -26,6 +26,7 @@ import * as Location from 'expo-location';
 import { alarmService } from '../services/alarmService';
 import AlarmModal from '../components/AlarmModal';
 import DynamicIslandTaskBar from '../components/DynamicIslandTaskBar';
+import ConfettiCelebration from '../components/ConfettiCelebration';
 import { Event } from '../models/Event';
 import { useEventStore } from '../store/useEventStore';
 
@@ -418,6 +419,9 @@ function RootLayoutNav() {
 
         {/* Global Floating "Now Doing" Dynamic Island */}
         <DynamicIslandTaskBar />
+
+        {/* Global Haptic & Confetti Milestone Celebration */}
+        <ConfettiCelebration />
       </ThemeProvider>
     </GestureHandlerRootView>
   );

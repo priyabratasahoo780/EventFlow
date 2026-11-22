@@ -12,6 +12,7 @@ import { socketService } from '../services/socketService';
 import { geofencingService } from '../services/geofencingService';
 import { zenModeService } from '../services/zenModeService';
 import { behaviorService } from '../services/behaviorService';
+import { useCelebrationStore } from './useCelebrationStore';
 
 // ─── Edge Case Fix #1: UTC-Aware Deadline Parser ─────────────────────────────
 // Correctly parses a task deadline regardless of whether the backend stored
@@ -352,6 +353,7 @@ export const useEventStore = create<EventState>((set, get) => ({
       startedAt = nowIso;
     } else if (status === 'completed') {
       completedAt = nowIso;
+      useCelebrationStore.getState().triggerCelebration();
 
       // ── Late Completion Detection ─────────────────────────────
       // Edge Case Fix #1: Use UTC-aware parseDeadline helper instead of

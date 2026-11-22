@@ -78,7 +78,7 @@ export default function HomeScreen() {
   const colors = getColors();
   const s = useMemo(() => getStyles(colors), [colors]);
   const { user } = useAuthStore();
-  const { events, friendsEvents, loadEvents, syncFriendSharedEvents, updateTaskStatus, filters, setFilters, getFilteredEvents, getTopRecommendation, initSocket, buddyAlert, clearBuddyAlert } = useEventStore();
+  const { events, friendsEvents, loadEvents, syncFriendSharedEvents, updateTaskStatus, toggleEventCompletion, filters, setFilters, getFilteredEvents, getTopRecommendation, initSocket, buddyAlert, clearBuddyAlert } = useEventStore();
   const { location, arrivedTask, arrivedTriggerType, dismissArrivedTask } = useLocation(events);
   const [refreshing, setRefreshing] = useState(false);
   const [activeAlarmEvent, setActiveAlarmEvent] = useState<Event | null>(null);
@@ -1278,7 +1278,15 @@ export default function HomeScreen() {
                 </View>
               )}
             </View>
-            <CheckCircle2 color={isCompleted ? colors.success : '#CBD5E1'} size={22} strokeWidth={2.5} />
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                toggleEventCompletion((item.id || item._id) as string);
+              }}
+              hitSlop={10}
+            >
+              <CheckCircle2 color={isCompleted ? colors.success : '#CBD5E1'} size={22} strokeWidth={2.5} />
+            </Pressable>
           </View>
 
           {/* Title & description */}

@@ -66,9 +66,11 @@ function deltaToZoom(delta?: number): number {
   return Math.min(Math.max(zoom, 3), 18);
 }
 
+const WebViewComponent = WebView as any;
+
 const MapView = forwardRef<MapViewRef, MapViewProps>(
   ({ style, initialRegion, showsUserLocation = true, children, onPress }, ref) => {
-    const webViewRef = useRef<WebView>(null);
+    const webViewRef = useRef<any>(null);
     const markerCallbacksRef = useRef<Record<string, () => void>>({});
 
     // Parse children to extract Markers and Circles
@@ -367,7 +369,7 @@ const MapView = forwardRef<MapViewRef, MapViewProps>(
 
     return (
       <View style={[styles.container, style]}>
-        <WebView
+        <WebViewComponent
           ref={webViewRef}
           originWhitelist={['*']}
           source={{ html: htmlContent }}
