@@ -1,16 +1,18 @@
 /**
- * GeofenceReminderSection.tsx
- * ───────────────────────────────────────────────────────────────────────────
- * A self-contained, fully-working Location Reminder section for AddEvent.
- * - Enable/Disable toggle
- * - Trigger: Arrive / Leave
- * - Radius selector: 100m · 250m · 500m · 1km
- * - Time-Gate: From hour ↔ Until hour + Active Days
- * - Critical Task toggle (silent mode override)
- * - Location Checklist
+ * GeofenceReminderSection.tsx  — v2 Perfect
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Self-contained, fully-working Location Reminder section.
  *
- * Designed for both Light & Dark mode (Day / Night).
- * ───────────────────────────────────────────────────────────────────────────
+ * Features:
+ *  • Enable / Disable toggle (disabled when no location pinned)
+ *  • Arrive / Leave segmented control
+ *  • Radius: 100m · 250m · 500m · 1km
+ *  • Time-Gate: FROM hour ↔ UNTIL hour  +  Active Days (smooth LayoutAnimation)
+ *  • Validation: "Until" must be > "From"
+ *  • Critical Task toggle (silent mode override)
+ *  • Location Checklist (add / remove items, self-contained state)
+ *  • Full Day + Night mode
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import React, { useState } from 'react';
@@ -20,7 +22,6 @@ import {
   Switch,
   Pressable,
   TextInput,
-  ScrollView,
   StyleSheet,
   LayoutAnimation,
   UIManager,
@@ -32,12 +33,12 @@ import {
   Clock,
   AlertTriangle,
   CheckSquare,
-  ChevronRight,
   X,
   Plus,
+  Navigation,
+  List,
 } from 'lucide-react-native';
 import { useThemeStore } from '../store/useThemeStore';
-import { ColorTheme } from '../constants/theme';
 import { ChecklistItem } from '../models/Event';
 
 // Enable LayoutAnimation on Android
@@ -61,7 +62,7 @@ export interface GeofenceConfig {
 
 interface Props {
   config: GeofenceConfig;
-  hasLocation: boolean;        // true once a lat/lng is pinned
+  hasLocation: boolean;
   onChange: (updated: Partial<GeofenceConfig>) => void;
 }
 
@@ -77,107 +78,167 @@ const RADII = [
 const FROM_HOURS  = [6, 7, 8, 9, 10, 11, 12];
 const UNTIL_HOURS = [13, 14, 15, 16, 17, 18, 19, 20];
 const WEEKDAYS    = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const SHORT_DAY   = (d: string) => d.slice(0, 3);
+
+// ─── Helper ──────────────────────────────────────────────────────────────────
+
+const animate = () =>
+  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function SectionTitle({ children }: { children: string }) {
+  const { isDark } = useThemeStore();
+  return (
+    <Text style={[sectionTitleStyle, { color: isDark() ? '#6B7280' : '#94A3B8' }]}>
+      {children}
+    </Text>
+  );
+}
+
+const sectionTitleStyle: any = {
+  fontFamily: 'Poppins_700Bold',
+  fontSize: 10.5,
+  letterSpacing: 0.7,
+  textTransform: 'uppercase',
+  marginBottom: 8,
+};
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function GeofenceReminderSection({ config, hasLocation, onChange }: Props) {
-  const { getColors, isDark } = useThemeStore();
-  const colors   = getColors();
-  const dark     = isDark();
-  const s        = getStyles(colors, dark);
+  const { isDark } = useThemeStore();
+  const dark = isDark();
+  const s = getStyles(dark);
 
-  const [newChecklistItem, setNewChecklistItem] = useState('');
+  const [checklistInput, setChecklistInput] = useState('');
 
-  // helper: animate layout transitions
-  const animate = () =>
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  // ── handlers ───────────────────────────────────────────────────────────────
 
-  const toggle = (key: keyof GeofenceConfig, value: boolean) => {
+  const setEnabled = (v: boolean) => {
+    if (!hasLocation && v) return; // guard: can't enable without location
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     animate();
-    onChange({ [key]: value });
+    onChange({ locationReminderEnabled: v });
   };
 
-  const addChecklistItem = () => {
-    const text = newChecklistItem.trim();
+  const setTrigger = (t: 'arrive' | 'leave') => {
+    Haptics.selectionAsync();
+    onChange({ triggerType: t });
+  };
+
+  const setRadius = (r: number) => {
+    Haptics.selectionAsync();
+    onChange({ geofenceRadius: r });
+  };
+
+  const setTimeGate = (v: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    animate();
+    onChange({ timeGateEnabled: v });
+  };
+
+  const setFromHour = (h: number) => {
+    Haptics.selectionAsync();
+    onChange({ timeGateStartHour: h });
+  };
+
+  const setUntilHour = (h: number) => {
+    Haptics.selectionAsync();
+    onChange({ timeGateEndHour: h });
+  };
+
+  const toggleDay = (day: string) => {
+    Haptics.selectionAsync();
+    const next = config.timeGateDays.includes(day)
+      ? config.timeGateDays.filter(d => d !== day)
+      : [...config.timeGateDays, day];
+    onChange({ timeGateDays: next });
+  };
+
+  const setCritical = (v: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    animate();
+    onChange({ isCritical: v });
+  };
+
+  const addItem = () => {
+    const text = checklistInput.trim();
     if (!text) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onChange({
       checklist: [
         ...config.checklist,
-        { id: Date.now().toString(), text, completed: false },
+        { id: `${Date.now()}`, text, completed: false },
       ],
     });
-    setNewChecklistItem('');
+    setChecklistInput('');
   };
 
-  const removeChecklistItem = (id: string) => {
+  const removeItem = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onChange({ checklist: config.checklist.filter(c => c.id !== id) });
   };
 
-  const toggleDay = (day: string) => {
-    Haptics.selectionAsync();
-    const days = config.timeGateDays.includes(day)
-      ? config.timeGateDays.filter(d => d !== day)
-      : [...config.timeGateDays, day];
-    onChange({ timeGateDays: days });
-  };
+  const timeGateInvalid = config.timeGateEndHour <= config.timeGateStartHour;
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── render ─────────────────────────────────────────────────────────────────
 
   return (
     <View style={s.card}>
 
-      {/* ── HEADER + ENABLE TOGGLE ── */}
+      {/* ══ HEADER + MASTER TOGGLE ══════════════════════════════════════════ */}
       <View style={s.headerRow}>
-        <View style={s.headerLeft}>
-          <View style={s.iconPill}>
-            <MapPin color={dark ? '#A78BFA' : '#6366F1'} size={17} strokeWidth={2.4} />
-          </View>
-          <View>
-            <Text style={s.headerTitle}>Location Reminder</Text>
-            <Text style={s.headerSub}>
-              {hasLocation
-                ? (config.locationReminderEnabled
-                    ? 'Geofence active 📍'
-                    : 'Tap to enable geofence')
-                : 'Set a location first'}
-            </Text>
-          </View>
+        <View style={s.headerIconBox}>
+          <MapPin color={dark ? '#A78BFA' : '#6366F1'} size={18} strokeWidth={2.3} />
+        </View>
+        <View style={s.headerText}>
+          <Text style={s.headerTitle}>Location Reminder</Text>
+          <Text style={s.headerSub} numberOfLines={1}>
+            {!hasLocation
+              ? 'Set a location above to enable'
+              : config.locationReminderEnabled
+              ? '📍 Geofence active'
+              : 'Tap toggle to enable geofence'}
+          </Text>
         </View>
         <Switch
           value={config.locationReminderEnabled}
-          onValueChange={v => { if (hasLocation) toggle('locationReminderEnabled', v); }}
-          trackColor={{ false: dark ? '#374151' : '#E2E8F0', true: '#6366F1' }}
+          onValueChange={setEnabled}
+          trackColor={{
+            false: dark ? '#374151' : '#E2E8F0',
+            true: '#6366F1',
+          }}
           thumbColor="#FFFFFF"
           ios_backgroundColor={dark ? '#374151' : '#E2E8F0'}
           disabled={!hasLocation}
+          style={{ opacity: hasLocation ? 1 : 0.4 }}
         />
       </View>
 
-      {/* ── BODY (only when enabled) ── */}
+      {/* ══ BODY (visible only when enabled) ════════════════════════════════ */}
       {config.locationReminderEnabled && (
         <View style={s.body}>
 
-          {/* ── TRIGGER: ARRIVE / LEAVE ── */}
-          <View style={s.section}>
-            <Text style={s.sectionLabel}>TRIGGER WHEN I...</Text>
-            <View style={s.segmentRow}>
+          {/* ── TRIGGER ARRIVE / LEAVE ─────────────────────────────────────── */}
+          <View style={s.block}>
+            <SectionTitle>TRIGGER WHEN I...</SectionTitle>
+            <View style={s.segRow}>
               {(['arrive', 'leave'] as const).map(type => {
                 const active = config.triggerType === type;
                 return (
                   <Pressable
                     key={type}
-                    style={[s.segment, active && s.segmentActive]}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      onChange({ triggerType: type });
-                    }}
+                    style={[s.seg, active && s.segActive]}
+                    onPress={() => setTrigger(type)}
                   >
-                    <Text style={[s.segmentText, active && s.segmentTextActive]}>
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    <Navigation
+                      color={active ? '#FFF' : (dark ? '#6B7280' : '#94A3B8')}
+                      size={12}
+                      strokeWidth={2.5}
+                      style={{ transform: [{ rotate: type === 'leave' ? '180deg' : '0deg' }] }}
+                    />
+                    <Text style={[s.segText, active && s.segTextActive]}>
+                      {type === 'arrive' ? 'Arrive' : 'Leave'}
                     </Text>
                   </Pressable>
                 );
@@ -185,9 +246,16 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             </View>
           </View>
 
-          {/* ── RADIUS ── */}
-          <View style={s.section}>
-            <Text style={s.sectionLabel}>RADIUS</Text>
+          {/* ── RADIUS ─────────────────────────────────────────────────────── */}
+          <View style={s.block}>
+            <View style={s.labelRow}>
+              <SectionTitle>RADIUS</SectionTitle>
+              <Text style={s.radiusTag}>
+                {config.geofenceRadius < 1000
+                  ? `${config.geofenceRadius}m`
+                  : `${config.geofenceRadius / 1000}km`}
+              </Text>
+            </View>
             <View style={s.radiusRow}>
               {RADII.map(r => {
                 const active = config.geofenceRadius === r.val;
@@ -195,10 +263,7 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
                   <Pressable
                     key={r.val}
                     style={[s.radiusChip, active && s.radiusChipActive]}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      onChange({ geofenceRadius: r.val });
-                    }}
+                    onPress={() => setRadius(r.val)}
                   >
                     <Text style={[s.radiusText, active && s.radiusTextActive]}>
                       {r.label}
@@ -209,30 +274,35 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             </View>
           </View>
 
-          {/* ── TIME-GATE ── */}
-          <View style={[s.section, s.sectionBox]}>
+          {/* ── TIME-GATE ──────────────────────────────────────────────────── */}
+          <View style={[s.block, s.boxed]}>
+            {/* Toggle row */}
             <View style={s.toggleRow}>
-              <View style={s.toggleLeft}>
-                <Clock color={dark ? '#FCD34D' : '#D97706'} size={16} strokeWidth={2.4} />
-                <Text style={s.toggleTitle}>⏰ TIME-GATE THIS REMINDER</Text>
-              </View>
+              <Clock color={dark ? '#FCD34D' : '#D97706'} size={15} strokeWidth={2.4} />
+              <Text style={s.toggleTitle}>⏰ TIME-GATE THIS REMINDER</Text>
               <Switch
                 value={config.timeGateEnabled}
-                onValueChange={v => toggle('timeGateEnabled', v)}
+                onValueChange={setTimeGate}
                 trackColor={{ false: dark ? '#374151' : '#E2E8F0', true: '#F97316' }}
                 thumbColor="#FFFFFF"
                 ios_backgroundColor={dark ? '#374151' : '#E2E8F0'}
               />
             </View>
-            <Text style={s.toggleSub}>Alarm will only fire if triggered within this time window.</Text>
+            <Text style={s.toggleSub}>
+              Alarm will only fire if triggered within this time window.
+            </Text>
 
+            {/* Expanded time-gate settings */}
             {config.timeGateEnabled && (
-              <View style={s.timeGateBody}>
-                {/* From / Until hours */}
+              <View style={s.timeGateInner}>
+
+                {/* FROM / UNTIL columns */}
                 <View style={s.hoursRow}>
                   {/* FROM */}
                   <View style={s.hourCol}>
-                    <Text style={s.hourColLabel}>FROM (hour)</Text>
+                    <Text style={[sectionTitleStyle, { color: dark ? '#6B7280' : '#94A3B8', marginBottom: 6 }]}>
+                      FROM (hour)
+                    </Text>
                     <View style={s.hourGrid}>
                       {FROM_HOURS.map(h => {
                         const active = config.timeGateStartHour === h;
@@ -240,10 +310,7 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
                           <Pressable
                             key={h}
                             style={[s.hourChip, active && s.hourChipActive]}
-                            onPress={() => {
-                              Haptics.selectionAsync();
-                              onChange({ timeGateStartHour: h });
-                            }}
+                            onPress={() => setFromHour(h)}
                           >
                             <Text style={[s.hourText, active && s.hourTextActive]}>
                               {h}:00
@@ -256,7 +323,9 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
 
                   {/* UNTIL */}
                   <View style={s.hourCol}>
-                    <Text style={s.hourColLabel}>UNTIL (hour)</Text>
+                    <Text style={[sectionTitleStyle, { color: dark ? '#6B7280' : '#94A3B8', marginBottom: 6 }]}>
+                      UNTIL (hour)
+                    </Text>
                     <View style={s.hourGrid}>
                       {UNTIL_HOURS.map(h => {
                         const active = config.timeGateEndHour === h;
@@ -264,10 +333,7 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
                           <Pressable
                             key={h}
                             style={[s.hourChip, active && s.hourChipActive]}
-                            onPress={() => {
-                              Haptics.selectionAsync();
-                              onChange({ timeGateEndHour: h });
-                            }}
+                            onPress={() => setUntilHour(h)}
                           >
                             <Text style={[s.hourText, active && s.hourTextActive]}>
                               {h}:00
@@ -280,17 +346,21 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
                 </View>
 
                 {/* Validation warning */}
-                {config.timeGateEndHour <= config.timeGateStartHour && (
-                  <View style={s.warningRow}>
+                {timeGateInvalid && (
+                  <View style={s.warning}>
                     <AlertTriangle color="#F59E0B" size={13} strokeWidth={2.5} />
                     <Text style={s.warningText}>
-                      "Until" hour must be later than "From" hour.
+                      "Until" must be later than "From" hour.
                     </Text>
                   </View>
                 )}
 
-                {/* Active Days */}
-                <Text style={[s.hourColLabel, { marginTop: 12, marginBottom: 6 }]}>
+                {/* Active days */}
+                <Text style={[sectionTitleStyle, {
+                  color: dark ? '#6B7280' : '#94A3B8',
+                  marginTop: 14,
+                  marginBottom: 6,
+                }]}>
                   ACTIVE DAYS
                 </Text>
                 <View style={s.daysRow}>
@@ -303,7 +373,7 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
                         onPress={() => toggleDay(day)}
                       >
                         <Text style={[s.dayText, active && s.dayTextActive]}>
-                          {SHORT_DAY(day)}
+                          {day.slice(0, 3)}
                         </Text>
                       </Pressable>
                     );
@@ -313,27 +383,25 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             )}
           </View>
 
-          {/* ── CRITICAL TASK ── */}
-          <View style={[s.section, s.sectionBox]}>
+          {/* ── CRITICAL TASK ──────────────────────────────────────────────── */}
+          <View style={[s.block, s.boxed]}>
             <View style={s.toggleRow}>
-              <View style={s.toggleLeft}>
-                <AlertTriangle
-                  color={config.isCritical ? '#EF4444' : (dark ? '#9CA3AF' : '#94A3B8')}
-                  size={16}
-                  strokeWidth={2.4}
-                />
-                <View>
-                  <Text style={[s.toggleTitle, config.isCritical && { color: '#EF4444' }]}>
-                    🚨 Critical Task
-                  </Text>
-                  <Text style={s.toggleSub}>
-                    Override silent mode & max volume when alarm fires.
-                  </Text>
-                </View>
+              <AlertTriangle
+                color={config.isCritical ? '#EF4444' : (dark ? '#6B7280' : '#94A3B8')}
+                size={15}
+                strokeWidth={2.4}
+              />
+              <View style={s.toggleTextGroup}>
+                <Text style={[s.toggleTitle, config.isCritical && { color: '#EF4444' }]}>
+                  🚨 Critical Task
+                </Text>
+                <Text style={s.toggleSub}>
+                  Override silent mode & max volume when alarm fires.
+                </Text>
               </View>
               <Switch
                 value={config.isCritical}
-                onValueChange={v => toggle('isCritical', v)}
+                onValueChange={setCritical}
                 trackColor={{ false: dark ? '#374151' : '#E2E8F0', true: '#EF4444' }}
                 thumbColor="#FFFFFF"
                 ios_backgroundColor={dark ? '#374151' : '#E2E8F0'}
@@ -341,44 +409,51 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             </View>
           </View>
 
-          {/* ── LOCATION CHECKLIST ── */}
-          <View style={[s.section, s.sectionBox]}>
-            <View style={s.toggleLeft}>
-              <CheckSquare color={dark ? '#34D399' : '#10B981'} size={16} strokeWidth={2.4} />
-              <View>
-                <Text style={s.toggleTitle}>📋 LOCATION CHECKLIST (OPTIONAL)</Text>
+          {/* ── LOCATION CHECKLIST ─────────────────────────────────────────── */}
+          <View style={[s.block, s.boxed]}>
+            {/* Header */}
+            <View style={s.checkHeader}>
+              <List color={dark ? '#34D399' : '#10B981'} size={15} strokeWidth={2.4} />
+              <View style={s.toggleTextGroup}>
+                <Text style={s.toggleTitle}>📋 LOCATION CHECKLIST</Text>
                 <Text style={s.toggleSub}>
-                  Items to show when you arrive at this location (e.g. Shopping List)
+                  Items shown when you arrive (e.g. Shopping List)
                 </Text>
               </View>
             </View>
 
-            {/* Existing items */}
-            {config.checklist.map(item => (
-              <View key={item.id} style={s.checkItem}>
-                <View style={s.checkDot} />
-                <Text style={s.checkText} numberOfLines={1}>{item.text}</Text>
-                <Pressable onPress={() => removeChecklistItem(item.id)} hitSlop={8}>
-                  <X color={dark ? '#6B7280' : '#94A3B8'} size={15} strokeWidth={2.5} />
-                </Pressable>
+            {/* Items */}
+            {config.checklist.length > 0 && (
+              <View style={s.checkList}>
+                {config.checklist.map(item => (
+                  <View key={item.id} style={s.checkItem}>
+                    <View style={s.checkDot} />
+                    <Text style={s.checkItemText} numberOfLines={2}>
+                      {item.text}
+                    </Text>
+                    <Pressable onPress={() => removeItem(item.id)} hitSlop={10}>
+                      <X color={dark ? '#6B7280' : '#94A3B8'} size={15} strokeWidth={2.5} />
+                    </Pressable>
+                  </View>
+                ))}
               </View>
-            ))}
+            )}
 
             {/* Add input */}
             <View style={s.checkInputRow}>
               <TextInput
                 style={s.checkInput}
                 placeholder="Add checklist item..."
-                placeholderTextColor={dark ? '#6B7280' : '#94A3B8'}
-                value={newChecklistItem}
-                onChangeText={setNewChecklistItem}
-                onSubmitEditing={addChecklistItem}
+                placeholderTextColor={dark ? '#4B5563' : '#94A3B8'}
+                value={checklistInput}
+                onChangeText={setChecklistInput}
+                onSubmitEditing={addItem}
                 returnKeyType="done"
               />
               <Pressable
-                style={[s.checkAddBtn, !newChecklistItem.trim() && { opacity: 0.45 }]}
-                onPress={addChecklistItem}
-                disabled={!newChecklistItem.trim()}
+                style={[s.checkAddBtn, !checklistInput.trim() && { opacity: 0.4 }]}
+                onPress={addItem}
+                disabled={!checklistInput.trim()}
               >
                 <Plus color="#FFF" size={18} strokeWidth={2.8} />
               </Pressable>
@@ -393,43 +468,47 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const getStyles = (colors: ColorTheme, dark: boolean) =>
-  StyleSheet.create({
+function getStyles(dark: boolean) {
+  const border   = dark ? 'rgba(255,255,255,0.08)' : '#E5E7EB';
+  const surface  = dark ? 'rgba(255,255,255,0.04)' : '#FFFFFF';
+  const textMain = dark ? '#E5E7EB' : '#111827';
+  const textSub  = dark ? '#6B7280' : '#94A3B8';
+
+  return StyleSheet.create({
+
+    // ── Card shell ──────────────────────────────────────────────────────────
     card: {
       marginTop: 20,
       borderRadius: 20,
       borderWidth: 1.5,
-      borderColor: dark ? 'rgba(99,102,241,0.25)' : '#ECE9FB',
-      backgroundColor: dark ? '#1A182E' : '#F9F8FD',
+      borderColor: dark ? 'rgba(99,102,241,0.3)' : '#E0DCFB',
+      backgroundColor: dark ? '#161424' : '#F8F7FE',
       overflow: 'hidden',
-      shadowColor: dark ? '#000' : '#4338CA',
+      shadowColor: dark ? '#000' : '#4F46E5',
       shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: dark ? 0.3 : 0.05,
+      shadowOpacity: dark ? 0.35 : 0.06,
       shadowRadius: 16,
       elevation: 4,
     },
 
-    // Header
+    // ── Header ──────────────────────────────────────────────────────────────
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
       paddingHorizontal: 16,
       paddingVertical: 14,
-    },
-    headerLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
       gap: 12,
-      flex: 1,
     },
-    iconPill: {
+    headerIconBox: {
       width: 38,
       height: 38,
       borderRadius: 12,
       backgroundColor: dark ? 'rgba(99,102,241,0.2)' : '#EDEAFD',
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    headerText: {
+      flex: 1,
     },
     headerTitle: {
       fontFamily: 'Poppins_700Bold',
@@ -438,89 +517,98 @@ const getStyles = (colors: ColorTheme, dark: boolean) =>
       letterSpacing: -0.1,
     },
     headerSub: {
-      fontFamily: 'Poppins_500Medium',
+      fontFamily: 'Poppins_400Regular',
       fontSize: 11,
-      color: dark ? '#6B7280' : '#94A3B8',
+      color: textSub,
       marginTop: 1,
     },
 
-    // Body
+    // ── Body ────────────────────────────────────────────────────────────────
     body: {
       paddingHorizontal: 14,
-      paddingBottom: 14,
+      paddingBottom: 16,
       borderTopWidth: 1,
-      borderTopColor: dark ? 'rgba(255,255,255,0.07)' : '#E8E5FB',
+      borderTopColor: dark ? 'rgba(255,255,255,0.06)' : '#EAE7FB',
     },
 
-    // Section
-    section: {
+    block: {
       marginTop: 14,
     },
-    sectionBox: {
-      backgroundColor: dark ? 'rgba(255,255,255,0.03)' : colors.card,
+    boxed: {
+      backgroundColor: surface,
       borderRadius: 14,
       borderWidth: 1,
-      borderColor: dark ? 'rgba(255,255,255,0.07)' : '#EEE9FC',
+      borderColor: border,
       padding: 12,
     },
-    sectionLabel: {
-      fontFamily: 'Poppins_700Bold',
-      fontSize: 10.5,
-      color: dark ? '#9CA3AF' : '#94A3B8',
-      letterSpacing: 0.6,
+
+    // label row (label + badge side by side)
+    labelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       marginBottom: 8,
-      textTransform: 'uppercase',
+    },
+    radiusTag: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 11,
+      color: dark ? '#A78BFA' : '#4F46E5',
     },
 
-    // Segment (Arrive / Leave)
-    segmentRow: {
+    // ── Arrive / Leave segment ───────────────────────────────────────────────
+    segRow: {
       flexDirection: 'row',
-      backgroundColor: dark ? 'rgba(255,255,255,0.05)' : '#E8E5FB',
+      backgroundColor: dark ? 'rgba(255,255,255,0.06)' : '#EDEAFD',
       borderRadius: 12,
       padding: 3,
+      gap: 3,
     },
-    segment: {
+    seg: {
       flex: 1,
-      paddingVertical: 9,
-      borderRadius: 10,
+      flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 10,
+      borderRadius: 10,
+      gap: 6,
     },
-    segmentActive: {
-      backgroundColor: dark ? '#4F46E5' : '#4F46E5',
+    segActive: {
+      backgroundColor: '#4F46E5',
       shadowColor: '#4F46E5',
       shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: 0.3,
+      shadowOpacity: 0.35,
       shadowRadius: 6,
       elevation: 3,
     },
-    segmentText: {
+    segText: {
       fontFamily: 'Poppins_600SemiBold',
       fontSize: 13,
-      color: dark ? '#9CA3AF' : '#6B7280',
+      color: dark ? '#6B7280' : '#94A3B8',
     },
-    segmentTextActive: {
+    segTextActive: {
       color: '#FFFFFF',
     },
 
-    // Radius
+    // ── Radius ──────────────────────────────────────────────────────────────
     radiusRow: {
       flexDirection: 'row',
       gap: 7,
     },
     radiusChip: {
       flex: 1,
-      paddingVertical: 8,
+      paddingVertical: 9,
       borderRadius: 10,
       borderWidth: 1.2,
-      borderColor: dark ? 'rgba(255,255,255,0.1)' : '#D1D5DB',
-      backgroundColor: dark ? 'rgba(255,255,255,0.04)' : '#FFF',
+      borderColor: border,
+      backgroundColor: surface,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     radiusChipActive: {
       backgroundColor: '#F97316',
       borderColor: '#F97316',
       shadowColor: '#F97316',
-      shadowOffset: { width: 0, height: 2 },
+      shadowOffset: { width: 0, height: 3 },
       shadowOpacity: 0.3,
       shadowRadius: 5,
       elevation: 3,
@@ -528,41 +616,37 @@ const getStyles = (colors: ColorTheme, dark: boolean) =>
     radiusText: {
       fontFamily: 'Poppins_600SemiBold',
       fontSize: 12,
-      color: dark ? '#9CA3AF' : '#6B7280',
+      color: textSub,
     },
     radiusTextActive: {
-      color: '#FFF',
+      color: '#FFFFFF',
+      fontFamily: 'Poppins_700Bold',
     },
 
-    // Toggle row
+    // ── Toggle rows ─────────────────────────────────────────────────────────
     toggleRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    toggleLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
       gap: 8,
+    },
+    toggleTextGroup: {
       flex: 1,
-      flexWrap: 'wrap',
     },
     toggleTitle: {
       fontFamily: 'Poppins_700Bold',
       fontSize: 12.5,
-      color: dark ? '#E5E7EB' : '#1E293B',
-      flexShrink: 1,
+      color: textMain,
     },
     toggleSub: {
       fontFamily: 'Poppins_400Regular',
       fontSize: 10.5,
-      color: dark ? '#6B7280' : '#94A3B8',
+      color: textSub,
       marginTop: 3,
       lineHeight: 15,
     },
 
-    // Time-gate body
-    timeGateBody: {
+    // ── Time-gate inner ─────────────────────────────────────────────────────
+    timeGateInner: {
       marginTop: 12,
     },
     hoursRow: {
@@ -572,26 +656,18 @@ const getStyles = (colors: ColorTheme, dark: boolean) =>
     hourCol: {
       flex: 1,
     },
-    hourColLabel: {
-      fontFamily: 'Poppins_600SemiBold',
-      fontSize: 10,
-      color: dark ? '#6B7280' : '#94A3B8',
-      letterSpacing: 0.5,
-      textTransform: 'uppercase',
-      marginBottom: 6,
-    },
     hourGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 5,
     },
     hourChip: {
-      paddingHorizontal: 8,
+      paddingHorizontal: 7,
       paddingVertical: 5,
       borderRadius: 7,
       borderWidth: 1,
-      borderColor: dark ? 'rgba(255,255,255,0.1)' : '#E2E8F0',
-      backgroundColor: dark ? 'rgba(255,255,255,0.04)' : '#FFF',
+      borderColor: border,
+      backgroundColor: surface,
     },
     hourChipActive: {
       backgroundColor: '#F97316',
@@ -600,15 +676,15 @@ const getStyles = (colors: ColorTheme, dark: boolean) =>
     hourText: {
       fontFamily: 'Poppins_500Medium',
       fontSize: 11,
-      color: dark ? '#9CA3AF' : '#6B7280',
+      color: textSub,
     },
     hourTextActive: {
-      color: '#FFF',
+      color: '#FFFFFF',
       fontFamily: 'Poppins_700Bold',
     },
 
-    // Warning
-    warningRow: {
+    // ── Validation warning ───────────────────────────────────────────────────
+    warning: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
@@ -626,19 +702,19 @@ const getStyles = (colors: ColorTheme, dark: boolean) =>
       flex: 1,
     },
 
-    // Days
+    // ── Days ────────────────────────────────────────────────────────────────
     daysRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 6,
     },
     dayChip: {
-      paddingHorizontal: 10,
+      paddingHorizontal: 11,
       paddingVertical: 6,
       borderRadius: 9,
       borderWidth: 1.2,
-      borderColor: dark ? 'rgba(255,255,255,0.1)' : '#E2E8F0',
-      backgroundColor: dark ? 'rgba(255,255,255,0.04)' : '#FFF',
+      borderColor: border,
+      backgroundColor: surface,
     },
     dayChipActive: {
       backgroundColor: '#F97316',
@@ -647,56 +723,64 @@ const getStyles = (colors: ColorTheme, dark: boolean) =>
     dayText: {
       fontFamily: 'Poppins_600SemiBold',
       fontSize: 11.5,
-      color: dark ? '#9CA3AF' : '#6B7280',
+      color: textSub,
     },
     dayTextActive: {
-      color: '#FFF',
+      color: '#FFFFFF',
     },
 
-    // Checklist
+    // ── Checklist ───────────────────────────────────────────────────────────
+    checkHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      marginBottom: 10,
+    },
+    checkList: {
+      gap: 6,
+      marginBottom: 10,
+    },
     checkItem: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-      backgroundColor: dark ? 'rgba(255,255,255,0.05)' : '#F8FAFC',
+      backgroundColor: dark ? 'rgba(255,255,255,0.05)' : '#F3F4F6',
       borderRadius: 10,
       paddingHorizontal: 12,
       paddingVertical: 9,
-      marginTop: 8,
       borderWidth: 1,
-      borderColor: dark ? 'rgba(255,255,255,0.07)' : '#E2E8F0',
+      borderColor: border,
     },
     checkDot: {
-      width: 18,
-      height: 18,
-      borderRadius: 9,
+      width: 16,
+      height: 16,
+      borderRadius: 8,
       borderWidth: 2,
-      borderColor: dark ? '#4F46E5' : '#6366F1',
-      backgroundColor: 'transparent',
+      borderColor: dark ? '#6366F1' : '#4F46E5',
+      flexShrink: 0,
     },
-    checkText: {
+    checkItemText: {
       flex: 1,
       fontFamily: 'Poppins_500Medium',
       fontSize: 13,
-      color: dark ? '#E5E7EB' : '#1E293B',
+      color: textMain,
     },
     checkInputRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      marginTop: 10,
     },
     checkInput: {
       flex: 1,
       height: 44,
-      backgroundColor: dark ? 'rgba(255,255,255,0.05)' : '#FFF',
+      backgroundColor: surface,
       borderRadius: 12,
       borderWidth: 1.2,
-      borderColor: dark ? 'rgba(255,255,255,0.1)' : '#E2E8F0',
+      borderColor: border,
       paddingHorizontal: 14,
       fontFamily: 'Poppins_500Medium',
       fontSize: 13,
-      color: dark ? '#E5E7EB' : '#1E293B',
+      color: textMain,
     },
     checkAddBtn: {
       width: 44,
@@ -707,8 +791,9 @@ const getStyles = (colors: ColorTheme, dark: boolean) =>
       justifyContent: 'center',
       shadowColor: '#F97316',
       shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: 0.3,
+      shadowOpacity: 0.35,
       shadowRadius: 6,
       elevation: 3,
     },
   });
+}
