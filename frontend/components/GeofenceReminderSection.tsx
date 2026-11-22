@@ -1,17 +1,12 @@
 /**
- * GeofenceReminderSection.tsx  — v2 Perfect
+ * GeofenceReminderSection.tsx  — v3 Perfect UI/UX
  * ─────────────────────────────────────────────────────────────────────────────
- * Self-contained, fully-working Location Reminder section.
- *
- * Features:
- *  • Enable / Disable toggle (disabled when no location pinned)
- *  • Arrive / Leave segmented control
- *  • Radius: 100m · 250m · 500m · 1km
- *  • Time-Gate: FROM hour ↔ UNTIL hour  +  Active Days (smooth LayoutAnimation)
- *  • Validation: "Until" must be > "From"
- *  • Critical Task toggle (silent mode override)
- *  • Location Checklist (add / remove items, self-contained state)
- *  • Full Day + Night mode
+ * Completely redesigned layout:
+ *  • FROM / UNTIL hours → stacked columns with consistent 3-per-row grids
+ *  • Active Days → evenly spaced full-width pill row
+ *  • Critical Task & Checklist → polished card rows
+ *  • Full Light + Dark mode
+ *  • LayoutAnimation on expand/collapse
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -26,27 +21,27 @@ import {
   LayoutAnimation,
   UIManager,
   Platform,
+  ScrollView,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
   MapPin,
   Clock,
   AlertTriangle,
-  CheckSquare,
   X,
   Plus,
-  Navigation,
+  Navigation2,
   List,
+  ChevronRight,
 } from 'lucide-react-native';
 import { useThemeStore } from '../store/useThemeStore';
 import { ChecklistItem } from '../models/Event';
 
-// Enable LayoutAnimation on Android
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+//  Types
 
 export interface GeofenceConfig {
   locationReminderEnabled: boolean;
@@ -66,178 +61,132 @@ interface Props {
   onChange: (updated: Partial<GeofenceConfig>) => void;
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// Constants 
 
 const RADII = [
-  { label: '100m', val: 100 },
-  { label: '250m', val: 250 },
-  { label: '500m', val: 500 },
-  { label: '1km',  val: 1000 },
+  { label: '100m',  val: 100  },
+  { label: '250m',  val: 250  },
+  { label: '500m',  val: 500  },
+  { label: '1km',   val: 1000 },
 ];
 
+// 3-per-row for FROM (6 → 12 = 7 hours)
 const FROM_HOURS  = [6, 7, 8, 9, 10, 11, 12];
+// 2-per-row for UNTIL (13 → 20 = 8 hours)
 const UNTIL_HOURS = [13, 14, 15, 16, 17, 18, 19, 20];
-const WEEKDAYS    = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-// ─── Helper ──────────────────────────────────────────────────────────────────
+const DAYS = [
+  { key: 'Monday',    short: 'Mon' },
+  { key: 'Tuesday',   short: 'Tue' },
+  { key: 'Wednesday', short: 'Wed' },
+  { key: 'Thursday',  short: 'Thu' },
+  { key: 'Friday',    short: 'Fri' },
+  { key: 'Saturday',  short: 'Sat' },
+  { key: 'Sunday',    short: 'Sun' },
+];
 
-const animate = () =>
+function anim() {
   LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
-function SectionTitle({ children }: { children: string }) {
-  const { isDark } = useThemeStore();
-  return (
-    <Text style={[sectionTitleStyle, { color: isDark() ? '#6B7280' : '#94A3B8' }]}>
-      {children}
-    </Text>
-  );
 }
-
-const sectionTitleStyle: any = {
-  fontFamily: 'Poppins_700Bold',
-  fontSize: 10.5,
-  letterSpacing: 0.7,
-  textTransform: 'uppercase',
-  marginBottom: 8,
-};
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function GeofenceReminderSection({ config, hasLocation, onChange }: Props) {
   const { isDark } = useThemeStore();
   const dark = isDark();
-  const s = getStyles(dark);
+  const c = colors(dark);
+  const s = styles(dark);
 
   const [checklistInput, setChecklistInput] = useState('');
 
-  // ── handlers ───────────────────────────────────────────────────────────────
+  // ── Handlers ───────────────────────────────────────────────────────────────
 
   const setEnabled = (v: boolean) => {
-    if (!hasLocation && v) return; // guard: can't enable without location
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    animate();
-    onChange({ locationReminderEnabled: v });
-  };
-
-  const setTrigger = (t: 'arrive' | 'leave') => {
-    Haptics.selectionAsync();
-    onChange({ triggerType: t });
-  };
-
-  const setRadius = (r: number) => {
-    Haptics.selectionAsync();
-    onChange({ geofenceRadius: r });
-  };
-
-  const setTimeGate = (v: boolean) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    animate();
-    onChange({ timeGateEnabled: v });
-  };
-
-  const setFromHour = (h: number) => {
-    Haptics.selectionAsync();
-    onChange({ timeGateStartHour: h });
-  };
-
-  const setUntilHour = (h: number) => {
-    Haptics.selectionAsync();
-    onChange({ timeGateEndHour: h });
-  };
-
-  const toggleDay = (day: string) => {
-    Haptics.selectionAsync();
-    const next = config.timeGateDays.includes(day)
-      ? config.timeGateDays.filter(d => d !== day)
-      : [...config.timeGateDays, day];
-    onChange({ timeGateDays: next });
-  };
-
-  const setCritical = (v: boolean) => {
+    if (!hasLocation && v) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    animate();
-    onChange({ isCritical: v });
+    anim();
+    onChange({ locationReminderEnabled: v });
   };
 
   const addItem = () => {
     const text = checklistInput.trim();
     if (!text) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onChange({
-      checklist: [
-        ...config.checklist,
-        { id: `${Date.now()}`, text, completed: false },
-      ],
-    });
+    onChange({ checklist: [...config.checklist, { id: `${Date.now()}`, text, completed: false }] });
     setChecklistInput('');
   };
 
   const removeItem = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onChange({ checklist: config.checklist.filter(c => c.id !== id) });
+    onChange({ checklist: config.checklist.filter(ci => ci.id !== id) });
   };
 
-  const timeGateInvalid = config.timeGateEndHour <= config.timeGateStartHour;
+  const toggleDay = (key: string) => {
+    Haptics.selectionAsync();
+    const next = config.timeGateDays.includes(key)
+      ? config.timeGateDays.filter(d => d !== key)
+      : [...config.timeGateDays, key];
+    onChange({ timeGateDays: next });
+  };
 
-  // ── render ─────────────────────────────────────────────────────────────────
+  const timeGateInvalid = config.timeGateEnabled && config.timeGateEndHour <= config.timeGateStartHour;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <View style={s.card}>
 
       {/* ══ HEADER + MASTER TOGGLE ══════════════════════════════════════════ */}
       <View style={s.headerRow}>
-        <View style={s.headerIconBox}>
+        <View style={[s.iconBox, { backgroundColor: dark ? 'rgba(99,102,241,0.18)' : '#EDEAFD' }]}>
           <MapPin color={dark ? '#A78BFA' : '#6366F1'} size={18} strokeWidth={2.3} />
         </View>
-        <View style={s.headerText}>
-          <Text style={s.headerTitle}>Location Reminder</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.headerTitle, { color: dark ? '#A78BFA' : '#4F46E5' }]}>
+            Location Reminder
+          </Text>
           <Text style={s.headerSub} numberOfLines={1}>
             {!hasLocation
               ? 'Set a location above to enable'
               : config.locationReminderEnabled
-              ? '📍 Geofence active'
-              : 'Tap toggle to enable geofence'}
+              ? '📍 Geofence active & watching'
+              : 'Enable to trigger alarm on arrival'}
           </Text>
         </View>
         <Switch
           value={config.locationReminderEnabled}
           onValueChange={setEnabled}
-          trackColor={{
-            false: dark ? '#374151' : '#E2E8F0',
-            true: '#6366F1',
-          }}
+          trackColor={{ false: c.switchOff, true: '#6366F1' }}
           thumbColor="#FFFFFF"
-          ios_backgroundColor={dark ? '#374151' : '#E2E8F0'}
+          ios_backgroundColor={c.switchOff}
           disabled={!hasLocation}
           style={{ opacity: hasLocation ? 1 : 0.4 }}
         />
       </View>
 
-      {/* ══ BODY (visible only when enabled) ════════════════════════════════ */}
+      {/* ══ BODY ════════════════════════════════════════════════════════════ */}
       {config.locationReminderEnabled && (
         <View style={s.body}>
 
-          {/* ── TRIGGER ARRIVE / LEAVE ─────────────────────────────────────── */}
-          <View style={s.block}>
-            <SectionTitle>TRIGGER WHEN I...</SectionTitle>
-            <View style={s.segRow}>
+          {/* ── TRIGGER ──────────────────────────────────────────────────── */}
+          <View style={s.section}>
+            <Text style={s.sLabel}>TRIGGER WHEN I...</Text>
+            <View style={s.segWrap}>
               {(['arrive', 'leave'] as const).map(type => {
                 const active = config.triggerType === type;
                 return (
                   <Pressable
                     key={type}
-                    style={[s.seg, active && s.segActive]}
-                    onPress={() => setTrigger(type)}
+                    style={[s.seg, active && s.segOn]}
+                    onPress={() => { Haptics.selectionAsync(); onChange({ triggerType: type }); }}
                   >
-                    <Navigation
-                      color={active ? '#FFF' : (dark ? '#6B7280' : '#94A3B8')}
-                      size={12}
+                    <Navigation2
+                      color={active ? '#FFF' : c.muted}
+                      size={13}
                       strokeWidth={2.5}
                       style={{ transform: [{ rotate: type === 'leave' ? '180deg' : '0deg' }] }}
                     />
-                    <Text style={[s.segText, active && s.segTextActive]}>
+                    <Text style={[s.segTxt, active && s.segTxtOn]}>
                       {type === 'arrive' ? 'Arrive' : 'Leave'}
                     </Text>
                   </Pressable>
@@ -246,135 +195,130 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             </View>
           </View>
 
-          {/* ── RADIUS ─────────────────────────────────────────────────────── */}
-          <View style={s.block}>
-            <View style={s.labelRow}>
-              <SectionTitle>RADIUS</SectionTitle>
-              <Text style={s.radiusTag}>
-                {config.geofenceRadius < 1000
-                  ? `${config.geofenceRadius}m`
-                  : `${config.geofenceRadius / 1000}km`}
-              </Text>
+          {/* ── RADIUS ───────────────────────────────────────────────────── */}
+          <View style={s.section}>
+            <View style={s.rowBetween}>
+              <Text style={s.sLabel}>RADIUS</Text>
+              <View style={s.badge}>
+                <Text style={[s.badgeTxt, { color: dark ? '#A78BFA' : '#4F46E5' }]}>
+                  {config.geofenceRadius < 1000 ? `${config.geofenceRadius}m` : `${config.geofenceRadius / 1000}km`}
+                </Text>
+              </View>
             </View>
             <View style={s.radiusRow}>
               {RADII.map(r => {
-                const active = config.geofenceRadius === r.val;
+                const on = config.geofenceRadius === r.val;
                 return (
                   <Pressable
                     key={r.val}
-                    style={[s.radiusChip, active && s.radiusChipActive]}
-                    onPress={() => setRadius(r.val)}
+                    style={[s.rChip, on && s.rChipOn]}
+                    onPress={() => { Haptics.selectionAsync(); onChange({ geofenceRadius: r.val }); }}
                   >
-                    <Text style={[s.radiusText, active && s.radiusTextActive]}>
-                      {r.label}
-                    </Text>
+                    <Text style={[s.rTxt, on && s.rTxtOn]}>{r.label}</Text>
                   </Pressable>
                 );
               })}
             </View>
           </View>
 
-          {/* ── TIME-GATE ──────────────────────────────────────────────────── */}
-          <View style={[s.block, s.boxed]}>
-            {/* Toggle row */}
-            <View style={s.toggleRow}>
-              <Clock color={dark ? '#FCD34D' : '#D97706'} size={15} strokeWidth={2.4} />
-              <Text style={s.toggleTitle}>⏰ TIME-GATE THIS REMINDER</Text>
+          {/* ── TIME-GATE ────────────────────────────────────────────────── */}
+          <View style={[s.section, s.box]}>
+            {/* Toggle header */}
+            <View style={s.rowBetween}>
+              <View style={s.rowGap}>
+                <Clock color={dark ? '#FCD34D' : '#D97706'} size={15} strokeWidth={2.4} />
+                <Text style={[s.boxTitle, { color: dark ? '#E5E7EB' : '#111827' }]}>
+                  ⏰ TIME-GATE THIS REMINDER
+                </Text>
+              </View>
               <Switch
                 value={config.timeGateEnabled}
-                onValueChange={setTimeGate}
-                trackColor={{ false: dark ? '#374151' : '#E2E8F0', true: '#F97316' }}
+                onValueChange={v => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); anim(); onChange({ timeGateEnabled: v }); }}
+                trackColor={{ false: c.switchOff, true: '#F97316' }}
                 thumbColor="#FFFFFF"
-                ios_backgroundColor={dark ? '#374151' : '#E2E8F0'}
+                ios_backgroundColor={c.switchOff}
               />
             </View>
-            <Text style={s.toggleSub}>
+            <Text style={s.boxSub}>
               Alarm will only fire if triggered within this time window.
             </Text>
 
-            {/* Expanded time-gate settings */}
             {config.timeGateEnabled && (
-              <View style={s.timeGateInner}>
+              <View style={{ marginTop: 14 }}>
 
-                {/* FROM / UNTIL columns */}
-                <View style={s.hoursRow}>
-                  {/* FROM */}
+                {/* FROM + UNTIL side by side */}
+                <View style={s.hoursContainer}>
+
+                  {/* FROM column */}
                   <View style={s.hourCol}>
-                    <Text style={[sectionTitleStyle, { color: dark ? '#6B7280' : '#94A3B8', marginBottom: 6 }]}>
-                      FROM (hour)
-                    </Text>
-                    <View style={s.hourGrid}>
-                      {FROM_HOURS.map(h => {
-                        const active = config.timeGateStartHour === h;
-                        return (
-                          <Pressable
-                            key={h}
-                            style={[s.hourChip, active && s.hourChipActive]}
-                            onPress={() => setFromHour(h)}
-                          >
-                            <Text style={[s.hourText, active && s.hourTextActive]}>
-                              {h}:00
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
+                    <Text style={[s.colLabel, { color: c.muted }]}>FROM (hour)</Text>
+                    {/* 3 per row */}
+                    {[0, 3, 6].map(rowStart => (
+                      <View key={rowStart} style={s.hourRow3}>
+                        {FROM_HOURS.slice(rowStart, rowStart + 3).map(h => {
+                          const on = config.timeGateStartHour === h;
+                          return (
+                            <Pressable
+                              key={h}
+                              style={[s.hChip, on && s.hChipOn, { flex: 1 }]}
+                              onPress={() => { Haptics.selectionAsync(); onChange({ timeGateStartHour: h }); }}
+                            >
+                              <Text style={[s.hTxt, on && s.hTxtOn]}>{h}:00</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ))}
                   </View>
 
-                  {/* UNTIL */}
+                  {/* Divider */}
+                  <View style={s.hourDivider} />
+
+                  {/* UNTIL column */}
                   <View style={s.hourCol}>
-                    <Text style={[sectionTitleStyle, { color: dark ? '#6B7280' : '#94A3B8', marginBottom: 6 }]}>
-                      UNTIL (hour)
-                    </Text>
-                    <View style={s.hourGrid}>
-                      {UNTIL_HOURS.map(h => {
-                        const active = config.timeGateEndHour === h;
-                        return (
-                          <Pressable
-                            key={h}
-                            style={[s.hourChip, active && s.hourChipActive]}
-                            onPress={() => setUntilHour(h)}
-                          >
-                            <Text style={[s.hourText, active && s.hourTextActive]}>
-                              {h}:00
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
+                    <Text style={[s.colLabel, { color: c.muted }]}>UNTIL (hour)</Text>
+                    {/* 2 per row */}
+                    {[0, 2, 4, 6].map(rowStart => (
+                      <View key={rowStart} style={s.hourRow2}>
+                        {UNTIL_HOURS.slice(rowStart, rowStart + 2).map(h => {
+                          const on = config.timeGateEndHour === h;
+                          return (
+                            <Pressable
+                              key={h}
+                              style={[s.hChip, on && s.hChipOn, { flex: 1 }]}
+                              onPress={() => { Haptics.selectionAsync(); onChange({ timeGateEndHour: h }); }}
+                            >
+                              <Text style={[s.hTxt, on && s.hTxtOn]}>{h}:00</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ))}
                   </View>
                 </View>
 
                 {/* Validation warning */}
                 {timeGateInvalid && (
-                  <View style={s.warning}>
-                    <AlertTriangle color="#F59E0B" size={13} strokeWidth={2.5} />
-                    <Text style={s.warningText}>
-                      "Until" must be later than "From" hour.
-                    </Text>
+                  <View style={s.warn}>
+                    <AlertTriangle color="#F59E0B" size={12} strokeWidth={2.5} />
+                    <Text style={s.warnTxt}>"Until" must be later than "From" hour.</Text>
                   </View>
                 )}
 
-                {/* Active days */}
-                <Text style={[sectionTitleStyle, {
-                  color: dark ? '#6B7280' : '#94A3B8',
-                  marginTop: 14,
-                  marginBottom: 6,
-                }]}>
+                {/* Active Days */}
+                <Text style={[s.colLabel, { color: c.muted, marginTop: 14, marginBottom: 8 }]}>
                   ACTIVE DAYS
                 </Text>
                 <View style={s.daysRow}>
-                  {WEEKDAYS.map(day => {
-                    const active = config.timeGateDays.includes(day);
+                  {DAYS.map(d => {
+                    const on = config.timeGateDays.includes(d.key);
                     return (
                       <Pressable
-                        key={day}
-                        style={[s.dayChip, active && s.dayChipActive]}
-                        onPress={() => toggleDay(day)}
+                        key={d.key}
+                        style={[s.dayChip, on && s.dayChipOn]}
+                        onPress={() => toggleDay(d.key)}
                       >
-                        <Text style={[s.dayText, active && s.dayTextActive]}>
-                          {day.slice(0, 3)}
-                        </Text>
+                        <Text style={[s.dayTxt, on && s.dayTxtOn]}>{d.short}</Text>
                       </Pressable>
                     );
                   })}
@@ -383,56 +327,65 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             )}
           </View>
 
-          {/* ── CRITICAL TASK ──────────────────────────────────────────────── */}
-          <View style={[s.block, s.boxed]}>
-            <View style={s.toggleRow}>
-              <AlertTriangle
-                color={config.isCritical ? '#EF4444' : (dark ? '#6B7280' : '#94A3B8')}
-                size={15}
-                strokeWidth={2.4}
-              />
-              <View style={s.toggleTextGroup}>
-                <Text style={[s.toggleTitle, config.isCritical && { color: '#EF4444' }]}>
-                  🚨 Critical Task
-                </Text>
-                <Text style={s.toggleSub}>
-                  Override silent mode & max volume when alarm fires.
-                </Text>
+          {/* ── CRITICAL TASK ────────────────────────────────────────────── */}
+          <View style={[s.section, s.box]}>
+            <View style={s.rowBetween}>
+              <View style={s.rowGap}>
+                <AlertTriangle
+                  color={config.isCritical ? '#EF4444' : c.muted}
+                  size={15}
+                  strokeWidth={2.4}
+                />
+                <View>
+                  <Text style={[s.boxTitle, config.isCritical && { color: '#EF4444' }]}>
+                    🚨 Critical Task
+                  </Text>
+                  <Text style={s.boxSub}>
+                    Override silent mode & max volume when{'\n'}alarm fires.
+                  </Text>
+                </View>
               </View>
               <Switch
                 value={config.isCritical}
-                onValueChange={setCritical}
-                trackColor={{ false: dark ? '#374151' : '#E2E8F0', true: '#EF4444' }}
+                onValueChange={v => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  anim();
+                  onChange({ isCritical: v });
+                }}
+                trackColor={{ false: c.switchOff, true: '#EF4444' }}
                 thumbColor="#FFFFFF"
-                ios_backgroundColor={dark ? '#374151' : '#E2E8F0'}
+                ios_backgroundColor={c.switchOff}
               />
             </View>
           </View>
 
-          {/* ── LOCATION CHECKLIST ─────────────────────────────────────────── */}
-          <View style={[s.block, s.boxed]}>
-            {/* Header */}
-            <View style={s.checkHeader}>
+          {/* ── LOCATION CHECKLIST ───────────────────────────────────────── */}
+          <View style={[s.section, s.box]}>
+            {/* Title */}
+            <View style={[s.rowGap, { marginBottom: 4 }]}>
               <List color={dark ? '#34D399' : '#10B981'} size={15} strokeWidth={2.4} />
-              <View style={s.toggleTextGroup}>
-                <Text style={s.toggleTitle}>📋 LOCATION CHECKLIST</Text>
-                <Text style={s.toggleSub}>
+              <View>
+                <Text style={[s.boxTitle, { color: dark ? '#E5E7EB' : '#111827' }]}>
+                  📋 LOCATION CHECKLIST
+                  <Text style={[s.boxTitle, { color: c.muted, fontFamily: 'Poppins_500Medium' }]}>
+                    {' '}(OPTIONAL)
+                  </Text>
+                </Text>
+                <Text style={s.boxSub}>
                   Items shown when you arrive (e.g. Shopping List)
                 </Text>
               </View>
             </View>
 
-            {/* Items */}
+            {/* Items list */}
             {config.checklist.length > 0 && (
-              <View style={s.checkList}>
+              <View style={{ marginTop: 10, gap: 6 }}>
                 {config.checklist.map(item => (
-                  <View key={item.id} style={s.checkItem}>
-                    <View style={s.checkDot} />
-                    <Text style={s.checkItemText} numberOfLines={2}>
-                      {item.text}
-                    </Text>
-                    <Pressable onPress={() => removeItem(item.id)} hitSlop={10}>
-                      <X color={dark ? '#6B7280' : '#94A3B8'} size={15} strokeWidth={2.5} />
+                  <View key={item.id} style={s.clItem}>
+                    <View style={s.clDot} />
+                    <Text style={s.clTxt} numberOfLines={2}>{item.text}</Text>
+                    <Pressable onPress={() => removeItem(item.id)} hitSlop={12}>
+                      <X color={c.muted} size={14} strokeWidth={2.5} />
                     </Pressable>
                   </View>
                 ))}
@@ -440,18 +393,18 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             )}
 
             {/* Add input */}
-            <View style={s.checkInputRow}>
+            <View style={s.clInputRow}>
               <TextInput
-                style={s.checkInput}
+                style={s.clInput}
                 placeholder="Add checklist item..."
-                placeholderTextColor={dark ? '#4B5563' : '#94A3B8'}
+                placeholderTextColor={c.placeholder}
                 value={checklistInput}
                 onChangeText={setChecklistInput}
                 onSubmitEditing={addItem}
                 returnKeyType="done"
               />
               <Pressable
-                style={[s.checkAddBtn, !checklistInput.trim() && { opacity: 0.4 }]}
+                style={[s.clAddBtn, !checklistInput.trim() && { opacity: 0.4 }]}
                 onPress={addItem}
                 disabled={!checklistInput.trim()}
               >
@@ -466,29 +419,39 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
   );
 }
 
+// ─── Color tokens ────────────────────────────────────────────────────────────
+
+function colors(dark: boolean) {
+  return {
+    border:      dark ? 'rgba(255,255,255,0.09)' : '#E5E7EB',
+    surface:     dark ? 'rgba(255,255,255,0.04)' : '#FFFFFF',
+    muted:       dark ? '#6B7280' : '#94A3B8',
+    text:        dark ? '#E5E7EB' : '#111827',
+    switchOff:   dark ? '#374151' : '#D1D5DB',
+    placeholder: dark ? '#4B5563' : '#94A3B8',
+  };
+}
+
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-function getStyles(dark: boolean) {
-  const border   = dark ? 'rgba(255,255,255,0.08)' : '#E5E7EB';
-  const surface  = dark ? 'rgba(255,255,255,0.04)' : '#FFFFFF';
-  const textMain = dark ? '#E5E7EB' : '#111827';
-  const textSub  = dark ? '#6B7280' : '#94A3B8';
+function styles(dark: boolean) {
+  const c      = colors(dark);
+  const radius = 20;
 
   return StyleSheet.create({
 
-    // ── Card shell ──────────────────────────────────────────────────────────
     card: {
       marginTop: 20,
-      borderRadius: 20,
+      borderRadius: radius,
       borderWidth: 1.5,
-      borderColor: dark ? 'rgba(99,102,241,0.3)' : '#E0DCFB',
-      backgroundColor: dark ? '#161424' : '#F8F7FE',
+      borderColor: dark ? 'rgba(99,102,241,0.3)' : '#DDD9F9',
+      backgroundColor: dark ? '#141222' : '#F9F8FE',
       overflow: 'hidden',
       shadowColor: dark ? '#000' : '#4F46E5',
       shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: dark ? 0.35 : 0.06,
-      shadowRadius: 16,
-      elevation: 4,
+      shadowOpacity: dark ? 0.4 : 0.07,
+      shadowRadius: 18,
+      elevation: 5,
     },
 
     // ── Header ──────────────────────────────────────────────────────────────
@@ -496,70 +459,105 @@ function getStyles(dark: boolean) {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 16,
-      paddingVertical: 14,
+      paddingVertical: 15,
       gap: 12,
     },
-    headerIconBox: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor: dark ? 'rgba(99,102,241,0.2)' : '#EDEAFD',
+    iconBox: {
+      width: 40,
+      height: 40,
+      borderRadius: 13,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    headerText: {
-      flex: 1,
-    },
     headerTitle: {
       fontFamily: 'Poppins_700Bold',
-      fontSize: 14,
-      color: dark ? '#A78BFA' : '#4F46E5',
+      fontSize: 14.5,
       letterSpacing: -0.1,
     },
     headerSub: {
       fontFamily: 'Poppins_400Regular',
       fontSize: 11,
-      color: textSub,
+      color: c.muted,
       marginTop: 1,
     },
 
     // ── Body ────────────────────────────────────────────────────────────────
     body: {
       paddingHorizontal: 14,
-      paddingBottom: 16,
+      paddingBottom: 18,
       borderTopWidth: 1,
       borderTopColor: dark ? 'rgba(255,255,255,0.06)' : '#EAE7FB',
     },
 
-    block: {
-      marginTop: 14,
-    },
-    boxed: {
-      backgroundColor: surface,
+    section: { marginTop: 14 },
+
+    box: {
+      backgroundColor: c.surface,
       borderRadius: 14,
       borderWidth: 1,
-      borderColor: border,
-      padding: 12,
+      borderColor: c.border,
+      padding: 13,
     },
 
-    // label row (label + badge side by side)
-    labelRow: {
+    // ── Labels ──────────────────────────────────────────────────────────────
+    sLabel: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 10.5,
+      letterSpacing: 0.7,
+      textTransform: 'uppercase',
+      color: c.muted,
+      marginBottom: 8,
+    },
+    boxTitle: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 12.5,
+      color: c.text,
+    },
+    boxSub: {
+      fontFamily: 'Poppins_400Regular',
+      fontSize: 10.5,
+      color: c.muted,
+      marginTop: 2,
+      lineHeight: 15,
+    },
+    colLabel: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 10,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      marginBottom: 7,
+    },
+
+    // ── Layout helpers ───────────────────────────────────────────────────────
+    rowBetween: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: 8,
     },
-    radiusTag: {
+    rowGap: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      flex: 1,
+    },
+
+    // ── Badge ────────────────────────────────────────────────────────────────
+    badge: {
+      backgroundColor: dark ? 'rgba(99,102,241,0.15)' : '#EDEAFD',
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      borderRadius: 20,
+    },
+    badgeTxt: {
       fontFamily: 'Poppins_700Bold',
       fontSize: 11,
-      color: dark ? '#A78BFA' : '#4F46E5',
     },
 
     // ── Arrive / Leave segment ───────────────────────────────────────────────
-    segRow: {
+    segWrap: {
       flexDirection: 'row',
       backgroundColor: dark ? 'rgba(255,255,255,0.06)' : '#EDEAFD',
-      borderRadius: 12,
+      borderRadius: 13,
       padding: 3,
       gap: 3,
     },
@@ -568,123 +566,106 @@ function getStyles(dark: boolean) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 10,
-      borderRadius: 10,
+      paddingVertical: 11,
+      borderRadius: 11,
       gap: 6,
     },
-    segActive: {
+    segOn: {
       backgroundColor: '#4F46E5',
       shadowColor: '#4F46E5',
-      shadowOffset: { width: 0, height: 3 },
+      shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.35,
-      shadowRadius: 6,
-      elevation: 3,
+      shadowRadius: 8,
+      elevation: 4,
     },
-    segText: {
+    segTxt: {
       fontFamily: 'Poppins_600SemiBold',
       fontSize: 13,
-      color: dark ? '#6B7280' : '#94A3B8',
+      color: c.muted,
     },
-    segTextActive: {
-      color: '#FFFFFF',
-    },
+    segTxtOn: { color: '#FFFFFF' },
 
-    // ── Radius ──────────────────────────────────────────────────────────────
+    // ── Radius ───────────────────────────────────────────────────────────────
     radiusRow: {
       flexDirection: 'row',
       gap: 7,
     },
-    radiusChip: {
+    rChip: {
       flex: 1,
       paddingVertical: 9,
       borderRadius: 10,
-      borderWidth: 1.2,
-      borderColor: border,
-      backgroundColor: surface,
+      borderWidth: 1.3,
+      borderColor: c.border,
+      backgroundColor: c.surface,
       alignItems: 'center',
-      justifyContent: 'center',
     },
-    radiusChipActive: {
+    rChipOn: {
       backgroundColor: '#F97316',
       borderColor: '#F97316',
       shadowColor: '#F97316',
       shadowOffset: { width: 0, height: 3 },
       shadowOpacity: 0.3,
-      shadowRadius: 5,
+      shadowRadius: 6,
       elevation: 3,
     },
-    radiusText: {
+    rTxt: {
       fontFamily: 'Poppins_600SemiBold',
       fontSize: 12,
-      color: textSub,
+      color: c.muted,
     },
-    radiusTextActive: {
+    rTxtOn: {
       color: '#FFFFFF',
       fontFamily: 'Poppins_700Bold',
     },
 
-    // ── Toggle rows ─────────────────────────────────────────────────────────
-    toggleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    toggleTextGroup: {
-      flex: 1,
-    },
-    toggleTitle: {
-      fontFamily: 'Poppins_700Bold',
-      fontSize: 12.5,
-      color: textMain,
-    },
-    toggleSub: {
-      fontFamily: 'Poppins_400Regular',
-      fontSize: 10.5,
-      color: textSub,
-      marginTop: 3,
-      lineHeight: 15,
-    },
-
-    // ── Time-gate inner ─────────────────────────────────────────────────────
-    timeGateInner: {
-      marginTop: 12,
-    },
-    hoursRow: {
+    // ── Hour grid ────────────────────────────────────────────────────────────
+    hoursContainer: {
       flexDirection: 'row',
       gap: 10,
     },
     hourCol: {
       flex: 1,
     },
-    hourGrid: {
+    hourDivider: {
+      width: 1,
+      backgroundColor: c.border,
+      marginVertical: 4,
+    },
+    hourRow3: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 5,
+      gap: 4,
+      marginBottom: 4,
     },
-    hourChip: {
-      paddingHorizontal: 7,
-      paddingVertical: 5,
-      borderRadius: 7,
+    hourRow2: {
+      flexDirection: 'row',
+      gap: 4,
+      marginBottom: 4,
+    },
+    hChip: {
+      paddingVertical: 6,
+      borderRadius: 8,
       borderWidth: 1,
-      borderColor: border,
-      backgroundColor: surface,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
-    hourChipActive: {
+    hChipOn: {
       backgroundColor: '#F97316',
       borderColor: '#F97316',
     },
-    hourText: {
+    hTxt: {
       fontFamily: 'Poppins_500Medium',
-      fontSize: 11,
-      color: textSub,
+      fontSize: 10.5,
+      color: c.muted,
     },
-    hourTextActive: {
+    hTxtOn: {
       color: '#FFFFFF',
       fontFamily: 'Poppins_700Bold',
     },
 
     // ── Validation warning ───────────────────────────────────────────────────
-    warning: {
+    warn: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
@@ -695,63 +676,53 @@ function getStyles(dark: boolean) {
       borderWidth: 1,
       borderColor: 'rgba(245,158,11,0.3)',
     },
-    warningText: {
+    warnTxt: {
       fontFamily: 'Poppins_500Medium',
       fontSize: 10.5,
       color: '#D97706',
       flex: 1,
     },
 
-    // ── Days ────────────────────────────────────────────────────────────────
+    // ── Active days ──────────────────────────────────────────────────────────
     daysRow: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6,
+      gap: 5,
     },
     dayChip: {
-      paddingHorizontal: 11,
-      paddingVertical: 6,
+      flex: 1,
+      paddingVertical: 7,
       borderRadius: 9,
-      borderWidth: 1.2,
-      borderColor: border,
-      backgroundColor: surface,
+      borderWidth: 1.3,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+      alignItems: 'center',
     },
-    dayChipActive: {
+    dayChipOn: {
       backgroundColor: '#F97316',
       borderColor: '#F97316',
     },
-    dayText: {
+    dayTxt: {
       fontFamily: 'Poppins_600SemiBold',
-      fontSize: 11.5,
-      color: textSub,
+      fontSize: 10.5,
+      color: c.muted,
     },
-    dayTextActive: {
+    dayTxtOn: {
       color: '#FFFFFF',
     },
 
-    // ── Checklist ───────────────────────────────────────────────────────────
-    checkHeader: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 8,
-      marginBottom: 10,
-    },
-    checkList: {
-      gap: 6,
-      marginBottom: 10,
-    },
-    checkItem: {
+    // ── Checklist ────────────────────────────────────────────────────────────
+    clItem: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
       backgroundColor: dark ? 'rgba(255,255,255,0.05)' : '#F3F4F6',
       borderRadius: 10,
       paddingHorizontal: 12,
-      paddingVertical: 9,
+      paddingVertical: 10,
       borderWidth: 1,
-      borderColor: border,
+      borderColor: c.border,
     },
-    checkDot: {
+    clDot: {
       width: 16,
       height: 16,
       borderRadius: 8,
@@ -759,30 +730,31 @@ function getStyles(dark: boolean) {
       borderColor: dark ? '#6366F1' : '#4F46E5',
       flexShrink: 0,
     },
-    checkItemText: {
+    clTxt: {
       flex: 1,
       fontFamily: 'Poppins_500Medium',
       fontSize: 13,
-      color: textMain,
+      color: c.text,
     },
-    checkInputRow: {
+    clInputRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
+      marginTop: 10,
     },
-    checkInput: {
+    clInput: {
       flex: 1,
       height: 44,
-      backgroundColor: surface,
+      backgroundColor: c.surface,
       borderRadius: 12,
-      borderWidth: 1.2,
-      borderColor: border,
+      borderWidth: 1.3,
+      borderColor: c.border,
       paddingHorizontal: 14,
       fontFamily: 'Poppins_500Medium',
       fontSize: 13,
-      color: textMain,
+      color: c.text,
     },
-    checkAddBtn: {
+    clAddBtn: {
       width: 44,
       height: 44,
       borderRadius: 12,
