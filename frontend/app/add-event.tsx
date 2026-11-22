@@ -25,6 +25,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { behaviorService } from '../services/behaviorService';
 
 import LocationSelector from '../components/LocationSelector';
+import GeofenceReminderSection, { GeofenceConfig } from '../components/GeofenceReminderSection';
 import MediaPicker from '../components/MediaPicker';
 import ContactSelector from '../components/ContactSelector';
 import { LocationDetails, LinkedContact, TaskStatus } from '../models/Event';
@@ -87,24 +88,29 @@ export default function AddEventScreen() {
   const [locationText, setLocationText] = useState(existingEvent?.location || '');
   const [locationDetails, setLocationDetails] = useState<LocationDetails | undefined>(existingEvent?.locationDetails);
   
-  const [locationReminderEnabled, setLocationReminderEnabled] = useState<boolean>(existingEvent?.locationReminderEnabled || false);
-  const [geofenceRadius, setGeofenceRadius] = useState<number>(existingEvent?.geofenceRadius || 500);
-  const [triggerType, setTriggerType] = useState<'arrive' | 'leave'>(existingEvent?.triggerType || 'arrive');
+  // ── Unified Geofence / Location Reminder state ────────────────────────────
+  const [geofenceConfig, setGeofenceConfig] = useState<GeofenceConfig>({
+    locationReminderEnabled: existingEvent?.locationReminderEnabled ?? false,
+    triggerType: existingEvent?.triggerType ?? 'arrive',
+    geofenceRadius: existingEvent?.geofenceRadius ?? 500,
+    timeGateEnabled: !!existingEvent?.locationTimeGate,
+    timeGateStartHour: existingEvent?.locationTimeGate?.startHour ?? 9,
+    timeGateEndHour: existingEvent?.locationTimeGate?.endHour ?? 17,
+    timeGateDays: existingEvent?.locationTimeGate?.days ?? ['Monday','Tuesday','Wednesday','Thursday','Friday'],
+    isCritical: existingEvent?.isCritical ?? false,
+    checklist: existingEvent?.checklist ?? [],
+  });
 
-  // EC5: Critical task overrides phone silent mode and maxes alarm volume
-  const [isCritical, setIsCritical] = useState<boolean>(existingEvent?.isCritical || false);
-
-  // EC2: Time-gated location reminder — only fires during these hours/days
-  const [timeGateEnabled, setTimeGateEnabled] = useState<boolean>(!!existingEvent?.locationTimeGate);
-  const [timeGateStartHour, setTimeGateStartHour] = useState<number>(existingEvent?.locationTimeGate?.startHour ?? 9);
-  const [timeGateEndHour, setTimeGateEndHour] = useState<number>(existingEvent?.locationTimeGate?.endHour ?? 17);
-  const [timeGateDays, setTimeGateDays] = useState<string[]>(
-    existingEvent?.locationTimeGate?.days ?? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-  );
-
-  // Checklist (Tier 2)
-  const [checklist, setChecklist] = useState<ChecklistItem[]>(existingEvent?.checklist || []);
-  const [newChecklistItem, setNewChecklistItem] = useState('');
+  // legacy aliases so we don't break onSubmit/updateEvent below
+  const locationReminderEnabled = geofenceConfig.locationReminderEnabled;
+  const geofenceRadius          = geofenceConfig.geofenceRadius;
+  const triggerType             = geofenceConfig.triggerType;
+  const isCritical              = geofenceConfig.isCritical;
+  const timeGateEnabled         = geofenceConfig.timeGateEnabled;
+  const timeGateStartHour       = geofenceConfig.timeGateStartHour;
+  const timeGateEndHour         = geofenceConfig.timeGateEndHour;
+  const timeGateDays            = geofenceConfig.timeGateDays;
+  const checklist               = geofenceConfig.checklist;
 
 
   const [imageUri, setImageUri] = useState<string | undefined>(existingEvent?.image);
@@ -850,182 +856,18 @@ export default function AddEventScreen() {
                   setLocationText(addr);
                   if (details) setLocationDetails(details);
                 }}
-                radius={geofenceRadius}
-                onChangeRadius={(rad) => setGeofenceRadius(rad)}
+                radius={geofenceConfig.geofenceRadius}
+                onChangeRadius={(rad) => setGeofenceConfig(prev => ({ ...prev, geofenceRadius: rad }))}
               />
               
-              {locationDetails?.latitude ? (
-                <View style={styles.mt24}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                    <Text style={styles.label}>ENABLE LOCATION REMINDER</Text>
-                    <Switch
-                      value={locationReminderEnabled}
-                      onValueChange={setLocationReminderEnabled}
-                      trackColor={{ false: '#E2E8F0', true: colors.primary }}
-                      thumbColor="#FFF"
-                    />
-                  </View>
-
-                  {locationReminderEnabled && (
-                    <View style={{ backgroundColor: colors.inputBackground || colors.surface, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.border }}>
-                      <Text style={[styles.label, { fontSize: 12, marginBottom: 8 }]}>TRIGGER WHEN I...</Text>
-                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                        <Pressable 
-                          style={[{flex: 1, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border, alignItems: 'center'}, triggerType === 'arrive' && {backgroundColor: colors.primary, borderColor: colors.primary}]}
-                          onPress={() => { Haptics.selectionAsync(); setTriggerType('arrive'); }}
-                        >
-                          <Text style={[{fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: colors.textSecondary}, triggerType === 'arrive' && {color: '#FFF'}]}>Arrive</Text>
-                        </Pressable>
-                        <Pressable 
-                          style={[{flex: 1, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border, alignItems: 'center'}, triggerType === 'leave' && {backgroundColor: colors.primary, borderColor: colors.primary}]}
-                          onPress={() => { Haptics.selectionAsync(); setTriggerType('leave'); }}
-                        >
-                          <Text style={[{fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: colors.textSecondary}, triggerType === 'leave' && {color: '#FFF'}]}>Leave</Text>
-                        </Pressable>
-                      </View>
-
-                      <Text style={[styles.label, { fontSize: 12, marginBottom: 8 }]}>RADIUS</Text>
-                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
-                        {[100, 250, 500, 1000].map(r => (
-                          <Pressable 
-                            key={r}
-                            style={[{paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border}, geofenceRadius === r && {backgroundColor: colors.secondary, borderColor: colors.secondary}]}
-                            onPress={() => { Haptics.selectionAsync(); setGeofenceRadius(r); }}
-                          >
-                            <Text style={[{fontFamily: 'Poppins_500Medium', fontSize: 12, color: colors.textSecondary}, geofenceRadius === r && {color: '#FFF'}]}>{r}m</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-
-                      {/* EC2: Time Gate — only fire alarm during these hours/days */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <Text style={[styles.label, { fontSize: 12 }]}>⏰ TIME-GATE THIS REMINDER</Text>
-                        <Switch
-                          value={timeGateEnabled}
-                          onValueChange={setTimeGateEnabled}
-                          trackColor={{ false: '#E2E8F0', true: colors.secondary }}
-                          thumbColor="#FFF"
-                        />
-                      </View>
-                      {timeGateEnabled && (
-                        <View style={{ backgroundColor: colors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 16, gap: 10 }}>
-                          <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: colors.textSecondary }}>Alarm will only fire if triggered within this time window.</Text>
-
-                          {/* Start/End Hour */}
-                          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: colors.textSecondary, marginBottom: 4 }}>FROM (hour)</Text>
-                              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                                {[6,7,8,9,10,11,12].map(h => (
-                                  <Pressable key={h} style={[{paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: colors.border}, timeGateStartHour === h && {backgroundColor: colors.secondary, borderColor: colors.secondary}]} onPress={() => setTimeGateStartHour(h)}>
-                                    <Text style={[{fontFamily: 'Poppins_500Medium', fontSize: 11, color: colors.textSecondary}, timeGateStartHour === h && {color: '#FFF'}]}>{h}:00</Text>
-                                  </Pressable>
-                                ))}
-                              </View>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: colors.textSecondary, marginBottom: 4 }}>UNTIL (hour)</Text>
-                              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                                {[13,14,15,16,17,18,19,20].map(h => (
-                                  <Pressable key={h} style={[{paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: colors.border}, timeGateEndHour === h && {backgroundColor: colors.secondary, borderColor: colors.secondary}]} onPress={() => setTimeGateEndHour(h)}>
-                                    <Text style={[{fontFamily: 'Poppins_500Medium', fontSize: 11, color: colors.textSecondary}, timeGateEndHour === h && {color: '#FFF'}]}>{h}:00</Text>
-                                  </Pressable>
-                                ))}
-                              </View>
-                            </View>
-                          </View>
-
-                          {/* Days selection */}
-                          <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: colors.textSecondary, marginTop: 4 }}>ACTIVE DAYS</Text>
-                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                            {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(day => {
-                              const isActive = timeGateDays.includes(day);
-                              return (
-                                <Pressable
-                                  key={day}
-                                  style={[{paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colors.border}, isActive && {backgroundColor: colors.secondary, borderColor: colors.secondary}]}
-                                  onPress={() => {
-                                    Haptics.selectionAsync();
-                                    setTimeGateDays(prev => isActive ? prev.filter(d => d !== day) : [...prev, day]);
-                                  }}
-                                >
-                                  <Text style={[{fontFamily: 'Poppins_500Medium', fontSize: 11, color: colors.textSecondary}, isActive && {color: '#FFF'}]}>{day.slice(0,3)}</Text>
-                                </Pressable>
-                              );
-                            })}
-                          </View>
-                        </View>
-                      )}
-
-                      {/* EC5: Critical Task toggle */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border, marginBottom: 12 }}>
-                        <View style={{ flex: 1, marginRight: 12 }}>
-                          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: colors.text }}>🚨 Critical Task</Text>
-                          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: colors.textSecondary }}>Override silent mode & max volume when alarm fires.</Text>
-                        </View>
-                        <Switch
-                          value={isCritical}
-                          onValueChange={setIsCritical}
-                          trackColor={{ false: '#E2E8F0', true: colors.error || '#EF4444' }}
-                          thumbColor="#FFF"
-                        />
-                      </View>
-
-                      {/* Tier 2: Location-Triggered Checklist */}
-                      <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
-                        <Text style={[styles.label, { fontSize: 12, marginBottom: 8 }]}>📋 LOCATION CHECKLIST (OPTIONAL)</Text>
-                        <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: colors.textSecondary, marginBottom: 12 }}>
-                          Items to show when you arrive at this location (e.g. Shopping List)
-                        </Text>
-                        
-                        {checklist.map((item, index) => (
-                          <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, padding: 10, borderRadius: 10, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
-                            <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.secondary, marginRight: 10 }} />
-                            <Text style={{ flex: 1, fontFamily: 'Poppins_500Medium', fontSize: 13, color: colors.text }}>{item.text}</Text>
-                            <Pressable 
-                              onPress={() => setChecklist(prev => prev.filter(c => c.id !== item.id))}
-                              style={{ padding: 4 }}
-                            >
-                              <X color={colors.textSecondary} size={16} />
-                            </Pressable>
-                          </View>
-                        ))}
-
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <View style={[styles.inputWrapper, { flex: 1, height: 44, paddingVertical: 0 }]}>
-                            <TextInput
-                              style={[styles.input, { height: 44 }]}
-                              placeholder="Add checklist item..."
-                              placeholderTextColor={colors.textSecondary}
-                              value={newChecklistItem}
-                              onChangeText={setNewChecklistItem}
-                              onSubmitEditing={() => {
-                                if (newChecklistItem.trim()) {
-                                  setChecklist(prev => [...prev, { id: Date.now().toString(), text: newChecklistItem.trim(), completed: false }]);
-                                  setNewChecklistItem('');
-                                }
-                              }}
-                            />
-                          </View>
-                          <Pressable
-                            style={{ backgroundColor: colors.secondary, height: 44, paddingHorizontal: 16, borderRadius: 12, justifyContent: 'center', alignItems: 'center' }}
-                            onPress={() => {
-                              if (newChecklistItem.trim()) {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                setChecklist(prev => [...prev, { id: Date.now().toString(), text: newChecklistItem.trim(), completed: false }]);
-                                setNewChecklistItem('');
-                              }
-                            }}
-                          >
-                            <Plus color="#FFF" size={20} strokeWidth={2.5} />
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-                  )}
-
-                </View>
-              ) : null}
+              {/* ── GEOFENCE / LOCATION REMINDER (new unified component) ── */}
+              <GeofenceReminderSection
+                config={geofenceConfig}
+                hasLocation={!!(locationDetails?.latitude)}
+                onChange={(partial) =>
+                  setGeofenceConfig(prev => ({ ...prev, ...partial }))
+                }
+              />
 
               <ContactSelector
                 value={linkedContact}
