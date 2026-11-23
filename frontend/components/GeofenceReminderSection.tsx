@@ -203,7 +203,7 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
             </View>
           </View>
 
-          {/* ── TIME-GATE ────────────────────────────────────────────────── */}
+          {/* ── TIME-GATE  */}
           <View style={[s.section, s.box]}>
             {/* Toggle header */}
             <View style={s.rowBetween}>
