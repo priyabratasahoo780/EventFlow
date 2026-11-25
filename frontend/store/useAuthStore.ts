@@ -34,32 +34,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await AsyncStorage.setItem('user', JSON.stringify(user));
     set({ token, user });
 
-    // Sync user to MongoDB backend
-    try {
-      const res = await api.post('/auth/sync', {
-        uniqueId: user.uniqueId,
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        profilePhoto: user.profilePhoto,
-      });
+    // Fire-and-forget: sync to MongoDB backend without blocking navigation
+    Promise.resolve().then(async () => {
+      try {
+        const res = await api.post('/auth/sync', {
+          uniqueId: user.uniqueId,
+          name: user.name,
+          username: user.username,
+          email: user.email,
+          profilePhoto: user.profilePhoto,
+        });
 
-      if (res.data?.user) {
-        const syncedUser = { ...user, ...res.data.user };
-        await AsyncStorage.setItem('user', JSON.stringify(syncedUser));
-        if (res.data.token) {
-          await AsyncStorage.setItem('token', res.data.token);
+        if (res.data?.user) {
+          const syncedUser = { ...user, ...res.data.user };
+          await AsyncStorage.setItem('user', JSON.stringify(syncedUser));
+          if (res.data.token) {
+            await AsyncStorage.setItem('token', res.data.token);
+          }
+          set({ user: syncedUser, token: res.data.token || token });
         }
-        set({ user: syncedUser, token: res.data.token || token });
-      }
 
-      const pushToken = await notificationService.registerForPushNotificationsAsync();
-      if (pushToken) {
-        await api.post('/users/push-token', { token: pushToken });
+        const pushToken = await notificationService.registerForPushNotificationsAsync();
+        if (pushToken) {
+          await api.post('/users/push-token', { token: pushToken });
+        }
+      } catch {
+        // Background sync failed — user is already logged in locally, no action needed
       }
-    } catch (syncErr) {
-      console.log('User synced locally');
-    }
+    });
   },
 
   logout: async () => {
@@ -94,7 +96,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const parsedUser: UserProfile = JSON.parse(userStr);
 
         // Auto-upgrade legacy IDs to exact 8-character rich format (2 Capitals, 2 Smalls, 2 Numbers, 2 Symbols)
-        if (!parsedUser.uniqueId || parsedUser.uniqueId.length !== 8 || parsedUser.uniqueId.startsWith('FOCUS') || parsedUser.uniqueId.startsWith('EVENT') || parsedUser.uniqueId.startsWith('FF#')) {
+        if (!parsedUser.uniqueId || parsedUser.uniqueId.length !== 8 || parsedUser.uniqueId.startsWith('FOCUS') || parsedUser.uniqueId.startsWith('EVENT')) {
           const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
           const lowers = 'abcdefghijkmnopqrstuvwxyz';
           const numbers = '23456789';

@@ -1,6 +1,6 @@
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, StyleSheet, Alert, Image,
   Pressable, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform,
@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import GoogleButton from '../../components/GoogleButton';
 import api from '../../services/api';
-import { useAuthStore, UserProfile } from '../../store/useAuthStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useRouter } from 'expo-router';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -30,6 +30,7 @@ export default function LoginScreen() {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
   const [requires2FA, setRequires2FA] = useState(false);
   const [tempToken, setTempToken] = useState('');
   const [emailFor2FA, setEmailFor2FA] = useState('');
@@ -37,6 +38,24 @@ export default function LoginScreen() {
   const login = useAuthStore(state => state.login);
   const router = useRouter();
   const { signInWithGoogle } = useGoogleAuth();
+
+  const send2FACode = useCallback(async (email: string) => {
+    setOtpSending(true);
+    try {
+      await api.post('/auth/2fa/send', { email });
+    } catch {
+      Alert.alert('Code Delivery Failed', 'Could not send the verification code. Please use Resend Code.');
+    } finally {
+      setOtpSending(false);
+    }
+  }, []);
+
+  // Auto-send OTP when 2FA screen appears
+  useEffect(() => {
+    if (requires2FA && emailFor2FA) {
+      send2FACode(emailFor2FA);
+    }
+  }, [requires2FA, emailFor2FA, send2FACode]);
 
   const formik = useFormik({
     initialValues: { email: '', password: '' },
@@ -111,34 +130,29 @@ export default function LoginScreen() {
     try {
       const result = await signInWithGoogle();
 
-      if (result?.user?.email) {
-        try {
-          const res = await api.post('/auth/google', {
-            email: result.user.email,
-            name: result.user.name,
-            profilePhoto: result.user.profilePhoto,
-          });
-          await login(res.data.token, res.data.user);
-        } catch (apiErr) {
-          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*_-';
-          const randomId = Array.from({ length: 8 }, () =>
-            chars[Math.floor(Math.random() * chars.length)]
-          ).join('');
-          const fallbackUser: UserProfile = {
-            _id: 'google_user_' + Date.now(),
-            uniqueId: randomId,
-            name: result.user.name || 'Google User',
-            username: (result.user.email.split('@')[0] || 'googleuser').replace(/[^a-zA-Z0-9_]/g, ''),
-            email: result.user.email,
-            profilePhoto: result.user.profilePhoto || '',
-          };
-          await login('google_session_token_' + Date.now(), fallbackUser);
-        }
-        router.replace('/(tabs)');
+      if (!result || !result.user?.email) {
+        // User cancelled or Clerk returned no email — silently stop
+        return;
       }
+
+      const res = await api.post('/auth/google', {
+        email: result.user.email,
+        name: result.user.name,
+        profilePhoto: result.user.profilePhoto,
+      });
+      await login(res.data.token, res.data.user);
+      router.replace('/(tabs)');
     } catch (err: any) {
-      if (err?.code !== 'ERR_REQUEST_CANCELED' && !err?.message?.includes('cancel')) {
-        Alert.alert('Google Sign-In', 'Could not complete Google sign-in. Please try again.');
+      const isCancelled =
+        err?.code === 'ERR_REQUEST_CANCELED' ||
+        err?.message?.includes('cancel') ||
+        err?.message?.includes('dismissed');
+      if (!isCancelled) {
+        const serverError = err?.response?.data?.error;
+        Alert.alert(
+          'Google Sign-In Failed',
+          serverError || 'Could not complete Google sign-in. Please try again.',
+        );
       }
     } finally {
       setGoogleLoading(false);
@@ -177,8 +191,14 @@ export default function LoginScreen() {
 
           {requires2FA ? (
             <>
-              {/* OTP Input */}
+              {/* 2FA Header */}
               <View style={styles.inputGroup}>
+                <Text style={[styles.label, { textAlign: 'center', marginBottom: 4 }]}>
+                  VERIFICATION CODE SENT TO
+                </Text>
+                <Text style={[styles.subtitle, { textAlign: 'center', marginBottom: 16 }]}>
+                  {emailFor2FA}
+                </Text>
                 <Text style={styles.label}>ENTER 6-DIGIT CODE</Text>
                 <View style={styles.inputWrapper}>
                   <Lock color={colors.textSecondary} size={18} strokeWidth={2} />
@@ -190,6 +210,7 @@ export default function LoginScreen() {
                     onChangeText={setOtp}
                     keyboardType="number-pad"
                     maxLength={6}
+                    autoFocus
                   />
                 </View>
               </View>
@@ -211,7 +232,18 @@ export default function LoginScreen() {
                   }
                 </LinearGradient>
               </Pressable>
-              
+
+              <Pressable
+                onPress={() => send2FACode(emailFor2FA)}
+                disabled={otpSending}
+                style={styles.signupRow}
+              >
+                {otpSending
+                  ? <ActivityIndicator size="small" color={colors.secondary} />
+                  : <Text style={styles.signupLink}>Resend Code</Text>
+                }
+              </Pressable>
+
               <Pressable onPress={() => { setRequires2FA(false); setOtp(''); }} style={styles.signupRow}>
                 <Text style={styles.signupText}>Back to Login</Text>
               </Pressable>

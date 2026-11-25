@@ -25,7 +25,14 @@ import * as yup from 'yup';
 
 const validationSchema = yup.object().shape({
   email: yup.string().email('Invalid email address').required('Registered email is required'),
-  newPassword: yup.string().min(8, 'New password must be at least 8 characters long').required('New password is required'),
+  newPassword: yup
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .matches(/[A-Z]/, 'Password requires an uppercase letter (A-Z)')
+    .matches(/[a-z]/, 'Password requires a lowercase letter (a-z)')
+    .matches(/[0-9]/, 'Password requires a number (0-9)')
+    .matches(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, 'Password requires a special symbol')
+    .required('New password is required'),
 });
 
 export default function ForgotPasswordScreen() {
@@ -66,15 +73,7 @@ export default function ForgotPasswordScreen() {
         const errorMsg =
           err.response?.data?.error || 'Unable to reset password. Please verify your email.';
 
-        if (err.message === 'Network Error' || !err.response) {
-          Alert.alert(
-            'Password Reset',
-            'Updated password for offline session. Please log in with your new credentials.',
-            [{ text: 'GO TO LOGIN', onPress: () => router.replace('/(auth)/login') }]
-          );
-        } else {
-          Alert.alert('Reset Failed', errorMsg);
-        }
+        Alert.alert('Reset Failed', errorMsg);
       } finally {
         setLoading(false);
       }

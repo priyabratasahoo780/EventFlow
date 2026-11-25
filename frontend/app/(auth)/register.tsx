@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import GoogleButton from '../../components/GoogleButton';
 import api from '../../services/api';
-import { useAuthStore, UserProfile } from '../../store/useAuthStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useRouter } from 'expo-router';
 import {
   Eye,
@@ -107,17 +107,10 @@ export default function RegisterScreen() {
             Alert.alert('Registration Notice', serverError);
           }
         } else {
-          // Unreachable backend fallback session
-          const localUser: UserProfile = {
-            _id: 'local_user_' + Date.now(),
-            uniqueId: 'FOCUS' + Math.floor(100000 + Math.random() * 900000),
-            name: cleanName,
-            username: cleanUsername,
-            email: cleanEmail,
-            profilePhoto: '',
-          };
-          await login('local_demo_token', localUser);
-          router.replace('/(tabs)');
+          Alert.alert(
+            'Connection Error',
+            'Unable to reach the server. Please check your internet connection and try again.',
+          );
         }
       } finally {
         setLoading(false);
@@ -142,47 +135,30 @@ export default function RegisterScreen() {
     try {
       const result = await signInWithGoogle();
 
-      if (result?.user?.email) {
-        try {
-          const res = await api.post('/auth/google', {
-            email: result.user.email,
-            name: result.user.name || formik.values.name.trim() || 'Google User',
-            profilePhoto: result.user.profilePhoto || '',
-          });
-
-          await login(res.data.token, res.data.user);
-        } catch (apiErr) {
-          const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-          const lowers = 'abcdefghijkmnopqrstuvwxyz';
-          const numbers = '23456789';
-          const symbols = '!@#$%&*_-';
-          const getRandom = (set: string) => set[Math.floor(Math.random() * set.length)];
-          const chars = [
-            getRandom(uppers), getRandom(lowers), getRandom(numbers), getRandom(symbols),
-            getRandom(uppers), getRandom(lowers), getRandom(numbers), getRandom(symbols),
-          ];
-          for (let i = chars.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [chars[i], chars[j]] = [chars[j], chars[i]];
-          }
-          const randomId = chars.join('');
-
-          const fallbackUser: UserProfile = {
-            _id: 'google_user_' + Date.now(),
-            uniqueId: randomId,
-            name: result.user.name || formik.values.name.trim() || 'Google User',
-            username: (result.user.email.split('@')[0] || 'googleuser').replace(/[^a-zA-Z0-9_]/g, ''),
-            email: result.user.email,
-            profilePhoto: result.user.profilePhoto || '',
-          };
-          await login('google_session_token_' + Date.now(), fallbackUser);
-        }
-
-        router.replace('/(tabs)');
+      if (!result || !result.user?.email) {
+        // User cancelled or Clerk returned no email — silently stop
+        return;
       }
+
+      const res = await api.post('/auth/google', {
+        email: result.user.email,
+        name: result.user.name || formik.values.name.trim() || 'Google User',
+        profilePhoto: result.user.profilePhoto || '',
+      });
+
+      await login(res.data.token, res.data.user);
+      router.replace('/(tabs)');
     } catch (err: any) {
-      if (err?.code !== 'ERR_REQUEST_CANCELED' && !err?.message?.includes('cancel')) {
-        Alert.alert('Google Sign-Up', 'Could not complete Google sign-up. Please try again.');
+      const isCancelled =
+        err?.code === 'ERR_REQUEST_CANCELED' ||
+        err?.message?.includes('cancel') ||
+        err?.message?.includes('dismissed');
+      if (!isCancelled) {
+        const serverError = err?.response?.data?.error;
+        Alert.alert(
+          'Google Sign-Up Failed',
+          serverError || 'Could not complete Google sign-up. Please try again.',
+        );
       }
     } finally {
       setGoogleLoading(false);

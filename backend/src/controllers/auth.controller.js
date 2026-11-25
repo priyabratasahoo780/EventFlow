@@ -187,6 +187,11 @@ exports.forgotPassword = async (req, res) => {
       return res.status(400).json({ error: 'Email and new password are required.' });
     }
 
+    const pwdError = validateStrongPassword(newPassword);
+    if (pwdError) {
+      return res.status(400).json({ error: pwdError });
+    }
+
     const cleanEmail = email.trim().toLowerCase();
     const user = await User.findOne({ email: cleanEmail });
     if (!user) {
@@ -229,7 +234,13 @@ exports.googleLogin = async (req, res) => {
     if (!user) {
       const uniqueId = await generateUniqueId();
       const randomPassword = await bcrypt.hash(Math.random().toString(36), 10);
-      const cleanUsername = (cleanEmail.split('@')[0] || 'focususer').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+      let cleanUsername = (cleanEmail.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+
+      // Resolve username collision by appending a numeric suffix when needed
+      const existingUsername = await User.findOne({ username: cleanUsername });
+      if (existingUsername) {
+        cleanUsername = cleanUsername + Math.floor(100 + Math.random() * 900);
+      }
 
       user = new User({
         uniqueId,
