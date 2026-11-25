@@ -31,7 +31,7 @@ export default function AiInsightSection({
   colors,
   onActionPress,
 }: Props) {
-  // ── Pulse for Header AI Badge ───────────────────────────────────────────────
+  //  Pulse for Header AI Badge 
   const badgeGlow = useSharedValue(0.4);
   const badgeScale = useSharedValue(1);
 

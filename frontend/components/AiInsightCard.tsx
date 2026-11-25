@@ -140,7 +140,7 @@ export default function AiInsightCard({
 }: Props) {
   const parsed = parseInsightText(insight);
 
-  // ── Animated Shared Values ──────────────────────────────────────────────────
+  // Animated Shared Values 
   const scale = useSharedValue(1);
   const cardTranslateY = useSharedValue(24);
   const cardOpacity = useSharedValue(0);
