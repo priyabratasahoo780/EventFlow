@@ -8,5 +8,6 @@ router.use(authMiddleware);
 router.post('/', reviewController.createReview);
 router.get('/', reviewController.getReviews);
 router.post('/:id/like', reviewController.toggleLike);
+router.delete('/:id', reviewController.deleteReview);
 
 module.exports = router;

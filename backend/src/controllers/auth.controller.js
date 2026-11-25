@@ -111,6 +111,7 @@ const serializeUser = (user) => ({
   city: user.city,
   profilePhoto: user.profilePhoto,
   twoFactorEnabled: Boolean(user.twoFactorEnabled),
+  role: user.role || 'user',
 });
 
 const verifyTempToken = (tempToken) => {
@@ -264,6 +265,10 @@ exports.login = async (req, res) => {
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       return res.status(400).json({ error: 'Incorrect password. Please check and try again.' });
+    }
+
+    if (user.isBanned) {
+      return res.status(403).json({ error: 'Your account has been suspended by an administrator.' });
     }
 
     if (user.twoFactorEnabled) {
@@ -494,9 +499,11 @@ exports.googleLogin = async (req, res) => {
       });
 
       await user.save();
+    } else if (user.isBanned) {
+      return res.status(403).json({ error: 'Your account has been suspended by an administrator.' });
     }
 
-    const token = jwt.sign({ _id: user._id, uniqueId: user.uniqueId }, getJwtSecret(), { expiresIn: '30d' });
+    const token = jwt.sign({ _id: user._id, uniqueId: user.uniqueId, role: user.role || 'user' }, getJwtSecret(), { expiresIn: '30d' });
     res.json({
       token,
       user: serializeUser(user),

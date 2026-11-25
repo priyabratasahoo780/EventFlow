@@ -24,6 +24,7 @@ const analyticsRoutes = require('./routes/analytics.routes');
 const uploadRoutes = require('./routes/upload.routes');
 const userRoutes = require('./routes/user.routes');
 const reviewRoutes = require('./routes/review.routes');
+const adminRoutes = require('./routes/admin.routes');
 
 const { apiLimiter } = require('./middleware/rateLimiter');
 
@@ -121,6 +122,7 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error Handler
 app.use(errorMiddleware);

@@ -1,12 +1,13 @@
 /**
  * auth.middleware.js
- * Verifies Bearer JWT access tokens and rejects temporary 2FA session tokens.
+ * Verifies Bearer JWT access tokens, rejects temporary 2FA tokens, and blocks banned users.
  */
 'use strict';
 
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
-module.exports = (req, res, next) => {
+module.exports = async (req, res, next) => {
   const authHeader = req.header('Authorization');
   if (!authHeader) {
     return res.status(401).json({ error: 'Access denied. No token provided.' });
@@ -33,7 +34,15 @@ module.exports = (req, res, next) => {
       return res.status(401).json({ error: 'Invalid authentication token payload.' });
     }
 
-    req.user = decoded;
+    const dbUser = await User.findById(userId).select('role isBanned').lean();
+    if (!dbUser) {
+      return res.status(401).json({ error: 'Account no longer exists.' });
+    }
+    if (dbUser.isBanned) {
+      return res.status(403).json({ error: 'Your account has been suspended by an administrator.' });
+    }
+
+    req.user = { ...decoded, role: dbUser.role || 'user' };
     req.userId = userId;
     next();
   } catch (_err) {

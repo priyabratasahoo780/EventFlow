@@ -42,7 +42,9 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
       ],
       "package": "com.priyabrata.eventflow"
     },
@@ -72,6 +74,12 @@
       "expo-font",
       "expo-web-browser",
       "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow EventFlow Admin Portal to authenticate using biometrics."
+        }
+      ],
       [
         "expo-build-properties",
         {

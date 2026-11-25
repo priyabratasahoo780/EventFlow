@@ -7,7 +7,7 @@ import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import api from '../../services/api';
 import LoadingScreen from '../../components/LoadingScreen';
-import { ArrowLeft, Star, MessageCircle, Send, X, Heart, Quote, CheckCircle2, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, Star, MessageCircle, Send, X, Heart, Quote, CheckCircle2, Sparkles, Trash2 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -88,6 +88,32 @@ export default function CommunityReviewsScreen() {
       console.log('Failed to toggle like');
       fetchReviews(); // Revert on failure
     }
+  };
+
+  const handleAdminDeleteReview = (reviewId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    Alert.alert(
+      'Delete Review',
+      'Remove this comment from Community Reviews permanently?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/admin/reviews/${reviewId}`);
+              setReviews((prev) => prev.filter((r) => r._id !== reviewId));
+              if (Platform.OS === 'android') {
+                ToastAndroid.show('Comment deleted by Admin', ToastAndroid.SHORT);
+              }
+            } catch {
+              Alert.alert('Error', 'Could not delete this review.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const renderStars = (count: number, size = 16) => {
@@ -177,9 +203,33 @@ export default function CommunityReviewsScreen() {
             </Text>
           </Pressable>
 
-          <View style={s.communityTag}>
-            <Sparkles color={colors.secondary} size={12} strokeWidth={2.2} />
-            <Text style={s.communityTagText}>Verified Review</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {currentUser?.role === 'admin' && (
+              <Pressable
+                onPress={() => handleAdminDeleteReview(item._id)}
+                style={({ pressed }) => [
+                  {
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 4,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 12,
+                    backgroundColor: colors.dangerLight,
+                  },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Trash2 color={colors.error} size={13} strokeWidth={2.3} />
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: colors.error }}>
+                  Delete
+                </Text>
+              </Pressable>
+            )}
+            <View style={s.communityTag}>
+              <Sparkles color={colors.secondary} size={12} strokeWidth={2.2} />
+              <Text style={s.communityTagText}>Verified Review</Text>
+            </View>
           </View>
         </View>
       </View>

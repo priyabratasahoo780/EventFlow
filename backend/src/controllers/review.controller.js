@@ -77,3 +77,29 @@ exports.toggleLike = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+exports.deleteReview = async (req, res) => {
+  try {
+    const reviewId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(String(reviewId || ''))) {
+      return res.status(400).json({ error: 'Invalid review ID' });
+    }
+
+    const review = await Review.findById(reviewId);
+    if (!review) {
+      return res.status(404).json({ error: 'Review not found' });
+    }
+
+    const isOwner = review.user.toString() === req.userId.toString();
+    const isAdmin = req.user?.role === 'admin';
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Unauthorized to delete this review' });
+    }
+
+    await Review.findByIdAndDelete(reviewId);
+    res.json({ success: true, message: 'Review deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting review:', error);
+    res.status(500).json({ error: 'Failed to delete review' });
+  }
+};

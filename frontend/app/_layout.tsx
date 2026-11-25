@@ -119,7 +119,7 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const { token, isLoading: authLoading, checkAuth } = useAuthStore();
+  const { token, isLoading: authLoading, checkAuth, postLoginRoute, setPostLoginRoute } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
   // Keep a ref to the last notification response so we only navigate once
@@ -276,9 +276,11 @@ function RootLayoutNav() {
     if (!token && !inAuthGroup) {
       router.replace('/(auth)/welcome');
     } else if (token && inAuthGroup) {
-      router.replace('/(tabs)');
+      const target = postLoginRoute || '/(tabs)';
+      if (postLoginRoute) setPostLoginRoute(null);
+      router.replace(target as any);
     }
-  }, [token, authLoading, segments]);
+  }, [token, authLoading, segments, postLoginRoute]);
 
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(

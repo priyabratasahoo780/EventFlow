@@ -1,6 +1,6 @@
 /**
  * useAuthStore.ts
- * Zustand authentication store backed by hardware-encrypted SecureStore tokens.
+ * Zustand authentication store backed by hardware-encrypted SecureStore tokens and Admin Vault sync.
  */
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,6 +12,7 @@ import {
   removeAuthToken,
   generateSecureUniqueId,
 } from '../services/secureStorage';
+import { saveAdminVaultSession } from '../services/biometricAuth';
 
 export interface UserProfile {
   _id: string;
@@ -21,13 +22,16 @@ export interface UserProfile {
   email: string;
   profilePhoto: string;
   twoFactorEnabled?: boolean;
+  role?: 'user' | 'admin';
 }
 
 interface AuthState {
   token: string | null;
   user: UserProfile | null;
   isLoading: boolean;
+  postLoginRoute: string | null;
 
+  setPostLoginRoute: (route: string | null) => void;
   login: (token: string, user: UserProfile) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
@@ -38,11 +42,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   token: null,
   user: null,
   isLoading: true,
+  postLoginRoute: null,
+
+  setPostLoginRoute: (route) => set({ postLoginRoute: route }),
 
   login: async (token: string, user: UserProfile) => {
     await setAuthToken(token);
     await AsyncStorage.setItem('user', JSON.stringify(user));
     set({ token, user });
+
+    if (user.role === 'admin') {
+      await saveAdminVaultSession(token, user);
+    }
 
     // Background sync to MongoDB backend without blocking navigation
     Promise.resolve().then(async () => {
@@ -56,10 +67,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (res.data?.user) {
           const syncedUser = { ...user, ...res.data.user };
           await AsyncStorage.setItem('user', JSON.stringify(syncedUser));
+          const finalToken = res.data.token || token;
           if (res.data.token) {
             await setAuthToken(res.data.token);
           }
-          set({ user: syncedUser, token: res.data.token || token });
+          if (syncedUser.role === 'admin') {
+            await saveAdminVaultSession(finalToken, syncedUser);
+          }
+          set({ user: syncedUser, token: finalToken });
         }
 
         const pushToken = await notificationService.registerForPushNotificationsAsync();
@@ -75,7 +90,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     await removeAuthToken();
     await AsyncStorage.removeItem('user');
-    set({ token: null, user: null });
+    set({ token: null, user: null, postLoginRoute: null });
   },
 
   updateUserProfile: async (updatedFields: Partial<UserProfile>) => {
@@ -131,10 +146,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (res.data?.user) {
             const syncedUser = { ...parsedUser, ...res.data.user };
             await AsyncStorage.setItem('user', JSON.stringify(syncedUser));
+            const finalToken = res.data.token || token;
             if (res.data.token) {
               await setAuthToken(res.data.token);
             }
-            set({ user: syncedUser, token: res.data.token || token });
+            if (syncedUser.role === 'admin') {
+              await saveAdminVaultSession(finalToken, syncedUser);
+            }
+            set({ user: syncedUser, token: finalToken });
           }
 
           const pushToken = await notificationService.registerForPushNotificationsAsync();
