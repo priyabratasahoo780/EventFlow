@@ -1,3 +1,7 @@
+/**
+ * useEventStore.ts
+ * Core state store managing events, alarms, filtering, and cloud synchronization.
+ */
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Event, EventFilters, TaskStatus, ReminderConfig } from '../models/Event';

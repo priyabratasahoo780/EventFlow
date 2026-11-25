@@ -1,3 +1,7 @@
+/**
+ * useAuthStore.ts
+ * Zustand store for user session state, persistence, and profile management.
+ */
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';

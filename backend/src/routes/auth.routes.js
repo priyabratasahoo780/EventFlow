@@ -1,3 +1,7 @@
+/**
+ * auth.routes.js
+ * Express routing definitions for user authentication endpoints.
+ */
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');

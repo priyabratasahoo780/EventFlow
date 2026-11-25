@@ -1,14 +1,7 @@
-﻿/**
+/**
  * behaviorService.ts
- * ─────────────────────────────────────────────────────────────────────────────
- * Tracks per-category task patterns locally using AsyncStorage.
- * Powers: AI Duration Prediction, Behavioral Learning warnings, Escalation.
- *
- * Storage keys:
- *   @behavior_records    -> array of BehaviorRecord
- *   @dismissed_reminders -> Record<eventId, number> -- count of dismissed alerts
+ * Tracks task habits and duration accuracy locally using AsyncStorage.
  */
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Event } from '../models/Event';
 

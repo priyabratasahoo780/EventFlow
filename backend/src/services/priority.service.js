@@ -1,13 +1,6 @@
 /**
- * Smart Priority Algorithm Service
- * 
- * Priority Score = 
- *   Importance Score (10-40)
- * + Urgency Score (0-50 based on hours remaining)
- * + Deadline Risk Score (0 or 30 if estimated duration exceeds remaining time)
- * + Overdue Score (0 or 45 if past deadline and not completed)
- * + Status Bonus (15 if currently in_progress)
- * + Location Relevance Score (0 or 25 if user is near task location)
+ * priority.service.js
+ * Dynamic priority score calculation based on urgency, risk, and context.
  */
 
 function calculatePriorityScore(task, userLocation = null) {

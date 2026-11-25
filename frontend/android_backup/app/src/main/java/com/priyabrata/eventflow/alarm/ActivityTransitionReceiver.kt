@@ -1,4 +1,4 @@
-﻿package com.priyabrata.eventflow.alarm
+package com.priyabrata.eventflow.alarm
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -9,9 +9,7 @@ import com.google.android.gms.location.DetectedActivity
 
 /**
  * ActivityTransitionReceiver.kt
- * EC3 — Receives activity transition broadcast from ActivityRecognition API.
- * Inspects the transition result and emits a React Native event
- * (via ActivityTransitionModule) when IN_VEHICLE -> ON_FOOT/WALKING is detected.
+ * Receives Android activity transition broadcast events.
  */
 class ActivityTransitionReceiver : BroadcastReceiver() {
 

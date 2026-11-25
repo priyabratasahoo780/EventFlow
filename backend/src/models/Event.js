@@ -1,3 +1,7 @@
+/**
+ * Event.js
+ * Mongoose schema and model definition for events and tasks.
+ */
 const mongoose = require('mongoose');
 
 const eventSchema = new mongoose.Schema({

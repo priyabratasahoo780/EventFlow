@@ -1,3 +1,7 @@
+/**
+ * db.js
+ * MongoDB database connection setup using Mongoose.
+ */
 const mongoose = require('mongoose');
 
 const connectDB = async () => {

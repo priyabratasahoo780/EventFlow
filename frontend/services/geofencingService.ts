@@ -1,3 +1,7 @@
+/**
+ * geofencingService.ts
+ * Background location tracking and location-based task reminders.
+ */
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import * as Notifications from '../mock-expo-notifications';

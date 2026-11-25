@@ -1,4 +1,7 @@
-// EventFlow API Server Entry Point
+/**
+ * server.js
+ * EventFlow backend HTTP server and WebSocket entry point.
+ */
 require('dotenv').config();
 
 const http = require('http');

@@ -1,7 +1,7 @@
-// ─────────────────────────────────────────────
-//  EventFlow — Premium Design Tokens
-// ─────────────────────────────────────────────
-
+/**
+ * Colors.ts
+ * Design tokens and color themes for EventFlow.
+ */
 export const Colors = {
   light: {
     // Backgrounds

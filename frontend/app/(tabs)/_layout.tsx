@@ -1,3 +1,7 @@
+/**
+ * _layout.tsx
+ * Main bottom tab navigation layout and custom animated navigation bar.
+ */
 import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Home, Calendar, PieChart, Settings, User, Plus } from 'lucide-react-native';
 import { StyleSheet, View, Pressable, Animated, ColorValue } from 'react-native';

@@ -1,13 +1,12 @@
+/**
+ * api.ts
+ * Axios HTTP client configured with authentication interceptors and baseURL resolution.
+ */
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// API URL Resolution
-// Priority: EXPO_PUBLIC_API_URL (set in eas.json) > emulator fallback > dev host
-// In production APK, EXPO_PUBLIC_API_URL is always set via eas.json env block.
-// ─────────────────────────────────────────────────────────────────────────────
 const getApiUrl = (): string => {
   // 1. Production APK: always use the env variable set in eas.json
   if (process.env.EXPO_PUBLIC_API_URL) {
@@ -45,7 +44,7 @@ const api = axios.create({
   timeout: 15000, // increased for slower mobile connections
 });
 
-// ─── Request interceptor: attach auth token ───────────────────────────────────
+// Attach auth token to outgoing requests
 api.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem('token');
@@ -57,7 +56,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ─── Response interceptor: handle 401 & network errors ───────────────────────
+// Handle 401 and network errors
 api.interceptors.response.use(
   (response) => response,
   async (error) => {

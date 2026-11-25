@@ -227,7 +227,7 @@ export default function AlarmModal({
     };
   }, [visible, event, isCompleted]);
 
-  // ── Reanimated Styles ───────────────────────────────────────────────────────
+  // Reanimated Styles 
   const cardAnimStyle = useAnimatedStyle(() => ({
     opacity: cardOpacity.value,
     transform: [{ translateY: cardTranslateY.value }],
@@ -259,7 +259,7 @@ export default function AlarmModal({
     opacity: orbPulse.value,
   }));
 
-  // ── Action Handlers ─────────────────────────────────────────────────────────
+  //  Action Handlers 
   const handleDismiss = () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});

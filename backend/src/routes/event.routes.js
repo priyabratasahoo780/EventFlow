@@ -1,3 +1,7 @@
+/**
+ * event.routes.js
+ * Express routing definitions for event management endpoints.
+ */
 const express = require('express');
 const router = express.Router();
 const eventController = require('../controllers/event.controller');

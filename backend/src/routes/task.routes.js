@@ -1,3 +1,7 @@
+/**
+ * task.routes.js
+ * Express routing definitions for task management endpoints.
+ */
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth.middleware');

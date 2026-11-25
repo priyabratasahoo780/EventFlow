@@ -1,4 +1,4 @@
-﻿package com.priyabrata.eventflow.alarm
+package com.priyabrata.eventflow.alarm
 
 import android.app.PendingIntent
 import android.content.Context
@@ -18,13 +18,7 @@ import com.google.android.gms.location.DetectedActivity
 
 /**
  * ActivityTransitionModule.kt
- * EC3 — Underground GPS Deadzone fix.
- *
- * Registers Google Activity Recognition API transitions.
- * When the device transitions from IN_VEHICLE → ON_FOOT (i.e. user just parked),
- * it fires a React Native event 'ActivityTransition_VehicleToWalking'.
- * The JS layer (activityRecognitionService.ts) listens for this event and calls
- * geofencingService.forceGeofenceCheck() using Network/Cell accuracy that works underground.
+ * Native module for Android Activity Recognition transitions.
  */
 class ActivityTransitionModule(private val reactContext: ReactApplicationContext)
     : ReactContextBaseJavaModule(reactContext) {

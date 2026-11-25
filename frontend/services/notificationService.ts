@@ -1,3 +1,7 @@
+/**
+ * notificationService.ts
+ * Manages push notifications, local reminders, and notification permissions.
+ */
 import * as Notifications from '../mock-expo-notifications';
 import * as Device from 'expo-device';
 import Constants, { ExecutionEnvironment } from 'expo-constants';

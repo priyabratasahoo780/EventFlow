@@ -31,7 +31,7 @@ import * as Haptics from 'expo-haptics';
 
 const { width, height } = Dimensions.get('window');
 
-// ─── Brand Theme Tokens (Radiant, Warm & Luxury) ──────────────────────────────
+//  Brand Theme Tokens (Radiant, Warm & Luxury) 
 const C = {
   orange:       '#FF7A00',
   orangeDeep:   '#FF5C00',
@@ -50,7 +50,7 @@ const C = {
   badgeBg:      'rgba(255, 122, 0, 0.08)',
 };
 
-// ─── Loading Status Messages ──────────────────────────────────────────────────
+//  Loading Status Messages 
 const STATUS_STEPS = [
   'INITIALIZING WORKSPACE...',
   'SYNCING SMART SCHEDULES...',
@@ -67,7 +67,7 @@ const BADGE_COLORS = ['rgba(255, 122, 0, 0.14)', 'rgba(99, 102, 241, 0.08)'] as 
 const PROGRESS_COLORS = [C.indigoBright, C.orangeGlow, C.orange] as const;
 const CARD_BORDER_COLORS = ['rgba(255, 255, 255, 0.95)', 'rgba(255, 245, 235, 0.85)'] as const;
 
-// ─── Isolated Status Tracker (Prevents Re-rendering the Heavy Parent Tree) ────
+//  Isolated Status Tracker (Prevents Re-rendering the Heavy Parent Tree) 
 const StatusDots = React.memo(function StatusDots({ step }: { step: number }) {
   return (
     <View style={styles.stepDotsRow}>
@@ -93,16 +93,16 @@ interface Props {
 }
 
 function SplashScreenView({ isReady = false, onFinish }: Props) {
-  // ── Lottie Refs ─────────────────────────────────────────────────────────────
+  //  Lottie Refs 
   const portalLottieRef = useRef<LottieView>(null);
   const particlesLottieRef = useRef<LottieView>(null);
   const loaderLottieRef = useRef<LottieView>(null);
 
-  // ── Local state for status text ─────────────────────────────────────────────
+  //  Local state for status text 
   const [statusIndex, setStatusIndex] = useState(0);
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
 
-  // ── Reanimated Shared Values ────────────────────────────────────────────────
+  //  Reanimated Shared Values 
   const rootOpacity   = useSharedValue(1);
   const rootScale     = useSharedValue(1);
 
@@ -131,7 +131,7 @@ function SplashScreenView({ isReady = false, onFinish }: Props) {
   const loaderOpacity = useSharedValue(0);
   const progressBar   = useSharedValue(0);
 
-  // ── Entrance Choreography ───────────────────────────────────────────────────
+  //  Entrance Choreography 
   useEffect(() => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -213,7 +213,7 @@ function SplashScreenView({ isReady = false, onFinish }: Props) {
     };
   }, []);
 
-  // ── Coordinated Exit Sequence ───────────────────────────────────────────────
+  //  Coordinated Exit Sequence 
   useEffect(() => {
     if (isReady && minTimeElapsed) {
       progressBar.value = withTiming(1, { duration: 200 }, () => {
@@ -232,7 +232,7 @@ function SplashScreenView({ isReady = false, onFinish }: Props) {
     }
   }, [isReady, minTimeElapsed, onFinish]);
 
-  // ── UI Thread Animated Styles ──────────────────────────────────────────────
+  //  UI Thread Animated Styles 
   const rootAnimatedStyle = useAnimatedStyle(() => ({
     opacity: rootOpacity.value,
     transform: [{ scale: rootScale.value }],
@@ -286,21 +286,21 @@ function SplashScreenView({ isReady = false, onFinish }: Props) {
     <Animated.View style={[StyleSheet.absoluteFill, styles.root, rootAnimatedStyle]}>
       <StatusBar style="dark" />
 
-      {/* ── 1. Radiant Warm Aurora Gradient ─────────────────────────── */}
+      {/* 1. Radiant Warm Aurora Gradient */}
       <LinearGradient
         colors={GRADIENT_COLORS}
         locations={GRADIENT_LOCATIONS}
         style={StyleSheet.absoluteFill}
       />
 
-      {/* ── 2. Ambient Radiant Glow Orbs ────────────────────────────── */}
+      {/* 2. Ambient Radiant Glow Orbs */}
       <Animated.View style={[StyleSheet.absoluteFill, orbAnimatedStyle]} pointerEvents="none">
         <View style={styles.ambientOrbTop} />
         <View style={styles.ambientOrbBottom} />
         <View style={styles.ambientOrbCenter} />
       </Animated.View>
 
-      {/* ── 3. Fullscreen Particles / Constellation Sparks ──────────── */}
+      {/* 3. Fullscreen Particles / Constellation Sparks */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <LottieView
           ref={particlesLottieRef}
@@ -313,10 +313,10 @@ function SplashScreenView({ isReady = false, onFinish }: Props) {
         />
       </View>
 
-      {/* ── 4. Main Stage (Pill, Portal, 3D Icon Card, Title, Tagline) ── */}
+      {/* 4. Main Stage (Pill, Portal, 3D Icon Card, Title, Tagline)  */}
       <View style={styles.stage}>
 
-        {/* ── Modern Category Pill ──────────────────────────────────── */}
+        {/*  Modern Category Pill */}
         <Animated.View style={[styles.badgeContainer, badgeAnimatedStyle]}>
           <LinearGradient
             colors={BADGE_COLORS}
@@ -329,7 +329,7 @@ function SplashScreenView({ isReady = false, onFinish }: Props) {
           </LinearGradient>
         </Animated.View>
 
-        {/* ── Hero Center: Concentric Portal + 3D Logo Card ─────────── */}
+        {/* Hero Center: Concentric Portal + 3D Logo Card */}
         <View style={[styles.heroCenter, { width: PORTAL_SIZE, height: PORTAL_SIZE }]}>
           <Animated.View style={[styles.lottiePortalWrapper, portalAnimatedStyle]}>
             <LottieView
@@ -378,7 +378,7 @@ function SplashScreenView({ isReady = false, onFinish }: Props) {
           </View>
         </View>
 
-        {/* ── Brand Typography: Title ───────────────────────────────── */}
+        {/* Brand Typography: Title */}
         <Animated.View style={[styles.brandTitleWrapper, titleAnimatedStyle]}>
           <Text style={styles.brandTitleText}>
             <Text style={styles.brandTitleDark}>Event</Text>
@@ -389,7 +389,7 @@ function SplashScreenView({ isReady = false, onFinish }: Props) {
           </View>
         </Animated.View>
 
-        {/* ── Tagline & Status Dots ─────────────────────────────────── */}
+        {/* Tagline & Status Dots */}
         <Animated.View style={[styles.taglineWrapper, tagAnimatedStyle]}>
           <Text style={styles.taglineText}>Plan  •  Focus  •  Achieve</Text>
           <StatusDots step={statusIndex} />
@@ -397,7 +397,7 @@ function SplashScreenView({ isReady = false, onFinish }: Props) {
 
       </View>
 
-      {/* ── 5. Cyber Loader Section (Lottie Beam + Bar + Status) ─────── */}
+      {/* 5. Cyber Loader Section (Lottie Beam + Bar + Status) */}
       <Animated.View style={[styles.loaderSection, loaderSectionAnimatedStyle]}>
         <View style={styles.lottieLoaderContainer}>
           <LottieView
@@ -432,7 +432,7 @@ function SplashScreenView({ isReady = false, onFinish }: Props) {
 
 export default React.memo(SplashScreenView);
 
-// ─── Stylesheet ───────────────────────────────────────────────────────────────
+//  Stylesheet 
 const styles = StyleSheet.create({
   root: {
     flex: 1,

@@ -285,10 +285,10 @@ export interface AuthInputProps extends TextInputProps {
   isDark: boolean;
 }
 
-/**
- * Top-level stable input component (never unmounts on keystroke) with
- * Reanimated focus border interpolation, subtle icon pop, and valid badge.
- */
+
+  // Top-level stable input component (never unmounts on keystroke) with
+  // Reanimated focus border interpolation, subtle icon pop, and valid badge.
+ 
 export const AuthInput = forwardRef<ComponentRef<typeof TextInput>, AuthInputProps>(
   (
     {

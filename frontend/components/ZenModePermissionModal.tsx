@@ -1,16 +1,7 @@
 /**
- * ─── ZenModePermissionModal ──────────────────────────────────────────────────
- *
- * Pehli baar jab koi Critical task "Start" hoti hai toh yeh modal
- * ek baar dikhta hai. User clearly samajh sakta hai kya hoga.
- *
- * - "Allow" → DND permission granted + Settings open
- * - "Not Now" → quietly skipped, user fir bhi kaam kar sakta hai
- *
- * Yeh modal kabhi dobara nahi dikhega — preference save ho jaata hai.
- * ─────────────────────────────────────────────────────────────────────────────
+ * ZenModePermissionModal.tsx
+ * Dialog requesting Do Not Disturb permissions when starting high-priority tasks.
  */
-
 import React, { useEffect, useRef } from 'react';
 import {
   Modal,

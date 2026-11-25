@@ -1,3 +1,7 @@
+/**
+ * AiInsightSection.tsx
+ * Carousel section rendering smart AI insight cards with animated indicator bars.
+ */
 import React, { useEffect } from 'react';
 import {
   StyleSheet,

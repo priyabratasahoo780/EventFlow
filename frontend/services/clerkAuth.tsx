@@ -1,3 +1,7 @@
+/**
+ * clerkAuth.tsx
+ * Clerk authentication provider, session management, and Google OAuth flow.
+ */
 import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';

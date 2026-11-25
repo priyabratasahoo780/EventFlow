@@ -1,3 +1,7 @@
+/**
+ * AiInsightCard.tsx
+ * Card component displaying AI-generated productivity insights and recommendations.
+ */
 import React, { useEffect } from 'react';
 import {
   StyleSheet,
@@ -217,7 +221,8 @@ export default function AiInsightCard({
     opacity: glowPulse.value,
   }));
 
-  const shimmerAnimatedStyle = useAnimatedStyle(() => ({
+  const shimmerAnimatedStyle = useAnimatedStyle(
+    () => ({
     transform: [{ translateX: shimmerTranslate.value }],
   }));
 

@@ -1,4 +1,7 @@
-// AlarmService API for native Android AlarmManagerModule
+/**
+ * alarmService.ts
+ * Alarm service API interfacing with native Android AlarmManagerModule.
+ */
 import { NativeModules, Platform, Alert } from "react-native";
 import { Event, ReminderConfig } from "../models/Event";
 import { subMinutes, subHours, subDays } from "date-fns";

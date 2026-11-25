@@ -1,3 +1,7 @@
+/**
+ * task.controller.js
+ * Controller for task lifecycle, dynamic priority scoring, and recommendations.
+ */
 const Event = require('../models/Event');
 const { calculatePriorityScore, getPriorityLevel } = require('../services/priority.service');
 

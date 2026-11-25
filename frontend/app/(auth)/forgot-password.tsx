@@ -1,3 +1,7 @@
+/**
+ * forgot-password.tsx
+ * Password reset screen validating email and enforcing strong password rules.
+ */
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useState, useRef, useCallback, ComponentRef } from 'react';

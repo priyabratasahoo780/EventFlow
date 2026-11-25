@@ -1,3 +1,7 @@
+/**
+ * auth.controller.js
+ * Authentication controller handling login, register, 2FA, and Google OAuth.
+ */
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');

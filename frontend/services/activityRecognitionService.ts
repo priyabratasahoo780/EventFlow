@@ -1,23 +1,7 @@
-﻿/**
+/**
  * activityRecognitionService.ts
- * ─────────────────────────────────────────────────────────────────────────────
- * EC3 — Underground GPS Deadzone Fix.
- *
- * This service bridges the native Android ActivityRecognition API
- * (ActivityTransitionModule.kt) with the geofencingService.forceGeofenceCheck().
- *
- * Flow:
- *  1. App starts → startActivityTransitionUpdates() registers for IN_VEHICLE → WALKING events.
- *  2. User parks car in underground garage → Android fires ActivityTransition.
- *  3. ActivityTransitionReceiver.kt emits 'ActivityTransition_VehicleToWalking' to JS.
- *  4. This service receives the event and calls geofencingService.forceGeofenceCheck().
- *  5. forceGeofenceCheck uses Accuracy.Low (Network/Cell, works underground) to check
- *     all active geofences and fires the alarm if the user is inside one.
- *
- * Works ONLY in a custom Development Build / APK (not in Expo Go).
- * Falls back gracefully on iOS or when the native module is unavailable.
+ * Bridges native Android Activity Recognition API with geofence checks.
  */
-
 import { NativeModules, NativeEventEmitter, Platform } from 'react-native';
 import { geofencingService } from './geofencingService';
 
