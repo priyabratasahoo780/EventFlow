@@ -3,6 +3,8 @@ package com.priyabrata.eventflow.alarm
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
+import android.app.KeyguardManager
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -17,6 +19,8 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 class AlarmActivity : AppCompatActivity() {
 
@@ -24,23 +28,35 @@ class AlarmActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // Ensure this activity shows over the lock screen and turns the screen on
+
+        // Keep screen alive and dismiss keyguard over lock screen
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
+            val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+            keyguardManager?.requestDismissKeyguard(this, null)
         } else {
+            @Suppress("DEPRECATION")
             window.addFlags(
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
                 WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
             )
         }
 
-        // Get the layout by name dynamically to avoid missing R.layout references during prebuild
+        // Get layout dynamically to prevent missing resource errors
         val layoutResId = resources.getIdentifier("activity_alarm", "layout", packageName)
         setContentView(layoutResId)
+
+        // Handle navigation bar and status bar window insets safely
+        val rootView = findViewById<View>(android.R.id.content)
+        ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
 
         val title = intent.getStringExtra("TITLE") ?: "Event Reminder"
         val body = intent.getStringExtra("BODY") ?: "It's time to focus on your task!"
@@ -58,10 +74,10 @@ class AlarmActivity : AppCompatActivity() {
         titleView?.text = title
         bodyView?.text = body
 
-        // --- 1. Style UI with modern gradients & glassmorphism programmatically ---
+        // --- 1. Style UI with modern gradients & glassmorphism ---
         applyModernStyles(topPill, pulseRing1, pulseRing2, bellBadge, infoCard, dismissBtn)
 
-        // --- 2. Start Attractive Bell Swinging & Pulsing Animations ---
+        // --- 2. Start Bell Swinging & Pulsing Animations ---
         startBellRingingAnimation(bellIcon, bellBadge)
         startRadarWaveAnimations(pulseRing1, pulseRing2)
 
@@ -131,9 +147,7 @@ class AlarmActivity : AppCompatActivity() {
     }
 
     private fun startBellRingingAnimation(bellIcon: TextView?, bellBadge: FrameLayout?) {
-        // Bell Pendulum Swing (Hilna / Swinging effect)
         bellIcon?.post {
-            // Anchor pivot at top-center of bell so it swings like a real pendulum
             bellIcon.pivotX = bellIcon.width / 2f
             bellIcon.pivotY = bellIcon.height * 0.12f
 
@@ -151,7 +165,6 @@ class AlarmActivity : AppCompatActivity() {
             swing.start()
         }
 
-        // Bell Badge Pulse / Bounce
         bellBadge?.let { badge ->
             val scaleX = ObjectAnimator.ofFloat(badge, "scaleX", 1f, 1.07f, 1f).apply {
                 duration = 1000
@@ -214,7 +227,6 @@ class AlarmActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Stop all animations to prevent memory leaks
         animators.forEach { it.cancel() }
         animators.clear()
         stopAlarmService()

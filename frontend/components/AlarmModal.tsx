@@ -13,6 +13,7 @@ import {
   Pressable,
   Dimensions,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -69,8 +70,8 @@ export default function AlarmModal({
     Platform.OS === 'ios' ? 56 : 48
   );
   const bottomPadding = Math.max(
-    insets.bottom + (Platform.OS === 'android' ? 24 : 16),
-    Platform.OS === 'android' ? 76 : 48
+    insets.bottom + (Platform.OS === 'android' ? 32 : 20),
+    Platform.OS === 'android' ? 88 : 52
   );
 
   const { isDark } = useThemeStore();
@@ -331,7 +332,19 @@ export default function AlarmModal({
         </Animated.View>
 
         {/*  3. Content Stage  */}
-        <View style={[styles.stage, { paddingTop: topPadding, paddingBottom: bottomPadding }]}>
+        <ScrollView
+          style={StyleSheet.absoluteFill}
+          contentContainerStyle={[
+            styles.stage,
+            {
+              paddingTop: topPadding,
+              paddingBottom: bottomPadding,
+              minHeight: '100%',
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
 
           {/* Alert Header Pill */}
           <View style={styles.alertPillContainer}>
@@ -462,7 +475,7 @@ export default function AlarmModal({
             </View>
           </View>
 
-        </View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -681,6 +694,7 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: 12,
     marginTop: 6,
+    paddingBottom: Platform.OS === 'android' ? 14 : 4,
   },
   startBtn: {
     width: '100%',
@@ -697,7 +711,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    paddingVertical: 18,
+    paddingVertical: SCREEN_HEIGHT < 720 ? 14 : 16,
   },
   startBtnText: {
     fontFamily: 'Poppins_800ExtraBold',
@@ -719,7 +733,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.16)',
-    paddingVertical: 14,
+    paddingVertical: SCREEN_HEIGHT < 720 ? 12 : 13,
     borderRadius: 16,
   },
   snoozeBtnText: {
@@ -737,7 +751,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 68, 68, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(255, 68, 68, 0.3)',
-    paddingVertical: 14,
+    paddingVertical: SCREEN_HEIGHT < 720 ? 12 : 13,
     borderRadius: 16,
   },
   dismissBtnText: {
