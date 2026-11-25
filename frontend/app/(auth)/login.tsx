@@ -1,113 +1,107 @@
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, ComponentRef } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, Alert, Image,
-  Pressable, ActivityIndicator, ScrollView, KeyboardAvoidingView,
-  Platform, Animated, Easing,
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  Alert,
+  Pressable,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  FadeInDown,
+  FadeOutUp,
+  ZoomIn,
+  useSharedValue,
+  useAnimatedStyle,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import GoogleButton from '../../components/GoogleButton';
+import {
+  AuthBackground,
+  AuthHeader,
+  AuthInput,
+  AnimatedPrimaryButton,
+  AuthDivider,
+} from '../../components/AuthUI';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff, Mail, Lock, ShieldCheck } from 'lucide-react-native';
+import { Eye, EyeOff, Mail, Lock, ShieldCheck, ArrowRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useGoogleAuth } from '../../services/clerkAuth';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
 
 const validationSchema = yup.object().shape({
-  email: yup.string().required('Email/Username is required'),
+  email: yup.string().trim().required('Email or username is required'),
   password: yup.string().required('Password is required'),
 });
 
-// Lightweight fade+slide hook using the built-in Animated API
-function useEntryAnimation(delay = 0) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(28)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 480,
-        delay,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 480,
-        delay,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [delay, opacity, translateY]);
-
-  return { opacity, translateY };
-}
-
 export default function LoginScreen() {
-  const { getColors } = useThemeStore();
+  const { getColors, isDark } = useThemeStore();
   const colors = getColors();
+  const dark = isDark();
   const styles = getStyles(colors);
+  const insets = useSafeAreaInsets();
 
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [requires2FA, setRequires2FA] = useState(false);
   const [tempToken, setTempToken] = useState('');
   const [emailFor2FA, setEmailFor2FA] = useState('');
   const [otp, setOtp] = useState('');
 
-  const login = useAuthStore(state => state.login);
+  const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
+  const login = useAuthStore((state) => state.login);
   const router = useRouter();
   const { signInWithGoogle } = useGoogleAuth();
 
-  // --- Entry animations (staggered) ---
-  const brand = useEntryAnimation(0);
-  const heading = useEntryAnimation(80);
-  const field1 = useEntryAnimation(160);
-  const field2 = useEntryAnimation(220);
-  const forgotAnim = useEntryAnimation(280);
-  const btnAnim = useEntryAnimation(340);
-  const divAnim = useEntryAnimation(400);
-  const googleAnim = useEntryAnimation(460);
-  const linkAnim = useEntryAnimation(520);
+  // Horizontal shake animation on invalid submit / error
+  const shakeX = useSharedValue(0);
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }],
+  }));
 
-  // Button press scale
-  const btnScale = useRef(new Animated.Value(1)).current;
-  const animatePressIn = () =>
-    Animated.spring(btnScale, { toValue: 0.96, useNativeDriver: true }).start();
-  const animatePressOut = () =>
-    Animated.spring(btnScale, { toValue: 1, friction: 4, useNativeDriver: true }).start();
+  const triggerShake = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    shakeX.value = withSequence(
+      withTiming(-9, { duration: 55 }),
+      withTiming(9, { duration: 55 }),
+      withTiming(-6, { duration: 55 }),
+      withTiming(6, { duration: 55 }),
+      withTiming(-3, { duration: 45 }),
+      withTiming(0, { duration: 45 })
+    );
+  }, [shakeX]);
 
-  // 2FA panel slide-in
-  const otpPanel = useRef(new Animated.Value(60)).current;
-  const otpOpacity = useRef(new Animated.Value(0)).current;
+  // 2FA Resend cooldown countdown
   useEffect(() => {
-    if (requires2FA) {
-      Animated.parallel([
-        Animated.timing(otpPanel, { toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(otpOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-      ]).start();
-    } else {
-      otpPanel.setValue(60);
-      otpOpacity.setValue(0);
-    }
-  }, [requires2FA, otpPanel, otpOpacity]);
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const send2FACode = useCallback(async (email: string) => {
     setOtpSending(true);
     try {
       await api.post('/auth/2fa/send', { email });
+      setResendCooldown(30);
     } catch {
-      Alert.alert('Code Delivery Failed', 'Could not send the verification code. Please use Resend Code.');
+      Alert.alert('Code Delivery Failed', 'Could not send the verification code. Please tap Resend Code.');
     } finally {
       setOtpSending(false);
     }
@@ -135,21 +129,23 @@ export default function LoginScreen() {
           setTempToken(res.data.tempToken);
           setEmailFor2FA(res.data.email);
         } else {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           await login(res.data.token, res.data.user);
           router.replace('/(tabs)');
         }
       } catch (err: any) {
+        triggerShake();
         const isNotFound = err.response?.data?.accountNotFound || err.response?.status === 404;
         const serverError = err.response?.data?.error || err.response?.data?.message;
 
         if (isNotFound) {
           Alert.alert(
             'Account Not Found',
-            'No account found with this email/username.',
+            'No account found with this email/username. Want to create one?',
             [
               { text: 'Cancel', style: 'cancel' },
               { text: 'Create Account', onPress: () => router.push('/(auth)/register') },
-            ],
+            ]
           );
         } else if (serverError) {
           Alert.alert('Login Failed', serverError);
@@ -162,8 +158,19 @@ export default function LoginScreen() {
     },
   });
 
+  const handleSubmitForm = async () => {
+    const errors = await formik.validateForm();
+    if (Object.keys(errors).length > 0) {
+      formik.setTouched({ email: true, password: true });
+      triggerShake();
+      return;
+    }
+    formik.handleSubmit();
+  };
+
   const handleVerify2FA = async () => {
     if (!otp || otp.length !== 6) {
+      triggerShake();
       Alert.alert('Invalid Code', 'Please enter the 6-digit code sent to your email.');
       return;
     }
@@ -171,9 +178,11 @@ export default function LoginScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const res = await api.post('/auth/2fa/verify', { email: emailFor2FA, otp, tempToken });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await login(res.data.token, res.data.user);
       router.replace('/(tabs)');
     } catch (err: any) {
+      triggerShake();
       const serverError = err.response?.data?.error || err.response?.data?.message;
       Alert.alert('Verification Failed', serverError || 'Invalid 2FA code. Please try again.');
     } finally {
@@ -193,6 +202,7 @@ export default function LoginScreen() {
         name: result.user.name,
         profilePhoto: result.user.profilePhoto,
       });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await login(res.data.token, res.data.user);
       router.replace('/(tabs)');
     } catch (err: any) {
@@ -201,7 +211,10 @@ export default function LoginScreen() {
         err?.message?.includes('cancel') ||
         err?.message?.includes('dismissed');
       if (!isCancelled) {
-        Alert.alert('Google Sign-In Failed', err?.response?.data?.error || 'Could not complete Google sign-in. Please try again.');
+        Alert.alert(
+          'Google Sign-In Failed',
+          err?.response?.data?.error || 'Could not complete Google sign-in. Please try again.'
+        );
       }
     } finally {
       setGoogleLoading(false);
@@ -209,407 +222,330 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <AuthBackground />
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <ScrollView
-          contentContainerStyle={styles.container}
+          contentContainerStyle={[
+            styles.container,
+            {
+              paddingTop: Math.max(insets.top + 14, 28),
+              paddingBottom: Math.max(insets.bottom + 24, 34),
+            },
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Brand */}
-          <Animated.View style={[styles.brandRow, { opacity: brand.opacity, transform: [{ translateY: brand.translateY }] }]}>
-            <View style={styles.brandIcon}>
-              <Image
-                source={require('../../assets/images/icon_squared.png')}
-                style={styles.brandIconImage}
-                resizeMode="cover"
-              />
-            </View>
-            <View>
-              <Text style={styles.appName}>EVENTFLOW</Text>
-              <Text style={styles.tagline}>Focus on the right task at the right time.</Text>
-            </View>
-          </Animated.View>
-
-          {/* Heading */}
-          <Animated.View style={{ opacity: heading.opacity, transform: [{ translateY: heading.translateY }] }}>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to continue where you left off</Text>
-          </Animated.View>
+          <AuthHeader
+            title={requires2FA ? 'Verify Identity' : 'Welcome Back'}
+            subtitle={
+              requires2FA
+                ? 'Two-factor protection is enabled on your account'
+                : 'Sign in to continue where you left off'
+            }
+            onBack={() => {
+              if (requires2FA) {
+                setRequires2FA(false);
+                setOtp('');
+              } else if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(auth)/welcome');
+              }
+            }}
+          />
 
           {requires2FA ? (
-            /* ── 2FA Panel ── */
-            <Animated.View style={{ opacity: otpOpacity, transform: [{ translateY: otpPanel }] }}>
-              <View style={styles.otpHeader}>
-                <ShieldCheck color={colors.secondary} size={36} strokeWidth={1.5} />
-                <Text style={styles.otpTitle}>Two-Step Verification</Text>
-                <Text style={styles.otpSub}>
-                  A 6-digit code was sent to{'\n'}
-                  <Text style={styles.otpEmail}>{emailFor2FA}</Text>
-                </Text>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>VERIFICATION CODE</Text>
-                <View style={styles.inputWrapper}>
-                  <Lock color={colors.textSecondary} size={18} strokeWidth={2} />
-                  <TextInput
-                    style={[styles.input, styles.otpInput]}
-                    placeholder="· · · · · ·"
-                    placeholderTextColor={colors.textSecondary}
-                    value={otp}
-                    onChangeText={setOtp}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    autoFocus
-                  />
+            <Animated.View
+              key="2fa-panel"
+              entering={FadeInDown.duration(350).springify()}
+              exiting={FadeOutUp.duration(200)}
+              style={shakeStyle}
+            >
+              <Animated.View
+                entering={ZoomIn.delay(80).duration(350).springify()}
+                style={[styles.otpBadgeCard, { backgroundColor: colors.card, borderColor: dark ? colors.border : '#EAE2D8' }]}
+              >
+                <View style={[styles.otpIconWrap, { backgroundColor: colors.secondaryLight }]}>
+                  <ShieldCheck color={colors.secondary} size={28} strokeWidth={2} />
                 </View>
-              </View>
-
-              <Animated.View style={{ transform: [{ scale: btnScale }] }}>
-                <Pressable
-                  onPress={handleVerify2FA}
-                  onPressIn={animatePressIn}
-                  onPressOut={animatePressOut}
-                  disabled={loading}
-                >
-                  <LinearGradient
-                    colors={['#FF8C42', '#FF6B1A']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.loginBtn}
-                  >
-                    {loading
-                      ? <ActivityIndicator size="small" color="#FFF" />
-                      : <Text style={styles.loginBtnText}>Verify & Sign In</Text>
-                    }
-                  </LinearGradient>
-                </Pressable>
+                <Text style={[styles.otpSub, { color: colors.textSecondary }]}>
+                  Enter the 6-digit code sent to{'\n'}
+                  <Text style={[styles.otpEmail, { color: colors.text }]}>{emailFor2FA}</Text>
+                </Text>
               </Animated.View>
+
+              <AuthInput
+                label="6-DIGIT CODE"
+                colors={colors}
+                isDark={dark}
+                isFocused={focusedField === 'otp'}
+                leftIcon={
+                  <Lock
+                    color={focusedField === 'otp' ? colors.secondary : colors.textSecondary}
+                    size={18}
+                    strokeWidth={2}
+                  />
+                }
+                placeholder="123456"
+                value={otp}
+                onChangeText={(t) => setOtp(t.replace(/[^0-9]/g, ''))}
+                onFocus={() => setFocusedField('otp')}
+                onBlur={() => setFocusedField(null)}
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleVerify2FA}
+                style={styles.otpInput}
+              />
+
+              <AnimatedPrimaryButton
+                title="Verify & Sign In"
+                onPress={handleVerify2FA}
+                loading={loading}
+                rightIcon={<ArrowRight color="#FFF" size={18} strokeWidth={2.5} />}
+              />
 
               <Pressable
                 onPress={() => send2FACode(emailFor2FA)}
-                disabled={otpSending}
-                style={styles.signupRow}
+                disabled={otpSending || resendCooldown > 0}
+                style={styles.resendRow}
               >
-                {otpSending
-                  ? <ActivityIndicator size="small" color={colors.secondary} />
-                  : <Text style={styles.signupLink}>Resend Code</Text>
-                }
-              </Pressable>
-
-              <Pressable onPress={() => { setRequires2FA(false); setOtp(''); }} style={styles.signupRow}>
-                <Text style={styles.signupText}>← Back to Login</Text>
+                {otpSending ? (
+                  <ActivityIndicator size="small" color={colors.secondary} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.signupLink,
+                      { color: resendCooldown > 0 ? colors.textSecondary : colors.secondary },
+                    ]}
+                  >
+                    {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend Code'}
+                  </Text>
+                )}
               </Pressable>
             </Animated.View>
           ) : (
-            <>
+            <Animated.View style={shakeStyle}>
               {/* Email */}
-              <Animated.View style={[styles.inputGroup, { opacity: field1.opacity, transform: [{ translateY: field1.translateY }] }]}>
-                <Text style={styles.label}>EMAIL OR USERNAME</Text>
-                <View style={[
-                  styles.inputWrapper,
-                  focusedField === 'email' && styles.inputWrapperFocused,
-                  formik.touched.email && formik.errors.email && { borderColor: colors.error },
-                ]}>
-                  <Mail color={focusedField === 'email' ? colors.secondary : colors.textSecondary} size={18} strokeWidth={2} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="your.email@example.com"
-                    placeholderTextColor={colors.textSecondary}
-                    value={formik.values.email}
-                    onChangeText={formik.handleChange('email')}
-                    onFocus={() => setFocusedField('email')}
-                    onBlur={() => { setFocusedField(null); formik.handleBlur('email')('email'); }}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="email-address"
-                    textContentType="username"
-                  />
-                </View>
-                {formik.touched.email && formik.errors.email && (
-                  <Text style={styles.errorText}>{formik.errors.email}</Text>
-                )}
+              <Animated.View entering={FadeInDown.delay(110).duration(420).springify()}>
+                <AuthInput
+                  label="EMAIL OR USERNAME"
+                  colors={colors}
+                  isDark={dark}
+                  isFocused={focusedField === 'email'}
+                  error={formik.errors.email}
+                  touched={formik.touched.email}
+                  isValid={formik.values.email.trim().length >= 3 && !formik.errors.email}
+                  leftIcon={
+                    <Mail
+                      color={focusedField === 'email' ? colors.secondary : colors.textSecondary}
+                      size={18}
+                      strokeWidth={2}
+                    />
+                  }
+                  placeholder="your.email@example.com"
+                  value={formik.values.email}
+                  onChangeText={formik.handleChange('email')}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    formik.handleBlur('email')('email');
+                  }}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  textContentType="username"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => passwordRef.current?.focus()}
+                />
               </Animated.View>
 
               {/* Password */}
-              <Animated.View style={[styles.inputGroup, { opacity: field2.opacity, transform: [{ translateY: field2.translateY }] }]}>
-                <Text style={styles.label}>PASSWORD</Text>
-                <View style={[
-                  styles.inputWrapper,
-                  focusedField === 'password' && styles.inputWrapperFocused,
-                  formik.touched.password && formik.errors.password && { borderColor: colors.error },
-                ]}>
-                  <Lock color={focusedField === 'password' ? colors.secondary : colors.textSecondary} size={18} strokeWidth={2} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="••••••••"
-                    placeholderTextColor={colors.textSecondary}
-                    value={formik.values.password}
-                    onChangeText={formik.handleChange('password')}
-                    onFocus={() => setFocusedField('password')}
-                    onBlur={() => { setFocusedField(null); formik.handleBlur('password')('password'); }}
-                    secureTextEntry={!showPassword}
-                    textContentType="password"
-                  />
-                  <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn} hitSlop={10}>
-                    {showPassword
-                      ? <EyeOff color={colors.textSecondary} size={18} />
-                      : <Eye color={colors.textSecondary} size={18} />
-                    }
-                  </Pressable>
-                </View>
-                {formik.touched.password && formik.errors.password && (
-                  <Text style={styles.errorText}>{formik.errors.password}</Text>
-                )}
+              <Animated.View entering={FadeInDown.delay(170).duration(420).springify()}>
+                <AuthInput
+                  ref={passwordRef}
+                  label="PASSWORD"
+                  colors={colors}
+                  isDark={dark}
+                  isFocused={focusedField === 'password'}
+                  error={formik.errors.password}
+                  touched={formik.touched.password}
+                  leftIcon={
+                    <Lock
+                      color={focusedField === 'password' ? colors.secondary : colors.textSecondary}
+                      size={18}
+                      strokeWidth={2}
+                    />
+                  }
+                  rightElement={
+                    <Pressable
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setShowPassword((prev) => !prev);
+                      }}
+                      style={styles.eyeBtn}
+                      hitSlop={10}
+                    >
+                      {showPassword ? (
+                        <EyeOff color={colors.textSecondary} size={18} />
+                      ) : (
+                        <Eye color={colors.textSecondary} size={18} />
+                      )}
+                    </Pressable>
+                  }
+                  placeholder="••••••••"
+                  value={formik.values.password}
+                  onChangeText={formik.handleChange('password')}
+                  onFocus={() => setFocusedField('password')}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    formik.handleBlur('password')('password');
+                  }}
+                  secureTextEntry={!showPassword}
+                  textContentType="password"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSubmitForm}
+                />
               </Animated.View>
 
-              {/* Forgot */}
-              <Animated.View style={{ opacity: forgotAnim.opacity, transform: [{ translateY: forgotAnim.translateY }] }}>
-                <Pressable onPress={() => router.push('/(auth)/forgot-password')} style={styles.forgotBtn}>
-                  <Text style={styles.forgotText}>Forgot password?</Text>
+              {/* Forgot Password */}
+              <Animated.View entering={FadeInDown.delay(220).duration(400)}>
+                <Pressable
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    router.push('/(auth)/forgot-password');
+                  }}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.forgotBtn, pressed && { opacity: 0.7 }]}
+                >
+                  <Text style={[styles.forgotText, { color: colors.primary }]}>Forgot password?</Text>
                 </Pressable>
               </Animated.View>
 
               {/* Login Button */}
-              <Animated.View style={[{ opacity: btnAnim.opacity, transform: [{ translateY: btnAnim.translateY }, { scale: btnScale }] }]}>
-                <Pressable
-                  onPress={() => formik.handleSubmit()}
-                  onPressIn={animatePressIn}
-                  onPressOut={animatePressOut}
-                  disabled={loading}
-                >
-                  <LinearGradient
-                    colors={loading ? ['#FFB86A', '#FF9840'] : ['#FF8C42', '#FF6B1A']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.loginBtn}
-                  >
-                    {loading
-                      ? <ActivityIndicator size="small" color="#FFF" />
-                      : <Text style={styles.loginBtnText}>Continue</Text>
-                    }
-                  </LinearGradient>
-                </Pressable>
+              <Animated.View entering={FadeInDown.delay(260).duration(420).springify()}>
+                <AnimatedPrimaryButton
+                  title="Continue"
+                  onPress={handleSubmitForm}
+                  loading={loading}
+                  rightIcon={<ArrowRight color="#FFF" size={18} strokeWidth={2.5} />}
+                />
               </Animated.View>
 
               {/* Divider */}
-              <Animated.View style={[styles.dividerRow, { opacity: divAnim.opacity }]}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or</Text>
-                <View style={styles.dividerLine} />
+              <Animated.View entering={FadeInDown.delay(310).duration(400)}>
+                <AuthDivider />
               </Animated.View>
 
               {/* Google */}
-              <Animated.View style={{ opacity: googleAnim.opacity, transform: [{ translateY: googleAnim.translateY }] }}>
+              <Animated.View entering={FadeInDown.delay(350).duration(420).springify()}>
                 <GoogleButton onPress={handleGoogleLogin} loading={googleLoading} />
               </Animated.View>
 
               {/* Sign Up Link */}
-              <Animated.View style={[styles.signupRow, { opacity: linkAnim.opacity, transform: [{ translateY: linkAnim.translateY }] }]}>
-                <Pressable onPress={() => router.push('/(auth)/register')} style={styles.signupRow}>
-                  <Text style={styles.signupText}>Don't have an account? </Text>
-                  <Text style={styles.signupLink}>Sign up</Text>
+              <Animated.View entering={FadeInDown.delay(400).duration(400)} style={styles.signupRow}>
+                <Pressable
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    router.push('/(auth)/register');
+                  }}
+                  hitSlop={10}
+                  style={({ pressed }) => [styles.signupInner, pressed && { opacity: 0.7 }]}
+                >
+                  <Text style={[styles.signupText, { color: colors.textSecondary }]}>
+                    Don't have an account?{' '}
+                  </Text>
+                  <Text style={[styles.signupLink, { color: colors.secondary }]}>Sign up</Text>
                 </Pressable>
               </Animated.View>
-            </>
+            </Animated.View>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-const getStyles = (colors: ColorTheme) => StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  container: {
-    flexGrow: 1,
-    padding: 24,
-    paddingTop: 16,
-    justifyContent: 'center',
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 36,
-  },
-  brandIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    overflow: 'hidden',
-    shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  brandIconImage: {
-    width: '100%',
-    height: '100%',
-  },
-  appName: {
-    fontFamily: 'Poppins_800ExtraBold',
-    fontSize: 14,
-    color: colors.secondary,
-    letterSpacing: 2.5,
-  },
-  tagline: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  title: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 30,
-    color: colors.text,
-    marginBottom: 6,
-  },
-  subtitle: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 28,
-    lineHeight: 20,
-  },
-  // 2FA styles
-  otpHeader: {
-    alignItems: 'center',
-    marginBottom: 28,
-    gap: 10,
-  },
-  otpTitle: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 22,
-    color: colors.text,
-    textAlign: 'center',
-  },
-  otpSub: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  otpEmail: {
-    fontFamily: 'Poppins_600SemiBold',
-    color: colors.secondary,
-  },
-  otpInput: {
-    letterSpacing: 8,
-    fontSize: 20,
-    textAlign: 'center',
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 11,
-    color: colors.textSecondary,
-    letterSpacing: 0.8,
-    marginBottom: 7,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    paddingHorizontal: 14,
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  inputWrapperFocused: {
-    borderColor: colors.secondary,
-    shadowColor: colors.secondary,
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 14,
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 15,
-    color: colors.text,
-  },
-  eyeBtn: {
-    padding: 4,
-  },
-  forgotBtn: {
-    alignSelf: 'flex-end',
-    marginBottom: 20,
-    marginTop: 2,
-  },
-  forgotText: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 13,
-    color: colors.primary,
-  },
-  loginBtn: {
-    borderRadius: 14,
-    paddingVertical: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 7,
-    marginBottom: 8,
-  },
-  loginBtnText: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 16,
-    color: '#FFF',
-    letterSpacing: 0.4,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-    gap: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  signupRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 20,
-  },
-  signupText: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  signupLink: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 14,
-    color: colors.secondary,
-  },
-  errorText: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 12,
-    color: colors.error,
-    marginTop: 5,
-    marginLeft: 4,
-  },
-});
+const getStyles = (colors: ColorTheme) =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+    },
+    container: {
+      flexGrow: 1,
+      paddingHorizontal: 24,
+      justifyContent: 'center',
+    },
+    eyeBtn: {
+      padding: 4,
+    },
+    forgotBtn: {
+      alignSelf: 'flex-end',
+      marginBottom: 20,
+      marginTop: -2,
+    },
+    forgotText: {
+      fontFamily: 'Poppins_600SemiBold',
+      fontSize: 13,
+    },
+    signupRow: {
+      marginTop: 22,
+      alignItems: 'center',
+    },
+    signupInner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 4,
+    },
+    signupText: {
+      fontFamily: 'Poppins_400Regular',
+      fontSize: 14,
+    },
+    signupLink: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 14,
+    },
+    // 2FA panel styles
+    otpBadgeCard: {
+      borderRadius: 18,
+      borderWidth: 1,
+      padding: 18,
+      alignItems: 'center',
+      marginBottom: 20,
+      gap: 10,
+    },
+    otpIconWrap: {
+      width: 54,
+      height: 54,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    otpSub: {
+      fontFamily: 'Poppins_400Regular',
+      fontSize: 13.5,
+      textAlign: 'center',
+      lineHeight: 21,
+    },
+    otpEmail: {
+      fontFamily: 'Poppins_600SemiBold',
+    },
+    otpInput: {
+      letterSpacing: 8,
+      fontSize: 20,
+      fontFamily: 'Poppins_600SemiBold',
+      textAlign: 'center',
+    },
+    resendRow: {
+      alignItems: 'center',
+      marginTop: 18,
+      paddingVertical: 6,
+    },
+  });

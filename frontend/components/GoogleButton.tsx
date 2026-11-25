@@ -1,6 +1,10 @@
 import { Pressable, Text, StyleSheet, View, ActivityIndicator } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
+import { useThemeStore } from '../store/useThemeStore';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface Props {
   onPress: () => void;
@@ -9,24 +13,43 @@ interface Props {
 }
 
 export default function GoogleButton({ onPress, loading, title = 'CONTINUE WITH GOOGLE' }: Props) {
+  const { getColors, isDark } = useThemeStore();
+  const colors = getColors();
+  const dark = isDark();
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onPress();
   };
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={handlePress}
       disabled={loading}
-      style={({ pressed }) => [
+      onPressIn={() => {
+        scale.value = withSpring(0.97, { damping: 15, stiffness: 300 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, { damping: 12, stiffness: 250 });
+      }}
+      style={[
+        animatedStyle,
         styles.button,
-        pressed && styles.pressed,
+        {
+          backgroundColor: colors.card,
+          borderColor: dark ? colors.border : '#E5DDD3',
+        },
         loading && styles.disabled,
       ]}
     >
       <View style={styles.content}>
         {loading ? (
-          <ActivityIndicator size="small" color="#000" />
+          <ActivityIndicator size="small" color={colors.text} />
         ) : (
           <>
             <Svg width={20} height={20} viewBox="0 0 48 48">
@@ -47,37 +70,30 @@ export default function GoogleButton({ onPress, loading, title = 'CONTINUE WITH 
                 d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
               />
             </Svg>
-            <Text style={styles.text}>{title}</Text>
+            <Text style={[styles.text, { color: colors.text }]}>{title}</Text>
           </>
         )}
       </View>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#E9EDF3',
-    borderRadius: 14,
+    borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#182235',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 6,
-    elevation: 3,
-    marginTop: 4,
-  },
-  pressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.55,
   },
   content: {
     flexDirection: 'row',
@@ -87,8 +103,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
-    color: '#182235',
-    letterSpacing: 0.2,
+    fontSize: 13.5,
+    letterSpacing: 0.3,
   },
 });
