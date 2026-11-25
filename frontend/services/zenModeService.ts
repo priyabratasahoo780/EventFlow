@@ -1,55 +1,35 @@
 /**
- * ─── Zen Mode Service (Auto Do Not Disturb) ──────────────────────────────────
- *
- * Jab koi 'Critical' task "In Progress" hota hai toh phone ko automatically
- * DND (Do Not Disturb) mode mein daal deta hai.
- *
- * Task complete hone par DND khud off ho jaata hai.
- *
- * Android-only feature — iOS pe silently skip ho jaata hai.
- *
- * Permission Flow:
- *  - Pehli baar user se ek baar permission maanga jaata hai (Alert + Settings)
- *  - User ki choice AsyncStorage mein save hoti hai
- *  - Har baar permission nahi maanga jaata — sirf pehli critical task pe
- * ─────────────────────────────────────────────────────────────────────────────
+ * Zen Mode Service (Auto Do Not Disturb)
+ * Automatically assists in enabling Do Not Disturb (DND) when a Critical task
+ * is in progress and restores standard notification policy upon task completion.
  */
 
 import { Platform, Linking, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ─── Storage Keys ─────────────────────────────────────────────────────────────
-const ZEN_PERMISSION_KEY = 'zen_mode_permission_granted';   // 'true' | 'false' | null (not asked yet)
-const ZEN_ACTIVE_KEY     = 'zen_mode_currently_active';     // 'true' | 'false'
-const ZEN_ASKED_KEY      = 'zen_mode_permission_asked';     // 'true' | null
-
-// ─── Android DND Filter Constants (matches android.app.NotificationManager) ──
-// We use Android Intents via Linking to open DND settings.
-// Direct DND toggle requires MANAGE_NOTIFICATIONS permission (granted via settings).
-//
-// Android Intent URIs:
-//   android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS → grants DND permission
-//   android.settings.ZEN_MODE_SETTINGS                   → opens DND settings page
-// ─────────────────────────────────────────────────────────────────────────────
+// Storage Keys
+const ZEN_PERMISSION_KEY = 'zen_mode_permission_granted';
+const ZEN_ACTIVE_KEY     = 'zen_mode_currently_active';
+const ZEN_ASKED_KEY      = 'zen_mode_permission_asked';
 
 export interface ZenModeStatus {
   isActive: boolean;
-  permissionGranted: boolean | null;  // null = never asked
+  permissionGranted: boolean | null;
 }
 
 class ZenModeService {
-  // ─── Check if user has already given permission ──────────────────────────
+  // Check if user has already granted permission
   async getPermissionStatus(): Promise<boolean | null> {
     try {
       const val = await AsyncStorage.getItem(ZEN_PERMISSION_KEY);
-      if (val === null) return null;   // never asked
+      if (val === null) return null;
       return val === 'true';
     } catch {
       return null;
     }
   }
 
-  // ─── Check if permission has been asked before ──────────────────────────
+  // Check if permission prompt was previously shown
   async wasPermissionAsked(): Promise<boolean> {
     try {
       const val = await AsyncStorage.getItem(ZEN_ASKED_KEY);
@@ -59,7 +39,7 @@ class ZenModeService {
     }
   }
 
-  // ─── Save user's permission choice ──────────────────────────────────────
+  // Persist user's permission choice
   async savePermissionChoice(granted: boolean): Promise<void> {
     try {
       await AsyncStorage.setItem(ZEN_PERMISSION_KEY, granted ? 'true' : 'false');
@@ -69,19 +49,17 @@ class ZenModeService {
     }
   }
 
-  // ─── Open Android DND / Notification Policy Settings ────────────────────
+  // Open Android DND / Notification Policy settings
   async openDNDSettings(): Promise<void> {
     if (Platform.OS !== 'android') return;
     try {
-      // Ye Android ka DND permission page kholega
       await Linking.openSettings();
     } catch (e) {
       console.warn('[ZenMode] Could not open DND settings', e);
     }
   }
 
-  // ─── Request Permission (shows modal/alert, called once per app lifecycle) ─
-  // Returns: true if user allowed, false if denied
+  // Request DND access permission
   async requestPermission(): Promise<boolean> {
     if (Platform.OS !== 'android') return false;
 
@@ -91,14 +69,13 @@ class ZenModeService {
       return current === true;
     }
 
-    // Pehli baar — user ko explain karo
     return new Promise<boolean>((resolve) => {
       Alert.alert(
-        '🧘 Zen Mode — Focus Karo',
-        'Jab aap koi Critical task start karte ho, toh app automatically Do Not Disturb ON kar deta hai taaki Instagram/WhatsApp distract na kare.\n\nTask complete hone par DND khud off ho jaata hai.\n\nYe feature allow karne ke liye "Settings" mein jaake Notification Policy access de do.',
+        '🧘 Zen Mode — Distraction-Free Focus',
+        'When you start a Critical task, Zen Mode helps enable Do Not Disturb so social media and notifications won\'t distract you.\n\nTo enable this, please grant Notification Policy access in Settings.',
         [
           {
-            text: 'Abhi Nahi',
+            text: 'Not Now',
             style: 'cancel',
             onPress: async () => {
               await this.savePermissionChoice(false);
@@ -106,14 +83,12 @@ class ZenModeService {
             },
           },
           {
-            text: '⚙️ Settings Kholein',
+            text: 'Open Settings',
             onPress: async () => {
               await this.savePermissionChoice(true);
-              // Open Android notification policy settings
               try {
                 await Linking.openURL('android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS');
               } catch {
-                // Fallback: open generic app settings
                 await Linking.openSettings();
               }
               resolve(true);
@@ -125,12 +100,7 @@ class ZenModeService {
     });
   }
 
-  // ─── Enable DND (called when Critical task starts) ───────────────────────
-  // Flow:
-  //   1. iOS? → skip
-  //   2. Permission never asked? → ask once
-  //   3. Permission denied? → skip silently
-  //   4. Permission granted? → open DND via Intent
+  // Enable DND mode when critical task starts
   async enableDND(taskTitle?: string): Promise<void> {
     if (Platform.OS !== 'android') return;
 
@@ -138,30 +108,20 @@ class ZenModeService {
       const permStatus = await this.getPermissionStatus();
 
       if (permStatus === null) {
-        // Pehli baar — permission maango
         const granted = await this.requestPermission();
         if (!granted) return;
       } else if (permStatus === false) {
-        // User ne pehle deny kiya tha — quietly skip
         return;
       }
 
-      // Mark zen mode as active
       await AsyncStorage.setItem(ZEN_ACTIVE_KEY, 'true');
-
-      // Android DND enable via Linking Intent
-      // android.settings.ZEN_MODE_PRIORITY_SETTINGS → Priority only DND
-      // We open the Zen/DND mode so user visually confirms — 
-      // Direct programmatic DND requires native module (not available in Expo Go)
-      // So we show a guided notification instead:
       this._showZenStartedHint(taskTitle);
-
     } catch (e) {
       console.warn('[ZenMode] Failed to enable DND', e);
     }
   }
 
-  // ─── Disable DND (called when task completes/cancels) ───────────────────
+  // Disable DND mode when task finishes or is cancelled
   async disableDND(): Promise<void> {
     if (Platform.OS !== 'android') return;
 
@@ -176,7 +136,7 @@ class ZenModeService {
     }
   }
 
-  // ─── Check if Zen Mode is currently active ───────────────────────────────
+  // Check if Zen Mode is currently active
   async isActive(): Promise<boolean> {
     try {
       const val = await AsyncStorage.getItem(ZEN_ACTIVE_KEY);
@@ -186,8 +146,7 @@ class ZenModeService {
     }
   }
 
-  // ─── Handle task status changes (called from store) ──────────────────────
-  // priority: pass the task's priority to check if it's 'critical'
+  // Handle task status changes from the store
   async onTaskStatusChanged(
     status: string,
     priority: string,
@@ -204,7 +163,7 @@ class ZenModeService {
     }
   }
 
-  // ─── Reset permission (for testing/settings page) ───────────────────────
+  // Reset permission (for testing and settings)
   async resetPermission(): Promise<void> {
     try {
       await AsyncStorage.multiRemove([ZEN_PERMISSION_KEY, ZEN_ACTIVE_KEY, ZEN_ASKED_KEY]);
@@ -213,22 +172,22 @@ class ZenModeService {
     }
   }
 
-  // ─── Private: Show hint that Zen started ────────────────────────────────
+  // Private notification hint when Zen starts
   private _showZenStartedHint(taskTitle?: string): void {
     Alert.alert(
       '🧘 Zen Mode Activated',
-      `"${taskTitle || 'Critical Task'}" shuru ho gayi!\n\nAbhi apne phone ko manually DND (Do Not Disturb) ON karo aur focus karo. Task complete hone par yaad dilaya jaayega.\n\nTip: Settings > Sounds > Do Not Disturb`,
-      [{ text: '✅ Got it, Focus!', style: 'default' }],
+      `"${taskTitle || 'Critical Task'}" is now in progress.\n\nTurn on Do Not Disturb to minimize interruptions and maintain peak focus.\n\nTip: Settings > Sounds > Do Not Disturb`,
+      [{ text: 'Got It', style: 'default' }],
       { cancelable: true }
     );
   }
 
-  // ─── Private: Show hint that Zen ended ──────────────────────────────────
+  // Private notification hint when Zen ends
   private _showZenEndedHint(): void {
     Alert.alert(
-      '🎉 Task Complete!',
-      'Zen Mode band ho gayi. Ab aap apne phone ko normal mode mein wapas daal sakte ho.',
-      [{ text: 'Done ✅', style: 'default' }],
+      '🎉 Task Completed!',
+      'Zen Mode concluded. You can now restore standard notification volume.',
+      [{ text: 'Done', style: 'default' }],
       { cancelable: true }
     );
   }

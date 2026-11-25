@@ -280,7 +280,7 @@ export default function DynamicIslandTaskBar() {
             style={StyleSheet.absoluteFill}
           />
 
-          {/* ══════════ 1. COMPACT ISLAND STATE ══════════ */}
+          {/* Compact Island State */}
           <Animated.View style={[styles.compactRow, compactContentStyle]}>
             <Pressable
               onPress={toggleExpand}
@@ -316,7 +316,7 @@ export default function DynamicIslandTaskBar() {
             </Pressable>
           </Animated.View>
 
-          {/* ══════════ 2. EXPANDED ISLAND CARD ══════════ */}
+          {/* Expanded Island State */}
           <Animated.View style={[styles.expandedCard, expandedContentStyle]}>
             {/* Header: Live Badge + Category + Minimize Chevron */}
             <View style={styles.expandedHeader}>

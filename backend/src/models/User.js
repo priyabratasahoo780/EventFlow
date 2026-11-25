@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema({
   profilePhoto: { type: String, default: '' },
   expoPushToken: { type: String, default: '' },
   friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  // ── Two-Factor Authentication ──────────────────────────────────────────
+  // Two-Factor Authentication (2FA) fields
   twoFactorEnabled: { type: Boolean, default: false },
   twoFactorOtp: { type: String, default: null },         // hashed OTP
   twoFactorOtpExpiry: { type: Date, default: null },     // 10-min TTL

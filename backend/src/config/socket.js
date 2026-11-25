@@ -1,6 +1,5 @@
 /**
  * src/config/socket.js
- * ─────────────────────────────────────────────────────────────────────────────
  * Socket.io setup extracted from server.js for separation of concerns.
  * Call setupSocket(httpServer) once at startup; it returns the io instance.
  */
@@ -9,6 +8,7 @@
 
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
 
 /**
  * Attaches socket.io to an existing HTTP server.
@@ -39,7 +39,6 @@ function setupSocket(httpServer) {
   });
 
   io.on('connection', (socket) => {
-    const logger = require('../utils/logger');
     logger.info(`Socket connected: ${socket.id} (User: ${socket.userId})`);
     socket.join(socket.userId);
 

@@ -5,7 +5,7 @@ const emailService = require('../services/email.service');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey_eventflow2026';
 
-// Generate rich unique ID of EXACTLY 8 characters (Capitals, Smalls, Numbers & Symbols, e.g. K#7a$9mP)
+
 const generateUniqueId = async () => {
   const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const lowers = 'abcdefghijkmnopqrstuvwxyz';
@@ -342,7 +342,7 @@ exports.refreshUniqueId = async (req, res) => {
   }
 };
 
-// ── Two-Factor Authentication Methods ──────────────────────────────────────
+// Two-Factor Authentication Methods 
 
 exports.toggle2FA = async (req, res) => {
   try {

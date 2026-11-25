@@ -111,12 +111,11 @@ export const notificationService = {
     await this.ensureNotificationChannel();
     const updatedReminders: ReminderConfig[] = [];
 
-    // ── Native AlarmManager (fires even when app is closed) ──────────────────
+    // Native AlarmManager (fires even when app is closed)
     // This runs in parallel with expo-notifications. On iOS or Expo Go it's a no-op.
     alarmService.scheduleEventAlarms(event, reminders).catch(e =>
       console.warn('[AlarmService] scheduleEventAlarms error (non-fatal):', e)
     );
-    // ─────────────────────────────────────────────────────────────────────────
 
     // Parse main event date and time safely
     const [year, month, day] = event.date.split('T')[0].split('-').map(Number);

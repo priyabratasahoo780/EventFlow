@@ -340,7 +340,7 @@ exports.deleteTask = async (req, res) => {
   }
 };
 
-// ─── Geofence Buddy Alert ─────────────────────────────────────────────────────
+// Geofence Buddy Alert
 // Called by a friend's phone when they enter the geofence of a shared task.
 // Emits a real-time 'buddy_near_location' socket event to the task owner & other members.
 // Sends a push notification as background fallback.

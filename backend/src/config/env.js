@@ -1,6 +1,5 @@
 /**
  * src/config/env.js
- * ─────────────────────────────────────────────────────────────────────────────
  * Validates all required environment variables at startup.
  * Throws immediately if any are missing — fail fast, fail loud.
  */

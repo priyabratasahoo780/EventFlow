@@ -19,5 +19,5 @@ app.set('io', io);
 
 // Start listening
 server.listen(env.PORT, '0.0.0.0', () => {
-  logger.info(`EventFlow Backend running on port ${env.PORT} [${env.NODE_ENV}] 🚀`);
+  logger.info(`EventFlow Backend running on port ${env.PORT} [${env.NODE_ENV}]`);
 });

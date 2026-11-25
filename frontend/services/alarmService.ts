@@ -29,8 +29,6 @@ const { AlarmManagerModule } = NativeModules as {
 
 const isAvailable = Platform.OS === "android" && !!AlarmManagerModule;
 
-
-
 export const alarmService = {
   /** Check & request exact alarm permission (Android 12+). */
   async ensureExactAlarmPermission(): Promise<boolean> {
@@ -38,10 +36,9 @@ export const alarmService = {
     try {
       const canSchedule = await AlarmManagerModule!.canScheduleExactAlarms();
       if (!canSchedule) {
-        // Ask user to grant permission
         Alert.alert(
           "Exact Alarm Permission Needed",
-          "To fire alarms when the app is closed, please allow FocusFlow to schedule exact alarms.",
+          "To fire alarms when the app is closed, please allow EventFlow to schedule exact alarms.",
           [
             { text: "Cancel", style: "cancel" },
             {

@@ -11,7 +11,7 @@ const PENDING_EXIT_KEY = 'geofencing_pending_exit_tasks';
 
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-// ─── Haversine distance helper ────────────────────────────────────────────────
+// Haversine distance calculation in meters
 function getDistanceFromLatLonInM(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -23,7 +23,7 @@ function getDistanceFromLatLonInM(lat1: number, lon1: number, lat2: number, lon2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ─── Shared alarm-fire helper ──────────────────────────────────────────────────
+// Shared alarm-fire dispatcher
 async function fireLocationAlarm(
   event: Event,
   triggeredTasks: Record<string, boolean>,
@@ -160,7 +160,7 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
       }
     }
 
-    // ── CASE B: EVENT TRIGGER TYPE IS 'ARRIVE' ────────────────────────────────
+    // Handle 'arrive' trigger type
     // On exit: clear triggered tasks so user can receive arrival alarm again next time
     if (eventType === Location.GeofencingEventType.Exit) {
       if (pendingExitTasks[taskId]) {
@@ -256,7 +256,7 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
   }
 });
 
-// ─── GeofencingService Class ──────────────────────────────────────────────────
+// GeofencingService manager
 class GeofencingService {
 
   /** Start monitoring a geofence for the given event. */

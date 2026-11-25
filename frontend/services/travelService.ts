@@ -1,15 +1,7 @@
 ﻿/**
  * travelService.ts
- * ─────────────────────────────────────────────────────────────────────────────
  * Estimates travel time from user location to event location using Haversine
- * distance + realistic speed heuristics. No paid APIs required.
- *
- * Speed model:
- *   < 1 km   → walking  @ 5 km/h
- *   1–5 km   → cycling  @ 15 km/h
- *   > 5 km   → driving  @ 40 km/h (urban avg)
- *
- * BUFFER: 7 minutes added for preparation time.
+ * distance and speed heuristics.
  */
 
 import { Event } from '../models/Event';

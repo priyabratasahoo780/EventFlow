@@ -1,12 +1,6 @@
 /**
  * reschedulingService.ts
- * ─────────────────────────────────────────────────────────────────────────────
  * AI Dynamic Re-planning and Missed Task Recovery.
- *
- * Core capabilities:
- *   findNextFreeSlot   - find the next gap in the schedule for a given duration
- *   getMissedTaskImpact - find friend-shared tasks affected by a missed event
- *   generateAiSlots    - produce ranked reschedule suggestions for triage screen
  */
 
 import { Event } from '../models/Event';
@@ -25,8 +19,7 @@ export interface RescheduleSuggestion {
   reason: string;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
+// Helper functions
 function toDateStr(d: Date): string {
   return d.toISOString().split('T')[0];
 }
@@ -65,8 +58,7 @@ function getEventIntervalMs(event: Event): { startMs: number; endMs: number } | 
   return { startMs, endMs: startMs + durationMs };
 }
 
-// ─── Public API ──────────────────────────────────────────────────────────────
-
+// Service API
 export const reschedulingService = {
 
   /**

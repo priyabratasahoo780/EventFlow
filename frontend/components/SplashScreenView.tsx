@@ -1,9 +1,6 @@
 /**
- * SplashScreenView.tsx — EventFlow Next-Gen Radiant Splash Screen
- * ═════════════════════════════════════════════════════════════════
- *
- * Fully animated, warm & vibrant splash screen powered by Lottie & React Native Reanimated.
- * Highly optimized with React.memo, isolated re-rendering zones, and 100% UI-thread animations.
+ * SplashScreenView.tsx
+ * Animated splash screen powered by React Native Reanimated.
  */
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';

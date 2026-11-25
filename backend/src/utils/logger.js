@@ -1,9 +1,6 @@
 /**
- * src/utils/logger.js
- * ─────────────────────────────────────────────────────────────────────────────
- * Structured logger wrapper. Outputs ISO timestamps + log level.
- * Drop-in replacement for bare console.log throughout the codebase.
- * In production, swap the internals for Winston / Pino without changing callers.
+ * Structured logger utility.
+ * Standardizes log formatting with ISO timestamps and levels.
  */
 
 'use strict';

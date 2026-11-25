@@ -1,19 +1,7 @@
 /**
- * AlarmModal.tsx — Next-Gen Animated Full-Screen Alarm Alert
- * ════════════════════════════════════════════════════════════
- *
- * Immersive, theme-accurate, animated alarm experience for EventFlow.
- *
- * Visual & UX Architecture:
- *   ① Ambient Midnight Space: Dark gradient backdrop with breathing red/orange glow orbs
- *   ② Concentric Shockwave Rings: 3 radar ripple rings expanding smoothly around the bell
- *   ③ Oscillating Ringing Bell: Realistic physical bell ringing oscillation with soundwaves
- *   ④ Real-time Digital Clock: Live ticking clock with flashing colon indicator
- *   ⑤ High-Priority Event Card: Frosted glassmorphism card with category, due time, & duration
- *   ⑥ Intelligent Action Stack:
- *       • [START TASK NOW] — Primary radiant action with haptic confirmation
- *       • [SNOOZE 5 MIN]   — Secondary quick delay with scheduled reminder
- *       • [DISMISS ALARM]  — Fast silencing with immediate sound stop
+ * AlarmModal.tsx
+ * Full-screen animated alarm dialog for EventFlow.
+ * Handles exact alarm alerts, user snooze, and task starting.
  */
 
 import React, { useEffect, useState } from 'react';
