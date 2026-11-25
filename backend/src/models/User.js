@@ -25,6 +25,8 @@ const userSchema = new mongoose.Schema({
   resetPasswordOtpExpiry: { type: Date, default: null },
   resetPasswordOtpAttempts: { type: Number, default: 0 },
   resetPasswordLastSentAt: { type: Date, default: null },
+  // Daily Password Change Rate Limiting (Strictly max 2 times per 24-hour day)
+  passwordChangeHistory: [{ type: Date }],
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

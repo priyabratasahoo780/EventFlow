@@ -1,7 +1,4 @@
-/**
- * user.controller.js
- * User profile retrieval, allowlisted updates, and GDPR/PlayStore compliant account deletion.
- */
+
 'use strict';
 
 const fs = require('fs');
@@ -87,9 +84,9 @@ exports.updatePushToken = async (req, res) => {
   }
 };
 
-/**
- * Permanently delete user account and cascade clean all personal data (Play Store / App Store compliance).
- */
+
+  // Permanently delete user account and cascade clean all personal data (Play Store / App Store compliance).
+ 
 exports.deleteAccount = async (req, res) => {
   try {
     const userId = req.userId;

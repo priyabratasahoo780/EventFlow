@@ -20,6 +20,30 @@ const getJwtSecret = () => {
 const OTP_EXPIRY_MS = 10 * 60 * 1000;     // 10 minutes
 const OTP_RESEND_COOLDOWN_MS = 25 * 1000; // 25 seconds server-side cooldown
 const MAX_OTP_ATTEMPTS = 5;
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000; // 24 hours rolling day
+const MAX_DAILY_PASSWORD_CHANGES = 2; // Strict limit: max 2 changes per 24 hours
+
+const checkPasswordChangeLimit = (user) => {
+  const now = Date.now();
+  const recentChanges = (user.passwordChangeHistory || []).filter(
+    (timestamp) => now - new Date(timestamp).getTime() < TWENTY_FOUR_HOURS_MS
+  );
+
+  if (recentChanges.length >= MAX_DAILY_PASSWORD_CHANGES) {
+    const oldest = recentChanges
+      .slice()
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
+    const waitMs = TWENTY_FOUR_HOURS_MS - (now - new Date(oldest).getTime());
+    const waitHours = Math.max(1, Math.ceil(waitMs / (60 * 60 * 1000)));
+
+    return {
+      exceeded: true,
+      error: `Daily limit reached! You can only change your password ${MAX_DAILY_PASSWORD_CHANGES} times per day. Please try again after ${waitHours} hour${waitHours > 1 ? 's' : ''} (tomorrow).`,
+    };
+  }
+
+  return { exceeded: false, recentChanges };
+};
 
 const generateUniqueId = async () => {
   const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -275,6 +299,12 @@ exports.sendForgotPasswordOtp = async (req, res) => {
       return res.status(404).json({ error: 'No account found with this email address.' });
     }
 
+    // Check 2-times-per-day password change limit upfront
+    const limitCheck = checkPasswordChangeLimit(user);
+    if (limitCheck.exceeded) {
+      return res.status(429).json({ error: limitCheck.error });
+    }
+
     if (user.resetPasswordLastSentAt) {
       const elapsedMs = Date.now() - new Date(user.resetPasswordLastSentAt).getTime();
       if (elapsedMs < OTP_RESEND_COOLDOWN_MS) {
@@ -335,6 +365,12 @@ exports.forgotPassword = async (req, res) => {
       return res.status(404).json({ error: 'No account found with this email address.' });
     }
 
+    // Enforce 2-times-per-day password change limit
+    const limitCheck = checkPasswordChangeLimit(user);
+    if (limitCheck.exceeded) {
+      return res.status(429).json({ error: limitCheck.error });
+    }
+
     if (!user.resetPasswordOtp || !user.resetPasswordOtpExpiry) {
       return res.status(400).json({ error: 'No reset code requested. Please request a verification code first.' });
     }
@@ -383,6 +419,12 @@ exports.forgotPassword = async (req, res) => {
     user.resetPasswordOtpExpiry = null;
     user.resetPasswordOtpAttempts = 0;
     user.resetPasswordLastSentAt = null;
+
+    // Record password change timestamp and prune entries older than 24 hours
+    const updatedHistory = (limitCheck.recentChanges || []).map((t) => new Date(t));
+    updatedHistory.push(new Date());
+    user.passwordChangeHistory = updatedHistory;
+
     await user.save();
 
     res.json({ message: 'Password updated successfully.' });
