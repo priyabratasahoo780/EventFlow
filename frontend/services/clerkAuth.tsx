@@ -1,7 +1,4 @@
-/**
- * clerkAuth.tsx
- * Clerk authentication provider, session management, and Google OAuth flow.
- */
+
 import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
@@ -61,9 +58,7 @@ export const useAuth = useExpoAuth;
 export const useSignIn = useExpoSignIn;
 export const useSignUp = useExpoSignUp;
 
-/**
- * Custom Hook for Google OAuth with Clerk & FocusFlow Backend integration
- */
+
 export const useGoogleAuth = () => {
   useWarmUpBrowser();
   const { startSSOFlow } = useExpoSSO();

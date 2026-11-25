@@ -1,7 +1,3 @@
-/**
- * reschedulingService.ts
- * AI Dynamic Re-planning and Missed Task Recovery.
- */
 
 import { Event } from '../models/Event';
 
@@ -58,12 +54,8 @@ function getEventIntervalMs(event: Event): { startMs: number; endMs: number } | 
   return { startMs, endMs: startMs + durationMs };
 }
 
-// Service API
 export const reschedulingService = {
 
-  /**
-   * Finds the next available free time slot with sufficient duration.
-   */
   findNextFreeSlot(allEvents: Event[], minDurationMins: number = 30): FreeSlot | null {
     const now = new Date();
     // Round up to next 15-min block
@@ -82,7 +74,6 @@ export const reschedulingService = {
     const minMs = minDurationMins * 60 * 1000;
 
     while (scanMs < maxScanMs) {
-      // Don't schedule between 10 PM and 7 AM
       const h = new Date(scanMs).getHours();
       if (h >= 22 || h < 7) {
         const nextDay = new Date(scanMs);
@@ -120,15 +111,11 @@ export const reschedulingService = {
     return null;
   },
 
-  /**
-   * Generates ranked reschedule suggestions for the Triage screen.
-   */
   generateAiSlots(allEvents: Event[], missedEvent: Event): RescheduleSuggestion[] {
     const minMins = missedEvent.estimatedDuration || 30;
     const suggestions: RescheduleSuggestion[] = [];
     const scanned: number[] = [];
 
-    // Temporarily exclude the missed event from schedule conflicts
     const others = allEvents.filter(e => e.id !== missedEvent.id && (e.id || e._id) !== (missedEvent.id || missedEvent._id));
 
     let searchBase = others;
@@ -145,7 +132,6 @@ export const reschedulingService = {
 
       suggestions.push({ slot, reason });
 
-      // Block this slot for next iteration to get different suggestions
       const fakeBlocker: Event = {
         ...missedEvent,
         id: 'fake_blocker_' + attempt,
@@ -161,9 +147,6 @@ export const reschedulingService = {
     return suggestions;
   },
 
-  /**
-   * Finds friend-shared tasks impacted by a delayed or missed task.
-   */
   getMissedTaskImpact(missedEvent: Event, allEvents: Event[]): Event[] {
     if (!missedEvent.sharedWith || missedEvent.sharedWith.length === 0) return [];
 
@@ -171,7 +154,6 @@ export const reschedulingService = {
       ? new Date(missedEvent.date.split('T')[0] + 'T' + (missedEvent.time || '23:59') + ':00').getTime()
       : Date.now();
 
-    // Find shared tasks that were scheduled after the missed one (same day)
     return allEvents.filter(e => {
       if (e.id === missedEvent.id) return false;
       if (!e.sharedWith || e.sharedWith.length === 0) return false;

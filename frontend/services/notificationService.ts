@@ -1,7 +1,4 @@
-/**
- * notificationService.ts
- * Manages push notifications, local reminders, and notification permissions.
- */
+
 import * as Notifications from '../mock-expo-notifications';
 import * as Device from 'expo-device';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
@@ -13,7 +10,6 @@ import { behaviorService } from './behaviorService';
 
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient || (Constants as any).appOwnership === 'expo';
 
-// Register foreground notification handler unconditionally for Expo Go and Standalone builds
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -115,19 +111,15 @@ export const notificationService = {
     await this.ensureNotificationChannel();
     const updatedReminders: ReminderConfig[] = [];
 
-    // Native AlarmManager (fires even when app is closed)
-    // This runs in parallel with expo-notifications. On iOS or Expo Go it's a no-op.
     alarmService.scheduleEventAlarms(event, reminders).catch(e =>
       console.warn('[AlarmService] scheduleEventAlarms error (non-fatal):', e)
     );
 
-    // Parse main event date and time safely
     const [year, month, day] = event.date.split('T')[0].split('-').map(Number);
     const [hours, minutes] = event.time.split(':').map(Number);
     const eventDateTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
     const now = new Date();
 
-    // 1. ALWAYS Schedule the Main Event Time Alarm (at event.date & event.time)
     if (eventDateTime.getTime() > now.getTime()) {
       try {
         await Notifications.scheduleNotificationAsync({
@@ -248,7 +240,6 @@ export const notificationService = {
         else if (reminder.type === 'daily') {
           if (reminder.time) {
             const [hours, minutes] = reminder.time.split(':').map(Number);
-            // Schedule exact instances for the next 30 days or until event date
             const maxDays = Math.min(30, Math.max(1, Math.ceil((eventDateTime.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) + 1));
 
             for (let dayOffset = 0; dayOffset < maxDays; dayOffset++) {
@@ -376,13 +367,7 @@ export const notificationService = {
     });
   },
 
-  /**
-   * Intelligent Escalation — call when user has dismissed or ignored a reminder.
-   * Escalation chain:
-   *   1st dismiss  → re-schedule as banner + vibration in 5 min
-   *   2nd dismiss  → upgrade to full-screen native alarm in 5 min
-   *   3rd+ dismiss → fire alarm immediately (emergency escalation)
-   */
+  
   async escalateIfDismissed(event: Event): Promise<void> {
     try {
       const count = await behaviorService.getDismissalCount(event.id);
@@ -431,10 +416,6 @@ export const notificationService = {
     }
   },
 
-  /**
-   * Call from foreground notification listener when user receives but doesn't
-   * tap/act on a notification. Records a "passive dismiss" for escalation tracking.
-   */
   async recordForegroundDismissal(eventId: string): Promise<void> {
     await behaviorService.recordDismissal(eventId);
   },

@@ -3,7 +3,6 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
-// Redirect native-only modules to web stubs when bundling for web
 const nativeModuleStubs = {
   'react-native-maps': path.resolve(__dirname, 'shims/react-native-maps.js'),
 };

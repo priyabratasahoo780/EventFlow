@@ -1,7 +1,4 @@
-/**
- * register.tsx
- * User registration screen with input validation, password strength meter, and Google OAuth.
- */
+
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useState, useEffect, useRef, useCallback, ComponentRef } from 'react';

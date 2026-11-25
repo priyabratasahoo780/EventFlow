@@ -1,8 +1,4 @@
-﻿/**
- * travelService.ts
- * Estimates travel time from user location to event location using Haversine
- * distance and speed heuristics.
- */
+﻿
 
 import { Event } from '../models/Event';
 
@@ -10,16 +6,16 @@ export type TravelMode = 'walking' | 'cycling' | 'driving';
 
 export interface DepartureSuggestion {
   eventTitle: string;
-  eventTimeMs: number;        // epoch ms of event deadline
-  travelMins: number;         // estimated travel minutes
-  bufferMins: number;         // safety buffer
-  totalMins: number;          // travelMins + bufferMins
-  leaveByMs: number;          // epoch ms when user should leave
-  leaveInMins: number;        // minutes from now until departure
+  eventTimeMs: number;        
+  travelMins: number;         
+  bufferMins: number;        
+  totalMins: number;          
+  leaveByMs: number;         
+  leaveInMins: number;        
   distanceKm: number;
   mode: TravelMode;
-  isUrgent: boolean;          // true if leaveInMins < 15
-  isMissed: boolean;          // true if already past departure time
+  isUrgent: boolean;          
+  isMissed: boolean;          
 }
 
 const BUFFER_MINS = 7;
@@ -89,7 +85,6 @@ export function getDepartureSuggestion(
   };
 }
 
-/** Format "Leave by HH:MM" label */
 export function formatLeaveBy(leaveByMs: number): string {
   const d = new Date(leaveByMs);
   const hh = String(d.getHours()).padStart(2, '0');
@@ -97,7 +92,6 @@ export function formatLeaveBy(leaveByMs: number): string {
   return hh + ':' + mm;
 }
 
-/** Mode emoji */
 export function modeEmoji(mode: TravelMode): string {
   if (mode === 'walking') return '🚶';
   if (mode === 'cycling') return '🚲';

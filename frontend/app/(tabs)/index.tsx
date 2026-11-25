@@ -37,7 +37,6 @@ import { zenModeService } from '../../services/zenModeService';
 import { getDepartureSuggestion, formatLeaveBy, modeEmoji, DepartureSuggestion } from '../../services/travelService';
 import { notificationService } from '../../services/notificationService';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
@@ -69,7 +68,6 @@ const getPriorityConfig = (colors: ColorTheme): Record<string, { strip: string; 
   low:      { strip: colors.success, bg: colors.successLight, text: colors.success, label: 'LOW' },
 });
 
-// ─── Home Screen ──────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -137,10 +135,8 @@ export default function HomeScreen() {
     });
   }, [setFilters]);
 
-  // ── Zen Mode modal state ─────────────────────────────────────────────────
   const [zenModalVisible, setZenModalVisible] = useState(false);
   const [zenPendingTask, setZenPendingTask] = useState<Event | null>(null);
-  // ─────────────────────────────────────────────────────────────────────────
 
   const slideAnim = useRef(new Animated.Value(-Dimensions.get('window').width)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -370,7 +366,7 @@ export default function HomeScreen() {
         setActiveAlarmEvent(dueTask);
         setShowAlarmModal(true);
       }
-    }, 1000); // Check every second
+    }, 1000); 
 
     return () => clearInterval(interval);
   }, [events, friendsEvents, showAlarmModal]);
@@ -422,15 +418,12 @@ export default function HomeScreen() {
     const isCritical = task.priority?.toLowerCase() === 'critical';
 
     if (isCritical) {
-      // ── Zen Mode: Check if user has been asked permission yet ─────────
       const permStatus = await zenModeService.getPermissionStatus();
       if (permStatus === null) {
-        // Pehli baar — rich modal dikhao, task ke sath hold karo
         setZenPendingTask(task);
         setZenModalVisible(true);
-        return; // Modal callbacks mein task start hoga
+        return; 
       }
-      // Permission pehle se decide ho chuka hai — directly start
     }
 
     updateTaskStatus((task.id || task._id) as string, 'in_progress');
@@ -450,17 +443,13 @@ export default function HomeScreen() {
         console.error('Failed to set pending_exit_task:', e);
       }
     } else {
-      // Classic 15-min snooze
       const newTime = new Date(Date.now() + 15 * 60000);
       const h = String(newTime.getHours()).padStart(2, '0');
       const m = String(newTime.getMinutes()).padStart(2, '0');
       console.log(`[Smart Context] Standard 15-min snooze for "${task.title}". Reminding at ${h}:${m}`);
-      // Assuming a generic update to triggers would happen here for a pure time snooze.
-      // For now, it just dismisses and stops annoying the user until geofence changes.
     }
   }, []);
 
-  // ─── Sub-components ───────────────────────────────────────────────────────
 
   const userName = useMemo(() => (user?.name ? user.name.split(' ')[0] : 'User'), [user?.name]);
   const userInitial = useMemo(() => (user?.name?.charAt(0) || 'U').toUpperCase(), [user?.name]);
@@ -477,11 +466,9 @@ export default function HomeScreen() {
     new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
   []);
 
-  // ─── Render helpers ───────────────────────────────────────────────────────
 
   const renderHeader = () => (
     <>
-      {/* ── TOP NAVBAR ── */}
       <View style={s.navbar}>
         <Pressable
           style={s.navIconBtn}
@@ -924,12 +911,10 @@ export default function HomeScreen() {
     </>
   );
 
-  // ── Hero Carousel auto-scroll ──────────────────────────────────────────────
   const carouselRef = useRef<any>(null);
   const carouselIndex = useRef(0);
-  const CARD_W = SCREEN.width * 0.85; // slightly smaller so next card peeks in
+  const CARD_W = SCREEN.width * 0.85; 
 
-  // Build list: top pending events for today (2+ triggers carousel), fallback to topTask
   const heroTasks = useMemo(() => {
     const todayPending = events.filter(
       e => !e.completed && e.status !== 'completed' && e.date?.startsWith(todayStr)
@@ -939,7 +924,6 @@ export default function HomeScreen() {
       (a, b) => priorityService.calculateScore(b, location) - priorityService.calculateScore(a, location)
     );
     if (sorted.length >= 2) return sorted;
-    // Fallback: topTask only
     return topTask ? [topTask] : [];
   }, [events, todayStr, topTask, location]);
 
@@ -981,7 +965,6 @@ export default function HomeScreen() {
     const cat2 = (task.category || '').toLowerCase();
     const cover = task.image || defaults[cat2] || "https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?q=80&w=800&auto=format&fit=crop";
 
-    // Travel Departure Suggestion
     const departure: DepartureSuggestion | null = location
       ? getDepartureSuggestion(task, location.latitude, location.longitude)
       : null;
@@ -1043,7 +1026,6 @@ export default function HomeScreen() {
                 </Text>
               </View>
             )}
-            {/* ─────────────────────────────────────── */}
 
             {task.reminders && task.reminders.length > 0 && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: rs(12) }}>
@@ -1361,7 +1343,6 @@ export default function HomeScreen() {
     );
   };
 
-  // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -1431,9 +1412,6 @@ export default function HomeScreen() {
         />
       )}
 
-      {/* ── ZEN MODE PERMISSION MODAL ─────────────────────────────────────── */}
-      {/* Shows ONCE when user starts their first Critical task.               */}
-      {/* After user decides, their choice is saved and modal never shows again */}
       <ZenModePermissionModal
         visible={zenModalVisible}
         taskTitle={zenPendingTask?.title || 'Critical Task'}
@@ -1469,7 +1447,6 @@ export default function HomeScreen() {
           }
         }}
       />
-      {/* ─────────────────────────────────────────────────────────────────── */}
 
       {/* ── HAMBURGER MENU MODAL (SIDE NAVBAR) ── */}
       <Modal visible={isMenuOpen} transparent animationType="none" onRequestClose={() => closeMenu()}>
@@ -1699,7 +1676,6 @@ export default function HomeScreen() {
   );
 }
 
-// ─── Category icon helper ────────────────────────────────────────────────────
 
 function renderCatIcon(id: string, color: string) {
   const size = 12.5;
@@ -1719,7 +1695,6 @@ function renderCatIcon(id: string, color: string) {
   }
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const getStyles = (colors: ColorTheme) => StyleSheet.create({
   safe: {

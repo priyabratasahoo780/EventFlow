@@ -1,7 +1,4 @@
-/**
- * geofencingService.ts
- * Background location tracking and location-based task reminders.
- */
+
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import * as Notifications from '../mock-expo-notifications';
@@ -76,18 +73,14 @@ async function fireLocationAlarm(
   await AsyncStorage.setItem(TRIGGERED_TASKS_KEY, JSON.stringify(triggeredTasks));
   console.log(`[Smart Context] 🔔 Alarm fired (${triggerType}) for task "${event.title}"`);
 
-  // ── Geofence Buddy Alert ─────────────────────────────────────────────────
-  // If this is a shared task, notify the owner and other members that I'm near / leaving.
   if (event.sharedWith && (event.sharedWith as string[]).length > 0) {
     api.post(`/tasks/${event.id || event._id}/buddy-near`, { triggerType }).catch((err: any) => {
       console.warn('[Buddy Alert] Could not notify task members:', err?.message);
     });
   }
-  // ─────────────────────────────────────────────────────────────────────────
 }
 
 
-// ─── Background Task Definition ───────────────────────────────────────────────
 TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
   if (error) {
     console.error('[Smart Context] Geofencing task error:', error);
@@ -117,7 +110,6 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
 
     const isLeave = event.triggerType === 'leave';
 
-    // ── CASE A: EVENT TRIGGER TYPE IS 'LEAVE' ─────────────────────────────────
     if (isLeave) {
       if (eventType === Location.GeofencingEventType.Enter) {
         // User entered the location: prime the leave trigger by resetting triggered state
@@ -164,8 +156,6 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
       }
     }
 
-    // Handle 'arrive' trigger type
-    // On exit: clear triggered tasks so user can receive arrival alarm again next time
     if (eventType === Location.GeofencingEventType.Exit) {
       if (pendingExitTasks[taskId]) {
         delete pendingExitTasks[taskId];
@@ -187,7 +177,6 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
     if (eventType !== Location.GeofencingEventType.Enter) return;
     if (triggeredTasks[taskId]) return; // Already triggered
 
-    // ==== EC1: Drive-By Prevention (Speed & 3-min Dwell Time) ====
     let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
     let speedMPH = (loc.coords.speed || 0) * 2.23694;
     console.log(`[Smart Context] EC1: Enter detected — speed ${speedMPH.toFixed(1)} mph`);
@@ -213,7 +202,6 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
       }
       console.log(`[Smart Context] EC1: ✅ Dwell check passed. Continuing...`);
     }
-    // =============================================================
 
     // ==== EC2: Time-Gated Locations ====
     if (event.locationTimeGate) {
@@ -240,9 +228,7 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
       }
       console.log(`[Smart Context] EC2: ✅ Time gate passed — ${currentDay} ${currentHour}:xx is allowed.`);
     }
-    // ===================================
 
-    // ==== EC4: Re-entry after Pending-Exit Snooze ====
     if (pendingExitTasks[taskId]) {
       console.log(`[Smart Context] EC4: 🔁 Re-entry for pending_exit task "${event.title}". Firing alarm.`);
       delete pendingExitTasks[taskId];
@@ -250,7 +236,6 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
       await fireLocationAlarm(event, triggeredTasks, taskId, 'arrive');
       return;
     }
-    // =================================================
 
     // All checks passed — fire arrive alarm
     await fireLocationAlarm(event, triggeredTasks, taskId, 'arrive');
@@ -329,11 +314,7 @@ class GeofencingService {
     }
   }
 
-  /**
-   * EC3 — Underground GPS Fallback:
-   * Called by ActivityRecognitionService when an IN_VEHICLE → WALKING transition is detected.
-   * Uses Network/Cell accuracy (works in underground garages) to manually check all geofences.
-   */
+  
   async forceGeofenceCheck() {
     console.log('[Smart Context] EC3: 🅿️ Activity transition → forcing network-based location check...');
     try {
@@ -393,11 +374,7 @@ class GeofencingService {
     }
   }
 
-  /**
-   * EC4 — Contextual Snooze (Pending Exit):
-   * Marks the task so the alarm will NOT re-fire until the user physically
-   * leaves the geofence AND re-enters it.
-   */
+  
   async setTaskPendingExit(taskId: string) {
     try {
       const pendingExitStr = await AsyncStorage.getItem(PENDING_EXIT_KEY);

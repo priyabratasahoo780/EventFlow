@@ -23,7 +23,6 @@ import AiInsightSection from '../../components/AiInsightSection';
 type TimeFilter = 'week' | 'month' | 'year' | 'all';
 const { width: SW } = Dimensions.get('window');
 
-// ─── Circular Progress Ring ───────────────────────────────────────────────────
 const RING = 170;
 const SW2 = 16;
 const R2 = (RING - SW2) / 2;
@@ -100,7 +99,6 @@ const rStyles = StyleSheet.create({
   },
 });
 
-// ─── Animated Entry Wrapper ───────────────────────────────────────────────────
 function FadeIn({ delay = 0, dy = 20, children }: { delay?: number; dy?: number; children: React.ReactNode }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(dy)).current;
@@ -117,7 +115,6 @@ function FadeIn({ delay = 0, dy = 20, children }: { delay?: number; dy?: number;
   );
 }
 
-// ─── Premium Stat Pill ────────────────────────────────────────────────────────
 function StatPill({
   icon, label, value, color, bg,
 }: { icon: React.ReactNode; label: string; value: string | number; color: string; bg?: string }) {
@@ -205,7 +202,6 @@ const pillStyles = StyleSheet.create({
   },
 });
 
-// ─── Premium Status Bar ───────────────────────────────────────────────────────
 function StatusBar({
   label, count, total, color, icon, bg, textColor,
 }: { label: string; count: number; total: number; color: string; icon: React.ReactNode; bg: string; textColor: string }) {
@@ -293,7 +289,6 @@ const sbStyles = StyleSheet.create({
   },
 });
 
-// ─── Section Header ───────────────────────────────────────────────────────────
 function SectionHeader({ title, subtitle, accentColor }: { title: string; subtitle?: string; accentColor: string }) {
   return (
     <View style={shStyles.wrap}>
@@ -318,7 +313,6 @@ const shStyles = StyleSheet.create({
   sub: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#667085', marginTop: 1 },
 });
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function StatisticsScreen() {
   const { getColors, isDark } = useThemeStore();
   const isDarkMode = isDark();
@@ -846,7 +840,6 @@ export default function StatisticsScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 const getStyles = (colors: ColorTheme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingHorizontal: 16, paddingBottom: 120 },

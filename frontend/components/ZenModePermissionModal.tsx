@@ -1,7 +1,4 @@
-/**
- * ZenModePermissionModal.tsx
- * Dialog requesting Do Not Disturb permissions when starting high-priority tasks.
- */
+
 import React, { useEffect, useRef } from 'react';
 import {
   Modal,

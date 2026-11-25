@@ -1,7 +1,4 @@
-/**
- * login.tsx
- * User authentication screen supporting email/username login, 2FA OTP, and Google OAuth.
- */
+
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useState, useEffect, useCallback, useRef, ComponentRef } from 'react';

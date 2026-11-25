@@ -1,7 +1,4 @@
-/**
- * api.ts
- * Axios HTTP client configured with authentication interceptors and baseURL resolution.
- */
+
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -41,10 +38,9 @@ if (__DEV__) {
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 15000, // increased for slower mobile connections
+  timeout: 15000, 
 });
 
-// Attach auth token to outgoing requests
 api.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem('token');
@@ -61,19 +57,13 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid — clear auth state so the auth guard
-      // in _layout.tsx redirects the user back to the login screen.
       try {
         await AsyncStorage.multiRemove(['token', 'user']);
       } catch (e) {
-        // ignore storage errors during logout
       }
-      // We don't import the router here to avoid circular deps —
-      // the useAuthStore's checkAuth effect will handle the redirect.
     }
 
     if (!error.response && error.message === 'Network Error') {
-      // Surface a friendlier error for callers to catch
       return Promise.reject(
         new Error('Unable to connect to the server. Please check your internet connection.')
       );

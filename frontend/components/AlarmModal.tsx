@@ -1,8 +1,4 @@
-/**
- * AlarmModal.tsx
- * Full-screen animated alarm dialog for EventFlow.
- * Handles exact alarm alerts, user snooze, and task starting.
- */
+
 
 import React, { useEffect, useState } from 'react';
 import {

@@ -1,7 +1,4 @@
-/**
- * activityRecognitionService.ts
- * Bridges native Android Activity Recognition API with geofence checks.
- */
+
 import { NativeModules, NativeEventEmitter, Platform } from 'react-native';
 import { geofencingService } from './geofencingService';
 
@@ -20,10 +17,7 @@ class ActivityRecognitionService {
   private subscription: any = null;
   private emitter: NativeEventEmitter | null = null;
 
-  /**
-   * Start listening for vehicle-to-walking transitions.
-   * Call this once at app startup (e.g. in _layout.tsx or useEffect in root).
-   */
+ 
   async start() {
     if (!isAvailable) {
       console.log('[ActivityRecognition] EC3: Not available on this platform/build. Skipping.');
@@ -45,11 +39,7 @@ class ActivityRecognitionService {
     }
   }
 
-  /**
-   * Called when the Android layer detects the user transitioned from IN_VEHICLE → WALKING.
-   * This is the key event — the user just parked their car.
-   * We immediately trigger a network-based geofence check.
-   */
+  
   private onVehicleToWalking = async () => {
     console.log('[ActivityRecognition] EC3: 🅿️ Vehicle → Walking transition detected! Triggering network geofence check...');
     try {
@@ -59,9 +49,6 @@ class ActivityRecognitionService {
     }
   };
 
-  /**
-   * Stop all activity transition monitoring (call on logout or app unmount).
-   */
   async stop() {
     if (!isAvailable) return;
     try {

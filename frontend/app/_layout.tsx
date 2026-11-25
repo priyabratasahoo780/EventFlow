@@ -59,11 +59,9 @@ export {
 } from 'expo-router';
 
 export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
   initialRouteName: '(tabs)',
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 const CLERK_PUBLISHABLE_KEY =
@@ -80,7 +78,6 @@ export default function RootLayout() {
     Poppins_800ExtraBold,
   });
 
-  // Controls the in-app animated splash overlay
   const [showSplash, setShowSplash] = useState(true);
 
   const fontsReady = loaded || !!error;
@@ -91,7 +88,6 @@ export default function RootLayout() {
     }
   }, [error]);
 
-  // Dismiss native Android splash immediately once fonts are ready so animated in-app splash appears
   useEffect(() => {
     if (fontsReady) {
       SplashScreen.hideAsync().catch(() => {});
@@ -105,7 +101,6 @@ export default function RootLayout() {
 
   return (
     <>
-      {/* Real app — always mounted so auth store can init while splash plays */}
       {fontsReady && (
         <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
           <RootLayoutNav />
@@ -135,7 +130,6 @@ function RootLayoutNav() {
     checkAuth();
   }, []);
 
-  // Listen for incoming foreground alarms / notifications
   useEffect(() => {
     const sub = Notifications.addNotificationReceivedListener((notification: any) => {
       try {
@@ -160,7 +154,6 @@ function RootLayoutNav() {
     };
   }, []);
 
-  // ── Global Precise Alarm Engine (works on all tabs & screens) ─────────────
   const triggeredAlarms = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -275,7 +268,6 @@ function RootLayoutNav() {
     return () => clearInterval(interval);
   }, [activeAlarmEvent]);
 
-  // ── Auth guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (authLoading) return;
 
@@ -288,7 +280,6 @@ function RootLayoutNav() {
     }
   }, [token, authLoading, segments]);
 
-  // ── Notification tap → navigate to event ────────────────────────────────────
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(
       (response: any) => {
@@ -316,7 +307,6 @@ function RootLayoutNav() {
     };
   }, [token]);
 
-  // ── Permissions & services bootstrap ────────────────────────────────────────
   useEffect(() => {
     if (Platform.OS === 'web') return;
 
@@ -356,25 +346,20 @@ function RootLayoutNav() {
           );
         }
 
-        // 3. Request exact alarm permission (Android 12+)
-        // Do this early so users aren't surprised later when scheduling alarms.
         if (Platform.OS === 'android') {
           await alarmService.ensureExactAlarmPermission();
         }
 
-        // 4. Request foreground location
         const { status: fgStatus } = await Location.getForegroundPermissionsAsync();
         if (fgStatus !== 'granted') {
           await Location.requestForegroundPermissionsAsync();
         }
 
-        // 5. Request background location (needed for geofencing)
         const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
         if (bgStatus !== 'granted') {
           await Location.requestBackgroundPermissionsAsync();
         }
 
-        // 6. Start activity recognition for smart context
         try {
           const { activityRecognitionService } = require('../services/activityRecognitionService');
           await activityRecognitionService.start();
@@ -417,10 +402,8 @@ function RootLayoutNav() {
           onStartTask={handleStartTaskAlarm}
         />
 
-        {/* Global Floating "Now Doing" Dynamic Island */}
         <DynamicIslandTaskBar />
 
-        {/* Global Haptic & Confetti Milestone Celebration */}
         <ConfettiCelebration />
       </ThemeProvider>
     </GestureHandlerRootView>

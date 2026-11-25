@@ -1,7 +1,4 @@
-/**
- * behaviorService.ts
- * Tracks task habits and duration accuracy locally using AsyncStorage.
- */
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Event } from '../models/Event';
 

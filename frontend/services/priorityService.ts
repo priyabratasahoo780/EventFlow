@@ -70,9 +70,9 @@ export const priorityService = {
       if (userLocation && task.locationDetails?.latitude) {
         const suggestion = getDepartureSuggestion(task, userLocation.latitude, userLocation.longitude);
         if (suggestion) {
-          if (suggestion.isMissed) score += 20;           // Already should have left
-          else if (suggestion.isUrgent) score += 15;      // Need to leave in < 15 min
-          else if (suggestion.leaveInMins < 30) score += 8; // Leave within 30 min
+          if (suggestion.isMissed) score += 20;          
+          else if (suggestion.isUrgent) score += 15;      
+          else if (suggestion.leaveInMins < 30) score += 8; 
         }
       }
     }

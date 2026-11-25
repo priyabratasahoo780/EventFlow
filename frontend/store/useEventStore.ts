@@ -1,3 +1,4 @@
+
 /**
  * useEventStore.ts
  * Core state store managing events, alarms, filtering, and cloud synchronization.
@@ -19,25 +20,18 @@ import { behaviorService } from '../services/behaviorService';
 import { alarmService } from '../services/alarmService';
 import { useCelebrationStore } from './useCelebrationStore';
 
-// ─── Edge Case Fix #1: UTC-Aware Deadline Parser ─────────────────────────────
-// Correctly parses a task deadline regardless of whether the backend stored
-// a full ISO UTC string ("2026-09-08T15:30:00.000Z") or a date+time combo.
-// Also handles all-day tasks (isAllDay = true) which have no meaningful time.
-export function parseDeadline(event: Pick<Event, 'date' | 'time' | 'isAllDay'>): Date | null {
+export function parseDeadline(event: { date?: string; time?: string; isAllDay?: boolean }): Date | null {
   if (!event.date) return null;
 
-  // If the date is already a full UTC ISO string (has 'Z' or explicit offset), use it directly.
   if (event.date.includes('Z') || /[+-]\d{2}:\d{2}$/.test(event.date)) {
     return new Date(event.date);
   }
 
-  // All-day tasks: deadline is end of that calendar day (23:59:59 local)
   if (event.isAllDay) {
     const dateStr = event.date.split('T')[0];
     return new Date(`${dateStr}T23:59:59`);
   }
 
-  // Has a time component — parse as local datetime (device timezone)
   const dateStr = event.date.split('T')[0];
   if (event.time && event.time.trim()) {
     const timeStr = event.time.trim();
@@ -45,12 +39,9 @@ export function parseDeadline(event: Pick<Event, 'date' | 'time' | 'isAllDay'>):
     return new Date(`${dateStr}T${normalizedTime}`);
   }
 
-  // No time set and not all-day: default to end of that day
   return new Date(`${dateStr}T23:59:59`);
 }
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Buddy Alert Types ───────────────────────────────────────────────────────
 export interface BuddyAlertPayload {
   taskId: string;
   taskTitle: string;
@@ -61,7 +52,7 @@ export interface BuddyAlertPayload {
   friendUsername: string;
   friendPhoto: string;
 }
-// ─────────────────────────────────────────────────────────────────────────────
+
 
 interface EventState {
   events: Event[];
@@ -70,7 +61,6 @@ interface EventState {
   isLoading: boolean;
   isSocketInitialized: boolean;
 
-  // Buddy Alert state — set when a friend enters a shared task's geofence
   buddyAlert: BuddyAlertPayload | null;
 
   // Actions
@@ -118,11 +108,9 @@ export const useEventStore = create<EventState>((set, get) => ({
 
       try {
         if (updatedEvent.completed || updatedEvent.status === 'completed') {
-          // Cancel alarms and notifications if task is completed
           const idsToCancel = (updatedEvent.reminders || []).flatMap(r => r.notificationIds || []);
           await notificationService.cancelEventNotifications(updatedEvent.id, idsToCancel);
         } else {
-          // Reschedule updated alarms and reminders
           const reminders: ReminderConfig[] = (updatedEvent.reminders && updatedEvent.reminders.length > 0)
             ? updatedEvent.reminders
             : [{ id: 'rem_' + Date.now(), type: 'exact', time: updatedEvent.time, date: updatedEvent.date.split('T')[0] }];
@@ -139,7 +127,6 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     socketService.on('task_created', async (rawNewEvent: Event) => {
       const { events, friendsEvents } = get();
-      // Edge Case Fix #5: Normalize _id → id before dedup to prevent duplicates
       const newEvent: Event = { ...rawNewEvent, id: rawNewEvent.id || rawNewEvent._id || '' };
       const alreadyExists = events.find(e => {
         const eId = e.id || e._id;
@@ -150,7 +137,6 @@ export const useEventStore = create<EventState>((set, get) => ({
         set({ events: [...events, newEvent], friendsEvents: [...friendsEvents, newEvent] });
       }
 
-      // Schedule alarms and reminders on this friend's phone
       try {
         const reminders: ReminderConfig[] = (newEvent.reminders && newEvent.reminders.length > 0)
           ? newEvent.reminders
@@ -167,7 +153,6 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     socketService.on('task_deleted', (deletedId: string) => {
       const { events } = get();
-      // Edge Case Fix #5: also match on _id to handle both ID formats
       set({ events: events.filter(e => e.id !== deletedId && e._id !== deletedId) });
     });
 
@@ -255,8 +240,6 @@ export const useEventStore = create<EventState>((set, get) => ({
     if (!rawEvents) {
       rawEvents = await storageService.getEvents();
     }
-    
-    // Migration & default value normalization
     const migratedEvents = rawEvents.map((e: any) => ({
       ...e,
       id: e.id || e._id,
@@ -280,17 +263,14 @@ export const useEventStore = create<EventState>((set, get) => ({
       priorityScore: priorityService.calculateScore(event)
     };
 
-    // Schedule all reminders and get their IDs back
     const updatedReminders = await notificationService.scheduleEventNotifications(initialEvent, initialEvent.reminders || []);
     const finalEvent = { ...initialEvent, reminders: updatedReminders };
     
-    // Immediate notification removed to prevent instant alarm
     
     const newEvents = [...events, finalEvent];
     await storageService.saveEvents(newEvents);
     set({ events: newEvents });
 
-    // Background sync to backend (don't await so UI doesn't hang)
     api.post('/tasks', finalEvent).catch(e => {
       console.log('Backend sync failed, saved locally', e);
     });
@@ -309,14 +289,11 @@ export const useEventStore = create<EventState>((set, get) => ({
       await notificationService.cancelNotifications(idsToCancel);
     }
 
-    // Edge Case Fix #6: If task is already completed/late_completed, do NOT
-    // re-schedule notifications — just cancel any lingering ones.
     const isAlreadyDone = updatedEvent.status === 'completed' || updatedEvent.status === 'late_completed';
     let updatedReminders = updatedEvent.reminders || [];
     if (!isAlreadyDone) {
       updatedReminders = await notificationService.scheduleEventNotifications(updatedEvent, updatedEvent.reminders || []);
     } else {
-      // Ensure all notification IDs on the completed event are cancelled
       const idsToCancel = (updatedEvent.reminders || []).flatMap(r => r.notificationIds || []);
       await notificationService.cancelEventNotifications(updatedEvent.id, idsToCancel);
     }
@@ -331,7 +308,6 @@ export const useEventStore = create<EventState>((set, get) => ({
     await storageService.saveEvents(newEvents);
     set({ events: newEvents });
 
-    // Background update sync (don't await so UI doesn't hang)
     api.put(`/tasks/${finalEvent.id}`, finalEvent).catch(e => {
       console.log('Backend update sync failed, updated locally', e);
     });
@@ -360,16 +336,11 @@ export const useEventStore = create<EventState>((set, get) => ({
       completedAt = nowIso;
       useCelebrationStore.getState().triggerCelebration();
 
-      // ── Late Completion Detection ─────────────────────────────
-      // Edge Case Fix #1: Use UTC-aware parseDeadline helper instead of
-      // raw string concatenation that ignores timezone offsets.
       const deadline = parseDeadline(targetEvent);
       if (deadline && now > deadline) {
         resolvedStatus = 'late_completed';
       }
-      // ─────────────────────────────────────────────────────────────────────────
 
-      // Cancel pending alarms, notifications & geofences if completed
       const idsToCancel = targetEvent.reminders ? targetEvent.reminders.flatMap(r => r.notificationIds || []) : [];
       await notificationService.cancelEventNotifications(id, idsToCancel);
       await geofencingService.stopGeofence(id);
@@ -392,27 +363,22 @@ export const useEventStore = create<EventState>((set, get) => ({
     const newEvents = events.map(e => e.id === id ? updatedEvent : e);
     await storageService.saveEvents(newEvents);
 
-    // Background status sync
     api.patch(`/tasks/${id}/status`, { status: resolvedStatus, startedAt, completedAt }).catch(e => {
       console.log('Backend status sync failed, updated locally', e);
     });
 
     set({ events: newEvents });
 
-    // ── Behavioral Learning: Record completion for AI duration/delay learning ──
     if (resolvedStatus === 'completed' || resolvedStatus === 'late_completed') {
       behaviorService.recordTaskComplete(updatedEvent).catch(e =>
         console.warn('[BehaviorService] record error (non-fatal):', e)
       );
       behaviorService.clearDismissals(id).catch(() => {});
     }
-    // ─────────────────────────────────────────────────────────────────────
 
-    // ── Zen Mode (Auto DND) ──────────────────────────────────────────────
     zenModeService
       .onTaskStatusChanged(resolvedStatus, targetEvent.priority, targetEvent.title)
       .catch(e => console.warn('[ZenMode] Status change handler error:', e));
-    // ─────────────────────────────────────────────────────────────────────
   },
 
   deleteEvent: async (id: string) => {
@@ -441,7 +407,6 @@ export const useEventStore = create<EventState>((set, get) => ({
   clearCompletedEvents: async () => {
     const { events } = get();
     
-    // Edge Case Fix #4: Include late_completed tasks, not just 'completed'
     const isTaskDone = (e: Event) =>
       e.completed || e.status === 'completed' || e.status === 'late_completed';
 
@@ -455,7 +420,6 @@ export const useEventStore = create<EventState>((set, get) => ({
     await storageService.saveEvents(newEvents);
     set({ events: newEvents });
 
-    // Sync deletion with backend
     for (const ev of completedEvents) {
       try {
         await api.delete(`/tasks/${ev.id}`);
@@ -510,7 +474,6 @@ export const useEventStore = create<EventState>((set, get) => ({
         if (!event.date.startsWith(todayStr)) return false;
       }
       if (filters.status === 'overdue') {
-        // Edge Case Fix #1: Use UTC-aware parseDeadline helper
         const deadline = parseDeadline(event);
         const isPast = deadline ? deadline.getTime() < new Date().getTime() : false;
         if (!isPast || event.completed || event.status === 'completed' || event.status === 'late_completed') return false;
@@ -529,7 +492,6 @@ export const useEventStore = create<EventState>((set, get) => ({
       
       return true;
     }).sort((a, b) => {
-      // Sort by dynamic priority score descending
       const scoreA = priorityService.calculateScore(a, userLocation);
       const scoreB = priorityService.calculateScore(b, userLocation);
       return scoreB - scoreA;

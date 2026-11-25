@@ -33,13 +33,10 @@ export function useLocation(tasks: Event[] = []) {
   const [arrivedTask, setArrivedTask] = useState<Event | null>(null);
   const [arrivedTriggerType, setArrivedTriggerType] = useState<'arrive' | 'leave'>('arrive');
 
-  // Keep a ref so the watchPosition callback always has the latest tasks list
   const tasksRef = useRef<Event[]>(tasks);
   tasksRef.current = tasks;
 
-  // Keep previous location to detect leave events
   const prevLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
-  // Track whether we were inside each geofence
   const insideGeofences = useRef<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -105,8 +102,6 @@ export function useLocation(tasks: Event[] = []) {
     return () => {
       if (subscription) subscription.remove();
     };
-  // Only re-run if we need to restart the watcher (tasks.length change not needed due to ref)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkGeofenceAlerts = async (
@@ -126,11 +121,9 @@ export function useLocation(tasks: Event[] = []) {
         task.locationDetails?.latitude &&
         task.locationDetails?.longitude
       ) {
-        // Skip tasks created in the last 30s (avoid instant trigger on save)
         const createdAt = task.createdAt ? new Date(task.createdAt).getTime() : now;
         if (now - createdAt < 30000) continue;
 
-        // EC2: Respect Time-Gate window if configured
         if (task.locationTimeGate) {
           const currentDate = new Date();
           const currentHour = currentDate.getHours();

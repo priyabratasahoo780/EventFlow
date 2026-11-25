@@ -88,7 +88,7 @@ export default function AddEventScreen() {
   const [locationText, setLocationText] = useState(existingEvent?.location || '');
   const [locationDetails, setLocationDetails] = useState<LocationDetails | undefined>(existingEvent?.locationDetails);
   
-  // ── Unified Geofence / Location Reminder state ────────────────────────────
+  // ── Unified Geofence / Location Reminder state 
   const [geofenceConfig, setGeofenceConfig] = useState<GeofenceConfig>({
     locationReminderEnabled: existingEvent?.locationReminderEnabled ?? false,
     triggerType: existingEvent?.triggerType ?? 'arrive',

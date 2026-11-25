@@ -1,7 +1,4 @@
-/**
- * _layout.tsx
- * Main bottom tab navigation layout and custom animated navigation bar.
- */
+
 import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Home, Calendar, PieChart, Settings, User, Plus } from 'lucide-react-native';
 import { StyleSheet, View, Pressable, Animated, ColorValue } from 'react-native';
@@ -12,7 +9,6 @@ import { ColorTheme } from '../../constants/theme';
 import { useRef, useEffect } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 
-// ─── Animated Tab Icon ────────────────────────────────────────────────────────
 function AnimatedTabIcon({
   Icon,
   color,
@@ -87,7 +83,6 @@ function AnimatedTabIcon({
   );
 }
 
-// ─── Animated FAB ─────────────────────────────────────────────────────────────
 function AnimatedFAB({
   onPress,
   colors,
@@ -177,7 +172,6 @@ function AnimatedFAB({
   );
 }
 
-// ─── Tab Layout ────────────────────────────────────────────────────────────────
 export default function TabLayout() {
   const insets   = useSafeAreaInsets();
   const router   = useRouter();

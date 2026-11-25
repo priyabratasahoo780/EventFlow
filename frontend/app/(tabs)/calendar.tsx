@@ -711,8 +711,6 @@ const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create
   },
 
   eventWrapper: {
-    marginHorizontal: 0, // EventCard already has horizontal margin if I recall, wait. Let's check EventCard.
-    // Actually, in index.tsx I wrapped them in nothing, the EventCard has marginHorizontal: 16.
-    // So we don't need margin here.
+    marginHorizontal: 0, 
   }
 });

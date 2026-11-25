@@ -1,7 +1,4 @@
-/**
- * SplashScreenView.tsx
- * Animated splash screen powered by React Native Reanimated.
- */
+
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import {

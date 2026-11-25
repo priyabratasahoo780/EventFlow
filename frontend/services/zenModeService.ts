@@ -1,8 +1,4 @@
-/**
- * Zen Mode Service (Auto Do Not Disturb)
- * Automatically assists in enabling Do Not Disturb (DND) when a Critical task
- * is in progress and restores standard notification policy upon task completion.
- */
+
 
 import { Platform, Linking, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,7 +14,6 @@ export interface ZenModeStatus {
 }
 
 class ZenModeService {
-  // Check if user has already granted permission
   async getPermissionStatus(): Promise<boolean | null> {
     try {
       const val = await AsyncStorage.getItem(ZEN_PERMISSION_KEY);
@@ -29,7 +24,6 @@ class ZenModeService {
     }
   }
 
-  // Check if permission prompt was previously shown
   async wasPermissionAsked(): Promise<boolean> {
     try {
       const val = await AsyncStorage.getItem(ZEN_ASKED_KEY);
@@ -100,7 +94,6 @@ class ZenModeService {
     });
   }
 
-  // Enable DND mode when critical task starts
   async enableDND(taskTitle?: string): Promise<void> {
     if (Platform.OS !== 'android') return;
 
@@ -121,7 +114,6 @@ class ZenModeService {
     }
   }
 
-  // Disable DND mode when task finishes or is cancelled
   async disableDND(): Promise<void> {
     if (Platform.OS !== 'android') return;
 
@@ -136,7 +128,6 @@ class ZenModeService {
     }
   }
 
-  // Check if Zen Mode is currently active
   async isActive(): Promise<boolean> {
     try {
       const val = await AsyncStorage.getItem(ZEN_ACTIVE_KEY);
@@ -146,7 +137,6 @@ class ZenModeService {
     }
   }
 
-  // Handle task status changes from the store
   async onTaskStatusChanged(
     status: string,
     priority: string,
@@ -163,7 +153,6 @@ class ZenModeService {
     }
   }
 
-  // Reset permission (for testing and settings)
   async resetPermission(): Promise<void> {
     try {
       await AsyncStorage.multiRemove([ZEN_PERMISSION_KEY, ZEN_ACTIVE_KEY, ZEN_ASKED_KEY]);
@@ -172,7 +161,6 @@ class ZenModeService {
     }
   }
 
-  // Private notification hint when Zen starts
   private _showZenStartedHint(taskTitle?: string): void {
     Alert.alert(
       '🧘 Zen Mode Activated',

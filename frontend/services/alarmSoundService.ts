@@ -1,7 +1,6 @@
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 
-// High pitch alarm chime sound URL
 const ALARM_SOUND_URL = 'https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg';
 
 class AlarmSoundService {
@@ -14,7 +13,6 @@ class AlarmSoundService {
     this.isPlaying = true;
 
     try {
-      // Configure audio mode to override silent switches & play loudly
       await setAudioModeAsync({
         playsInSilentMode: true,
         shouldPlayInBackground: true,
@@ -24,7 +22,6 @@ class AlarmSoundService {
       player.loop = true;
       player.volume = 1.0;
 
-      // If stopAlarmSound was called while we were preparing, abort!
       if (!this.isPlaying) {
         player.release();
         return;
@@ -33,7 +30,6 @@ class AlarmSoundService {
       this.player = player;
       player.play();
 
-      // Start continuous heavy vibration pattern
       this.startVibration();
       console.log('🚨 LOUD ALARM SOUND STARTED PLAYING SUCCESSFULLY!');
     } catch (error) {

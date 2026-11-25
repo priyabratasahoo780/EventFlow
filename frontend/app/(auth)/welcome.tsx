@@ -1,7 +1,3 @@
-/**
- * welcome.tsx
- * Welcome onboarding screen with brand visuals and navigation to login and register.
- */
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useEffect } from 'react';

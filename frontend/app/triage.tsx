@@ -341,7 +341,6 @@ export default function TriageScreen() {
   
   const [overdueTasks, setOverdueTasks] = useState<Event[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  // Edge Case Fix #3: Undo state for accidental cancel
   const [undoVisible, setUndoVisible] = useState(false);
   const lastCancelledTask = useRef<Event | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -350,32 +349,27 @@ export default function TriageScreen() {
   const [aiModalVisible, setAiModalVisible] = useState(false);
 
 
-  // Compute overdue task list — extracted so it can be called from multiple effects
   const computeOverdue = useCallback(() => {
     const now = new Date();
     const tasks = events.filter(e => {
       if (e.status === 'overdue') return true;
       if (e.completed || e.status === 'completed' || e.status === 'late_completed' || e.status === 'in_progress') return false;
       if (!e.date) return false;
-      // Edge Case Fix #7: All-day tasks are only overdue after the calendar day ends
       if (e.isAllDay) {
         const dateStr = e.date.split('T')[0];
         const endOfDay = new Date(`${dateStr}T23:59:59`);
         return endOfDay < now;
       }
-      // Edge Case Fix #1: Use UTC-aware deadline parser
       const dl = parseDeadline(e);
       return dl ? dl < now : false;
     });
     setOverdueTasks(tasks);
   }, [events]);
 
-  // Recompute overdue list when events change
   useEffect(() => {
     computeOverdue();
   }, [computeOverdue]);
 
-  // Edge Case Fix #2: Recompute when app comes back to foreground (midnight crossing)
   useEffect(() => {
     const sub = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
@@ -389,15 +383,13 @@ export default function TriageScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const task = overdueTasks[currentIndex];
     if (task) {
-      // AI Reschedule: show slot picker instead of just marking in_progress
       const suggestions = reschedulingService.generateAiSlots(events, task);
       if (suggestions.length > 0) {
         setAiSlots(suggestions);
         setAiModalTask(task);
         setAiModalVisible(true);
-        return; // Wait for user choice in AI modal
+        return; 
       }
-      // Fallback: mark in_progress directly
       await updateEvent({ 
         ...task, 
         status: 'in_progress', 
@@ -430,7 +422,6 @@ export default function TriageScreen() {
     setAiModalTask(null);
     setAiSlots([]);
     if (!task) return;
-    // User dismissed AI modal: just mark in_progress
     await updateEvent({ 
       ...task, 
       status: 'in_progress', 
@@ -440,7 +431,6 @@ export default function TriageScreen() {
   };
 
 
-  // Edge Case Fix #3: Cancel with 4-second Undo window
   const handleSwipeLeft = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     const task = overdueTasks[currentIndex];
@@ -470,7 +460,6 @@ export default function TriageScreen() {
     lastCancelledTask.current = null;
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
     setUndoVisible(false);
-    // Go back one index to show the restored task
     setCurrentIndex(prev => Math.max(0, prev - 1));
   };
 
@@ -486,7 +475,6 @@ export default function TriageScreen() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]}>
 
-      {/* ── AI RESCHEDULE MODAL ── */}
       <Modal
         visible={aiModalVisible}
         animationType="slide"
@@ -542,7 +530,6 @@ export default function TriageScreen() {
           </View>
         </View>
       </Modal>
-      {/* ─────────────────────────────────── */}
 
         {/* TOP BAR */}
         <View style={styles.header}>
@@ -586,7 +573,6 @@ export default function TriageScreen() {
           </View>
         )}
 
-        {/* MAIN BODY / CARD STACK */}
         <View style={styles.content}>
           {isDone ? (
             <View style={styles.doneState}>
@@ -629,10 +615,8 @@ export default function TriageScreen() {
             </View>
           )}
 
-          {/* BOTTOM CONTROLS */}
           {!isDone && (
             <View style={styles.controls}>
-              {/* DISMISS / CANCEL BUTTON */}
               <Pressable 
                 style={({ pressed }) => [
                   styles.actionBtn, 
@@ -656,7 +640,6 @@ export default function TriageScreen() {
                 <Text style={[styles.skipText, { color: colors.text }]}>Skip for now</Text>
               </Pressable>
 
-              {/* DO NOW / START BUTTON */}
               <Pressable 
                 style={({ pressed }) => [
                   styles.actionBtn, 
@@ -670,7 +653,6 @@ export default function TriageScreen() {
             </View>
           )}
 
-          {/* Edge Case Fix #3: Undo Snackbar */}
           {undoVisible && (
             <View style={[styles.undoBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.undoText, { color: colors.text }]}>Task dismissed</Text>

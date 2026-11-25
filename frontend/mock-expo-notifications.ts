@@ -16,11 +16,6 @@ export const SchedulableTriggerInputTypes = RealNotifications?.SchedulableTrigge
 
 export type NotificationContentInput = any;
 
-/**
- * Universal Notifications bridge:
- * - In standalone APK builds: runs real native expo-notifications (alarms, scheduled notifications, channels, badges).
- * - In Web or Expo Go: catches any unsupported environment errors gracefully without crashing the app.
- */
 
 export const setNotificationHandler = (handler?: any): void => {
   try {

@@ -10,6 +10,7 @@ const eventSchema = new mongoose.Schema({
   description: { type: String },
   date: { type: String, required: true },
   time: { type: String, required: true },
+  isAllDay: { type: Boolean, default: false },
   category: { type: String, default: 'Academic' },
   priority: { type: String, enum: ['low', 'medium', 'high', 'critical'], default: 'medium' },
   priorityScore: { type: Number, default: 0 },

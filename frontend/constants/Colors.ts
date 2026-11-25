@@ -1,30 +1,25 @@
-/**
- * Colors.ts
- * Design tokens and color themes for EventFlow.
- */
+
 export const Colors = {
   light: {
-    // Backgrounds
-    background: '#FFF5EA',        // warm off-white screen bg
-    card: '#FFFFFF',              // pure white cards
+    background: '#FFF5EA',        
+    card: '#FFFFFF',              
 
     // Text
-    text: '#182235',              // dark navy — headings & primary text
-    textSecondary: '#667085',     // slate gray — labels, meta
+    text: '#182235',              
+    textSecondary: '#667085',    
 
-    // Primary — Orange (action, energy, progress)
+  
     primary: '#FF7A00',
     primaryDeep: '#FF5C00',
-    primaryLight: '#FFF0E5',      // soft orange tint for bg highlights
-    primaryBorder: '#FFD5B0',     // warm orange border
+    primaryLight: '#FFF0E5',      
+    primaryBorder: '#FFD5B0',    
 
-    // Secondary / AI — Deep Indigo (intelligence, insights)
     ai: '#4B3FDC',
     aiDeep: '#3F35C8',
-    aiLight: '#EDEAFD',           // soft indigo tint for AI elements
-    aiBorder: '#C4BEF8',          // indigo border
+    aiLight: '#EDEAFD',          
+    aiBorder: '#C4BEF8',         
 
-    // Semantic
+  
     success: '#22C55E',
     successLight: '#DCFCE7',
     danger: '#EF4444',
@@ -32,16 +27,15 @@ export const Colors = {
     warning: '#F59E0B',
     warningLight: '#FEF3C7',
 
-    // Structure
-    border: '#E9EDF3',            // soft light gray — borders, dividers
-    borderStrong: '#D1D9E6',      // slightly stronger border
-    inactive: '#E9EDF3',          // inactive components
+    border: '#E9EDF3',            
+    borderStrong: '#D1D9E6',      
+    inactive: '#E9EDF3',          
 
-    // Shadows (warm)
+
     shadowOrange: '#FF7A00',
     shadowIndigo: '#4B3FDC',
 
-    // Legacy aliases (for backward compat)
+   
     tint: '#4B3FDC',
     icon: '#182235',
     tabIconDefault: '#667085',

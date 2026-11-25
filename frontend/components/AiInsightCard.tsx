@@ -1,7 +1,4 @@
-/**
- * AiInsightCard.tsx
- * Card component displaying AI-generated productivity insights and recommendations.
- */
+
 import React, { useEffect } from 'react';
 import {
   StyleSheet,

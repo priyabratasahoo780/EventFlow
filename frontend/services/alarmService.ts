@@ -1,7 +1,3 @@
-/**
- * alarmService.ts
- * Alarm service API interfacing with native Android AlarmManagerModule.
- */
 import { NativeModules, Platform, Alert } from "react-native";
 import { Event, ReminderConfig } from "../models/Event";
 import { subMinutes, subHours, subDays } from "date-fns";
@@ -76,11 +72,10 @@ export const alarmService = {
     isCritical: boolean = false
   ): Promise<void> {
     if (!isAvailable) return;
-    if (triggerMs <= Date.now()) return; // skip past times
+    if (triggerMs <= Date.now()) return; 
 
     try {
       if (isCritical) {
-        // EC5: Route critical tasks to the overloaded native method
         await AlarmManagerModule!.scheduleAlarmCritical(alarmId, triggerMs, title, body, eventId, true);
       } else {
         await AlarmManagerModule!.scheduleAlarm(alarmId, triggerMs, title, body, eventId);
@@ -103,10 +98,7 @@ export const alarmService = {
     }
   },
 
-  /**
-   * Schedule ALL alarms for an event (main event time + all reminders).
-   * Returns array of alarm IDs that were scheduled (for cancellation later).
-   */
+  
   async scheduleEventAlarms(
     event: Event,
     reminders: ReminderConfig[]
