@@ -9,7 +9,7 @@ import { Event, EventFilters, TaskStatus, ReminderConfig } from '../models/Event
 import { storageService } from '../services/storageService';
 import { notificationService } from '../services/notificationService';
 import { priorityService } from '../services/priorityService';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import * as Notifications from '../mock-expo-notifications';
 import * as Haptics from 'expo-haptics';
 import api from '../services/api';
@@ -56,6 +56,7 @@ export interface BuddyAlertPayload {
 
 interface EventState {
   events: Event[];
+  statsEvents: Event[];
   friendsEvents: any[];
   filters: EventFilters;
   isLoading: boolean;
@@ -65,7 +66,7 @@ interface EventState {
 
   // Actions
   loadEvents: () => Promise<void>;
-  addEvent: (event: Event) => Promise<void>;
+  addEvent: (event: Event, options?: { skipLimitPrompt?: boolean }) => Promise<boolean>;
   updateEvent: (event: Event) => Promise<void>;
   updateTaskStatus: (id: string, status: TaskStatus) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
@@ -82,8 +83,61 @@ interface EventState {
   getTopRecommendation: (userLocation?: { latitude: number; longitude: number } | null) => Event | null;
 }
 
+const MAX_VISIBLE_TASKS = 80;
+const CLEANUP_CYCLE_MS = 90 * 24 * 60 * 60 * 1000; // 3 months (90 days)
+const ARCHIVE_AGE_MS = 45 * 24 * 60 * 60 * 1000;   // 1.5 months (45 days)
+const LAST_CLEANUP_KEY = 'eventflow_last_task_cleanup_at';
+
+function confirmArchiveOldestAlert(): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      '80 Tasks Limit Reached',
+      'You already have 80 tasks on your screen. Adding this new task will remove your oldest (last) task from the screen (your Statistics will remain saved). Are you sure?',
+      [
+        { text: 'No', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Yes, Remove Oldest', style: 'destructive', onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) }
+    );
+  });
+}
+
+async function applyLocalPeriodicCleanup(allEvents: Event[]): Promise<Event[]> {
+  try {
+    const now = Date.now();
+    const lastRaw = await AsyncStorage.getItem(LAST_CLEANUP_KEY);
+    if (!lastRaw) {
+      await AsyncStorage.setItem(LAST_CLEANUP_KEY, String(now));
+      return allEvents;
+    }
+
+    const lastMs = parseInt(lastRaw, 10);
+    if (Number.isNaN(lastMs) || now - lastMs < CLEANUP_CYCLE_MS) {
+      return allEvents;
+    }
+
+    const cutoffMs = now - ARCHIVE_AGE_MS;
+    const nowIso = new Date(now).toISOString();
+    const updated = allEvents.map((e) => {
+      if (e.isArchived) return e;
+      const createdMs = new Date(e.createdAt || e.date || nowIso).getTime();
+      if (!Number.isNaN(createdMs) && createdMs <= cutoffMs) {
+        return { ...e, isArchived: true, archivedAt: nowIso };
+      }
+      return e;
+    });
+
+    await AsyncStorage.setItem(LAST_CLEANUP_KEY, String(now));
+    await storageService.saveEvents(updated);
+    return updated;
+  } catch {
+    return allEvents;
+  }
+}
+
 export const useEventStore = create<EventState>((set, get) => ({
   events: [],
+  statsEvents: [],
   friendsEvents: [],
   isLoading: true,
   isSocketInitialized: false,
@@ -101,10 +155,11 @@ export const useEventStore = create<EventState>((set, get) => ({
     socketService.connect();
 
     socketService.on('task_updated', async (updatedEvent: Event) => {
-      const { events, friendsEvents } = get();
+      const { events, statsEvents, friendsEvents } = get();
       const newEvents = events.map(e => e.id === updatedEvent.id ? updatedEvent : e);
+      const newStatsEvents = (statsEvents.length ? statsEvents : events).map(e => e.id === updatedEvent.id ? updatedEvent : e);
       const newFriendsEvents = friendsEvents.map(e => (e.id || e._id) === (updatedEvent.id || updatedEvent._id) ? updatedEvent : e);
-      set({ events: newEvents, friendsEvents: newFriendsEvents });
+      set({ events: newEvents, statsEvents: newStatsEvents, friendsEvents: newFriendsEvents });
 
       try {
         if (updatedEvent.completed || updatedEvent.status === 'completed') {
@@ -126,7 +181,7 @@ export const useEventStore = create<EventState>((set, get) => ({
     });
 
     socketService.on('task_created', async (rawNewEvent: Event) => {
-      const { events, friendsEvents } = get();
+      const { events, statsEvents, friendsEvents } = get();
       const newEvent: Event = { ...rawNewEvent, id: rawNewEvent.id || rawNewEvent._id || '' };
       const alreadyExists = events.find(e => {
         const eId = e.id || e._id;
@@ -134,7 +189,11 @@ export const useEventStore = create<EventState>((set, get) => ({
         return eId === newId;
       });
       if (!alreadyExists) {
-        set({ events: [...events, newEvent], friendsEvents: [...friendsEvents, newEvent] });
+        set({
+          events: [...events, newEvent],
+          statsEvents: [...(statsEvents.length ? statsEvents : events), newEvent],
+          friendsEvents: [...friendsEvents, newEvent],
+        });
       }
 
       try {
@@ -152,8 +211,11 @@ export const useEventStore = create<EventState>((set, get) => ({
     });
 
     socketService.on('task_deleted', (deletedId: string) => {
-      const { events } = get();
-      set({ events: events.filter(e => e.id !== deletedId && e._id !== deletedId) });
+      const { events, statsEvents } = get();
+      set({
+        events: events.filter(e => e.id !== deletedId && e._id !== deletedId),
+        statsEvents: (statsEvents.length ? statsEvents : events).filter(e => e.id !== deletedId && e._id !== deletedId),
+      });
     });
 
     socketService.on('cheer_received', async (data: { message: string; senderName?: string; senderUsername?: string }) => {
@@ -235,7 +297,7 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     let rawEvents = null;
     try {
-      const res = await api.get('/tasks');
+      const res = await api.get('/tasks?includeArchived=true');
       if (res.data && Array.isArray(res.data)) {
         rawEvents = res.data.map((remote: any) => {
           const rid = remote.id || remote._id;
@@ -259,53 +321,101 @@ export const useEventStore = create<EventState>((set, get) => ({
     }
 
     if (!rawEvents) {
-      rawEvents = localEvents;
+      rawEvents = await applyLocalPeriodicCleanup(localEvents);
     }
-    const migratedEvents: Event[] = rawEvents.map((e: any) => ({
+
+    const migratedAll: Event[] = rawEvents.map((e: any) => ({
       ...e,
       id: e.id || e._id,
       reminders: e.reminders || [],
       status: e.status || (e.completed ? 'completed' : 'pending'),
-      estimatedDuration: e.estimatedDuration || 30
+      estimatedDuration: e.estimatedDuration || 30,
+      isArchived: Boolean(e.isArchived),
     }));
 
-    set({ events: migratedEvents, isLoading: false });
+    const visibleEvents = migratedAll.filter((e) => !e.isArchived);
+
+    set({ events: visibleEvents, statsEvents: migratedAll, isLoading: false });
 
     // Re-sync active Arrive/Leave geofences after load & prune stale ones
-    geofencingService.syncGeofences(migratedEvents).catch(() => {});
+    geofencingService.syncGeofences(visibleEvents).catch(() => {});
   },
 
-  addEvent: async (event: Event) => {
-    const { events } = get();
-    
+  addEvent: async (event: Event, options?: { skipLimitPrompt?: boolean }): Promise<boolean> => {
+    const { events, statsEvents } = get();
+    let currentAll = statsEvents.length >= events.length ? [...statsEvents] : [...events];
+    let currentVisible = events.filter((e) => !e.isArchived);
+    let confirmArchiveOldest = false;
+    let archiveTaskId: string | undefined;
+
+    if (currentVisible.length >= MAX_VISIBLE_TASKS) {
+      if (!options?.skipLimitPrompt) {
+        const confirmed = await confirmArchiveOldestAlert();
+        if (!confirmed) {
+          return false;
+        }
+      }
+      confirmArchiveOldest = true;
+
+      // Remove oldest visible task(s) from screen while preserving them in statsEvents
+      const excessCount = currentVisible.length - (MAX_VISIBLE_TASKS - 1);
+      const oldestSorted = currentVisible
+        .slice()
+        .sort((a, b) => {
+          const ta = new Date(a.createdAt || a.date || 0).getTime();
+          const tb = new Date(b.createdAt || b.date || 0).getTime();
+          return ta - tb;
+        })
+        .slice(0, excessCount);
+
+      archiveTaskId = oldestSorted[0]?.id;
+
+      const archivedIdSet = new Set(oldestSorted.map((t) => t.id));
+      for (const oldTask of oldestSorted) {
+        const idsToCancel = (oldTask.reminders || []).flatMap((r) => r.notificationIds || []);
+        await notificationService.cancelEventNotifications(oldTask.id, idsToCancel).catch(() => {});
+        await geofencingService.stopGeofence(oldTask.id).catch(() => {});
+      }
+
+      const archivedAtIso = new Date().toISOString();
+      currentAll = currentAll.map((e) =>
+        archivedIdSet.has(e.id) ? { ...e, isArchived: true, archivedAt: archivedAtIso } : e
+      );
+      currentVisible = currentVisible.filter((e) => !archivedIdSet.has(e.id));
+    }
+
     const initialStatus = event.status || 'pending';
-    const initialEvent = {
+    const initialEvent: Event = {
       ...event,
       status: initialStatus,
       completed: initialStatus === 'completed',
       estimatedDuration: event.estimatedDuration || 30,
-      priorityScore: priorityService.calculateScore(event)
+      priorityScore: priorityService.calculateScore(event),
+      isArchived: false,
     };
 
     const updatedReminders = await notificationService.scheduleEventNotifications(initialEvent, initialEvent.reminders || []);
-    const finalEvent = { ...initialEvent, reminders: updatedReminders };
-    
-    
-    const newEvents = [...events, finalEvent];
-    await storageService.saveEvents(newEvents);
-    set({ events: newEvents });
+    const finalEvent: Event = { ...initialEvent, reminders: updatedReminders };
 
-    api.post('/tasks', finalEvent).catch(e => {
+    const newVisible = [...currentVisible, finalEvent];
+    const newAll = [...currentAll, finalEvent];
+
+    await storageService.saveEvents(newAll);
+    set({ events: newVisible, statsEvents: newAll });
+
+    api.post('/tasks', { ...finalEvent, confirmArchiveOldest, archiveTaskId }).catch(e => {
       console.log('Backend sync failed, saved locally', e);
     });
 
     if (finalEvent.locationReminderEnabled) {
       await geofencingService.startGeofence(finalEvent as Event);
     }
+
+    return true;
   },
 
   updateEvent: async (updatedEvent: Event) => {
-    const { events } = get();
+    const { events, statsEvents } = get();
     
     const oldEvent = events.find(e => e.id === updatedEvent.id);
     if (oldEvent && oldEvent.reminders) {
@@ -328,9 +438,10 @@ export const useEventStore = create<EventState>((set, get) => ({
       priorityScore: priorityService.calculateScore(updatedEvent)
     };
     const newEvents = events.map(e => (e.id === finalEvent.id ? finalEvent : e));
+    const newStatsEvents = (statsEvents.length ? statsEvents : events).map(e => (e.id === finalEvent.id ? finalEvent : e));
     
-    await storageService.saveEvents(newEvents);
-    set({ events: newEvents });
+    await storageService.saveEvents(newStatsEvents);
+    set({ events: newEvents, statsEvents: newStatsEvents });
 
     api.put(`/tasks/${finalEvent.id}`, finalEvent).catch(e => {
       console.log('Backend update sync failed, updated locally', e);
@@ -343,7 +454,7 @@ export const useEventStore = create<EventState>((set, get) => ({
   },
 
   updateTaskStatus: async (id: string, status: TaskStatus) => {
-    const { events } = get();
+    const { events, statsEvents } = get();
     const nowIso = new Date().toISOString();
     const now = new Date();
 
@@ -385,13 +496,14 @@ export const useEventStore = create<EventState>((set, get) => ({
     };
 
     const newEvents = events.map(e => e.id === id ? updatedEvent : e);
-    await storageService.saveEvents(newEvents);
+    const newStatsEvents = (statsEvents.length ? statsEvents : events).map(e => e.id === id ? updatedEvent : e);
+    await storageService.saveEvents(newStatsEvents);
 
     api.patch(`/tasks/${id}/status`, { status: resolvedStatus, startedAt, completedAt }).catch(e => {
       console.log('Backend status sync failed, updated locally', e);
     });
 
-    set({ events: newEvents });
+    set({ events: newEvents, statsEvents: newStatsEvents });
 
     if (resolvedStatus === 'completed' || resolvedStatus === 'late_completed') {
       behaviorService.recordTaskComplete(updatedEvent).catch(e =>
@@ -409,7 +521,7 @@ export const useEventStore = create<EventState>((set, get) => ({
   },
 
   deleteEvent: async (id: string) => {
-    const { events } = get();
+    const { events, statsEvents } = get();
     
     const oldEvent = events.find(e => e.id === id);
     if (oldEvent) {
@@ -418,7 +530,8 @@ export const useEventStore = create<EventState>((set, get) => ({
     }
 
     const newEvents = events.filter(e => e.id !== id);
-    await storageService.saveEvents(newEvents);
+    const newStatsEvents = (statsEvents.length ? statsEvents : events).filter(e => e.id !== id);
+    await storageService.saveEvents(newStatsEvents);
     
     try {
       await api.delete(`/tasks/${id}`);
@@ -428,11 +541,11 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     await geofencingService.stopGeofence(id);
 
-    set({ events: newEvents });
+    set({ events: newEvents, statsEvents: newStatsEvents });
   },
 
   clearCompletedEvents: async () => {
-    const { events } = get();
+    const { events, statsEvents } = get();
     
     const isTaskDone = (e: Event) =>
       e.completed || e.status === 'completed' || e.status === 'late_completed';
@@ -443,9 +556,11 @@ export const useEventStore = create<EventState>((set, get) => ({
       await notificationService.cancelEventNotifications(ev.id, idsToCancel);
     }
 
+    const clearedIds = new Set(completedEvents.map(e => e.id));
     const newEvents = events.filter(e => !isTaskDone(e));
-    await storageService.saveEvents(newEvents);
-    set({ events: newEvents });
+    const newStatsEvents = (statsEvents.length ? statsEvents : events).filter(e => !clearedIds.has(e.id));
+    await storageService.saveEvents(newStatsEvents);
+    set({ events: newEvents, statsEvents: newStatsEvents });
     geofencingService.syncGeofences(newEvents).catch(() => {});
 
     for (const ev of completedEvents) {

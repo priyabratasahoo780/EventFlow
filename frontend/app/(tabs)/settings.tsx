@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, Switch, Pressable, ScrollView, Alert, ToastAndroid, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { VolumeX, Moon, Bell, Download, Upload, Trash2, Info, Users, Volume2, UserPlus, Sun, Lock, UserX, Shield } from 'lucide-react-native';
+import { VolumeX, Moon, Bell, Download, Upload, Trash2, Info, Users, Volume2, UserPlus, Sun, Lock, UserX } from 'lucide-react-native';
 import { useEventStore } from '../../store/useEventStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -424,33 +424,6 @@ export default function SettingsScreen() {
               </View>
             </Pressable>
           </View>
-
-          {user?.role === 'admin' && (
-            <>
-              <Text style={styles.sectionTitle}>ADMINISTRATION</Text>
-              <View style={styles.premiumCard}>
-                <Pressable
-                  style={({ pressed }) => [styles.settingRow, pressed && { opacity: 0.7 }]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    router.push('/admin' as any);
-                  }}
-                >
-                  <View style={styles.settingLeft}>
-                    <View style={[styles.iconBadge, { backgroundColor: colors.secondaryLight }]}>
-                      <Shield color={colors.secondary} size={18} strokeWidth={2.5} />
-                    </View>
-                    <View>
-                      <Text style={styles.settingText}>Admin Portal</Text>
-                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: colors.textSecondary }}>
-                        Fingerprint-protected community & app console
-                      </Text>
-                    </View>
-                  </View>
-                </Pressable>
-              </View>
-            </>
-          )}
 
           <Text style={styles.sectionTitle}>SECURITY</Text>
           

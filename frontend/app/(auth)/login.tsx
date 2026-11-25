@@ -13,7 +13,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -36,14 +35,9 @@ import {
 import api from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff, Mail, Lock, ShieldCheck, ArrowRight, Fingerprint, Shield } from 'lucide-react-native';
+import { Eye, EyeOff, Mail, Lock, ShieldCheck, ArrowRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useGoogleAuth } from '../../services/clerkAuth';
-import {
-  getAdminVaultSession,
-  authenticateWithBiometrics,
-  saveAdminVaultSession,
-} from '../../services/biometricAuth';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
 
@@ -69,10 +63,6 @@ export default function LoginScreen() {
   const [tempToken, setTempToken] = useState('');
   const [emailFor2FA, setEmailFor2FA] = useState('');
   const [otp, setOtp] = useState('');
-  const [adminModalVisible, setAdminModalVisible] = useState(false);
-  const [adminEmail, setAdminEmail] = useState('admin@eventflow.app');
-  const [adminPassword, setAdminPassword] = useState('');
-  const [adminLoading, setAdminLoading] = useState(false);
 
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
   const autoSentTokenRef = useRef<string | null>(null);
@@ -159,8 +149,11 @@ export default function LoginScreen() {
           setEmailFor2FA(res.data.email);
         } else {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          if (res.data.user?.role === 'admin') {
+            setPostLoginRoute('/admin');
+          }
           await login(res.data.token, res.data.user);
-          router.replace('/(tabs)');
+          router.replace((res.data.user?.role === 'admin' ? '/admin' : '/(tabs)') as any);
         }
       } catch (err: any) {
         triggerShake();
@@ -208,8 +201,11 @@ export default function LoginScreen() {
     try {
       const res = await api.post('/auth/2fa/verify', { email: emailFor2FA, otp, tempToken });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (res.data.user?.role === 'admin') {
+        setPostLoginRoute('/admin');
+      }
       await login(res.data.token, res.data.user);
-      router.replace('/(tabs)');
+      router.replace((res.data.user?.role === 'admin' ? '/admin' : '/(tabs)') as any);
     } catch (err: any) {
       triggerShake();
       const serverError = err.response?.data?.error || err.response?.data?.message;
@@ -248,61 +244,6 @@ export default function LoginScreen() {
       }
     } finally {
       setGoogleLoading(false);
-    }
-  };
-
-  const handleAdminFingerprintEntry = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const vault = await getAdminVaultSession();
-
-    if (vault?.token && vault?.user?.role === 'admin') {
-      const bio = await authenticateWithBiometrics('Scan Fingerprint to open EventFlow Admin Portal');
-      if (bio.success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setPostLoginRoute('/admin');
-        await login(vault.token, vault.user);
-        return;
-      }
-      if (!bio.unavailable) {
-        if (bio.error && !bio.error.includes('cancelled')) {
-          Alert.alert('Fingerprint Check', bio.error);
-        }
-        // Allow manual Admin login modal if biometric didn't match or user tapped Use Password
-        setAdminModalVisible(true);
-        return;
-      }
-    }
-
-    setAdminModalVisible(true);
-  };
-
-  const handleAdminCredentialLogin = async () => {
-    if (!adminEmail.trim() || !adminPassword) {
-      Alert.alert('Admin Credentials Required', 'Enter Admin email and password.');
-      return;
-    }
-    setAdminLoading(true);
-    try {
-      const res = await api.post('/auth/login', {
-        email: adminEmail.trim().toLowerCase(),
-        password: adminPassword,
-      });
-
-      if (res.data?.user?.role !== 'admin') {
-        Alert.alert('Access Denied', 'This account does not have Administrator privileges.');
-        return;
-      }
-
-      await saveAdminVaultSession(res.data.token, res.data.user);
-      setAdminModalVisible(false);
-      setAdminPassword('');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setPostLoginRoute('/admin');
-      await login(res.data.token, res.data.user);
-    } catch (err: any) {
-      Alert.alert('Admin Login Failed', err?.response?.data?.error || 'Invalid admin credentials.');
-    } finally {
-      setAdminLoading(false);
     }
   };
 
@@ -552,89 +493,10 @@ export default function LoginScreen() {
                   <Text style={[styles.signupLink, { color: colors.secondary }]}>Sign up</Text>
                 </Pressable>
               </Animated.View>
-
-              {/* Admin Biometric Portal Trigger */}
-              <Animated.View entering={FadeInDown.delay(440).duration(400)} style={{ marginTop: 14, alignItems: 'center' }}>
-                <Pressable
-                  onPress={handleAdminFingerprintEntry}
-                  style={({ pressed }) => [
-                    styles.adminTriggerBtn,
-                    { backgroundColor: colors.card, borderColor: dark ? colors.border : '#EAE2D8' },
-                    pressed && { opacity: 0.75 },
-                  ]}
-                >
-                  <Fingerprint color={colors.secondary} size={17} strokeWidth={2.2} />
-                  <Text style={[styles.adminTriggerText, { color: colors.text }]}>
-                    Admin Fingerprint Portal
-                  </Text>
-                </Pressable>
-              </Animated.View>
             </Animated.View>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* First-Time / Password Fallback Admin Login Modal */}
-      <Modal
-        visible={adminModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setAdminModalVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <View style={[styles.otpIconWrap, { width: 42, height: 42, backgroundColor: colors.secondaryLight }]}>
-                <Shield color={colors.secondary} size={22} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>Admin Portal Access</Text>
-                <Text style={[styles.modalSub, { color: colors.textSecondary }]}>
-                  Sign in once to link your Fingerprint unlock
-                </Text>
-              </View>
-            </View>
-
-            <TextInput
-              value={adminEmail}
-              onChangeText={setAdminEmail}
-              placeholder="admin@eventflow.app"
-              placeholderTextColor={colors.textSecondary}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              style={[styles.modalInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
-            />
-            <TextInput
-              value={adminPassword}
-              onChangeText={setAdminPassword}
-              placeholder="Admin Password"
-              placeholderTextColor={colors.textSecondary}
-              secureTextEntry
-              style={[styles.modalInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
-            />
-
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
-              <Pressable
-                onPress={() => setAdminModalVisible(false)}
-                style={[styles.modalBtn, { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border }]}
-              >
-                <Text style={{ fontFamily: 'Poppins_600SemiBold', color: colors.textSecondary }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleAdminCredentialLogin}
-                disabled={adminLoading}
-                style={[styles.modalBtn, { backgroundColor: colors.secondary }]}
-              >
-                {adminLoading ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <Text style={{ fontFamily: 'Poppins_700Bold', color: '#FFF' }}>Enter Admin</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -713,53 +575,5 @@ const getStyles = (colors: ColorTheme) =>
       alignItems: 'center',
       marginTop: 18,
       paddingVertical: 6,
-    },
-    adminTriggerBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 14,
-      borderWidth: 1,
-    },
-    adminTriggerText: {
-      fontFamily: 'Poppins_600SemiBold',
-      fontSize: 13,
-    },
-    modalBackdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.55)',
-      justifyContent: 'center',
-      padding: 24,
-    },
-    modalCard: {
-      borderRadius: 22,
-      padding: 20,
-      borderWidth: 1,
-      gap: 12,
-    },
-    modalTitle: {
-      fontFamily: 'Poppins_700Bold',
-      fontSize: 17,
-    },
-    modalSub: {
-      fontFamily: 'Poppins_400Regular',
-      fontSize: 12,
-    },
-    modalInput: {
-      borderWidth: 1,
-      borderRadius: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 11,
-      fontFamily: 'Poppins_500Medium',
-      fontSize: 14,
-    },
-    modalBtn: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 12,
-      borderRadius: 12,
     },
   });

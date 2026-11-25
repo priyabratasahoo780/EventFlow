@@ -25,4 +25,7 @@ const reviewSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+reviewSchema.index({ createdAt: -1 });
+reviewSchema.index({ user: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Review', reviewSchema);

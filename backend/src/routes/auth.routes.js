@@ -7,7 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/auth.middleware');
 const { authLimiter, otpLimiter } = require('../middleware/rateLimiter');
 
 router.post('/register', authLimiter, authController.register);

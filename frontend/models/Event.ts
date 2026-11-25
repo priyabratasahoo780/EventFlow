@@ -108,7 +108,9 @@ export interface Event {
 
   ownerId?: string | EventOwner;
   visibility?: 'onlyMe' | 'friends' | 'selectedFriends';
-  sharedWith?: string[]; 
+  sharedWith?: string[];
+  isArchived?: boolean;
+  archivedAt?: string;
 }
 
 export interface EventFilters {

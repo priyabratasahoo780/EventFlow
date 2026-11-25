@@ -29,6 +29,11 @@ const userSchema = new mongoose.Schema({
   resetPasswordLastSentAt: { type: Date, default: null },
   // Daily Password Change Rate Limiting (Strictly max 2 times per 24-hour day)
   passwordChangeHistory: [{ type: Date }],
+  // Periodic 3-month auto-archive timestamp for tasks older than 1.5 months
+  lastTaskCleanupAt: { type: Date, default: null },
 }, { timestamps: true });
+
+userSchema.index({ role: 1, createdAt: -1 });
+userSchema.index({ isBanned: 1 });
 
 module.exports = mongoose.model('User', userSchema);

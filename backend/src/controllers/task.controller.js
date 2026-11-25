@@ -12,6 +12,47 @@ const User = require('../models/User');
 const { Expo } = require('expo-server-sdk');
 const { calculatePriorityScore, getPriorityLevel } = require('../services/priority.service');
 
+const MAX_VISIBLE_TASKS = 80;
+const CLEANUP_CYCLE_MS = 90 * 24 * 60 * 60 * 1000; // Every 3 months (90 days)
+const ARCHIVE_AGE_MS = 45 * 24 * 60 * 60 * 1000;   // Archive tasks older than 1.5 months (45 days)
+
+async function runPeriodicTaskCleanupIfDue(userId) {
+  try {
+    const user = await User.findById(userId).select('lastTaskCleanupAt');
+    if (!user) return 0;
+
+    const now = new Date();
+    if (!user.lastTaskCleanupAt) {
+      user.lastTaskCleanupAt = now;
+      await user.save();
+      return 0;
+    }
+
+    if (now.getTime() - new Date(user.lastTaskCleanupAt).getTime() < CLEANUP_CYCLE_MS) {
+      return 0;
+    }
+
+    const cutoffDate = new Date(now.getTime() - ARCHIVE_AGE_MS);
+    const result = await Event.updateMany(
+      {
+        ownerId: userId,
+        isArchived: { $ne: true },
+        createdAt: { $lte: cutoffDate },
+      },
+      {
+        $set: { isArchived: true, archivedAt: now },
+      }
+    );
+
+    user.lastTaskCleanupAt = now;
+    await user.save();
+    return result.modifiedCount || 0;
+  } catch (err) {
+    console.error('Periodic task cleanup error:', err);
+    return 0;
+  }
+}
+
 const ALLOWED_TASK_FIELDS = [
   'id',
   'title',
@@ -64,9 +105,15 @@ function sanitizeSharedWith(sharedWith, allowedFriendSet) {
 // Get all tasks for user with dynamic priority scores
 exports.getTasks = async (req, res) => {
   try {
-    const tasks = await Event.find({
-      $or: [{ ownerId: req.userId }, { sharedWith: req.userId }],
-    })
+    await runPeriodicTaskCleanupIfDue(req.userId);
+
+    const includeArchived = req.query.includeArchived === 'true';
+    const baseOwnership = { $or: [{ ownerId: req.userId }, { sharedWith: req.userId }] };
+    const query = includeArchived
+      ? baseOwnership
+      : { ...baseOwnership, isArchived: { $ne: true } };
+
+    const tasks = await Event.find(query)
       .sort({ date: 1 })
       .lean();
 
@@ -100,6 +147,7 @@ exports.getRecommendation = async (req, res) => {
 
     const pendingTasks = await Event.find({
       $or: [{ ownerId: req.userId }, { sharedWith: req.userId }],
+      isArchived: { $ne: true },
       completed: false,
       status: { $ne: 'completed' },
     }).lean();
@@ -130,6 +178,54 @@ exports.getRecommendation = async (req, res) => {
 // Create task
 exports.createTask = async (req, res) => {
   try {
+    await runPeriodicTaskCleanupIfDue(req.userId);
+
+    const activeCount = await Event.countDocuments({
+      ownerId: req.userId,
+      isArchived: { $ne: true },
+    });
+
+    if (activeCount >= MAX_VISIBLE_TASKS || (req.body.confirmArchiveOldest === true && req.body.archiveTaskId)) {
+      if (activeCount >= MAX_VISIBLE_TASKS && req.body.confirmArchiveOldest !== true) {
+        return res.status(409).json({
+          requiresArchiveConfirm: true,
+          error: `Maximum ${MAX_VISIBLE_TASKS} tasks limit reached. Adding a new task will remove your oldest task from the active screen (Statistics stay saved).`,
+        });
+      }
+
+      if (req.body.archiveTaskId && typeof req.body.archiveTaskId === 'string') {
+        await Event.updateOne(
+          { id: req.body.archiveTaskId.trim(), ownerId: req.userId, isArchived: { $ne: true } },
+          { $set: { isArchived: true, archivedAt: new Date() } }
+        );
+      }
+
+      const remainingActive = await Event.countDocuments({
+        ownerId: req.userId,
+        isArchived: { $ne: true },
+      });
+
+      // Ensure active count stays below MAX_VISIBLE_TASKS before inserting the new task
+      if (remainingActive >= MAX_VISIBLE_TASKS) {
+        const excessCount = remainingActive - (MAX_VISIBLE_TASKS - 1);
+        const oldestTasks = await Event.find({
+          ownerId: req.userId,
+          isArchived: { $ne: true },
+        })
+          .sort({ createdAt: 1, date: 1 })
+          .limit(excessCount)
+          .select('_id')
+          .lean();
+
+        if (oldestTasks.length > 0) {
+          await Event.updateMany(
+            { _id: { $in: oldestTasks.map((t) => t._id) } },
+            { $set: { isArchived: true, archivedAt: new Date() } }
+          );
+        }
+      }
+    }
+
     const currentUser = await User.findById(req.userId);
     const allowedFriends = new Set((currentUser?.friends || []).map((f) => f.toString()));
 

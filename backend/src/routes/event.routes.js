@@ -5,9 +5,10 @@
 const express = require('express');
 const router = express.Router();
 const eventController = require('../controllers/event.controller');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/auth.middleware');
+const userOnly = require('../middleware/userOnly.middleware');
 
-router.use(auth);
+router.use(auth, userOnly);
 
 router.post('/', eventController.createEvent);
 router.get('/', eventController.getEvents);

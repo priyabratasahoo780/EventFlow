@@ -119,7 +119,7 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const { token, isLoading: authLoading, checkAuth, postLoginRoute, setPostLoginRoute } = useAuthStore();
+  const { token, user, isLoading: authLoading, checkAuth, postLoginRoute, setPostLoginRoute } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
   // Keep a ref to the last notification response so we only navigate once
@@ -260,7 +260,7 @@ function RootLayoutNav() {
         return false;
       });
 
-      if (dueTask && !activeAlarmEvent) {
+      if (dueTask && !activeAlarmEvent && useAuthStore.getState().user?.role !== 'admin') {
         setActiveAlarmEvent(dueTask);
       }
     }, 1000);
@@ -272,15 +272,23 @@ function RootLayoutNav() {
     if (authLoading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const inAdminPortal = segments[0] === 'admin';
 
     if (!token && !inAuthGroup) {
       router.replace('/(auth)/welcome');
-    } else if (token && inAuthGroup) {
-      const target = postLoginRoute || '/(tabs)';
-      if (postLoginRoute) setPostLoginRoute(null);
-      router.replace(target as any);
+    } else if (token && user?.role === 'admin') {
+      // Strict portal isolation: Admin can NEVER enter user portal routes
+      if (!inAdminPortal) {
+        if (postLoginRoute) setPostLoginRoute(null);
+        router.replace('/admin' as any);
+      }
+    } else if (token) {
+      if (inAdminPortal || inAuthGroup) {
+        if (postLoginRoute) setPostLoginRoute(null);
+        router.replace('/(tabs)');
+      }
     }
-  }, [token, authLoading, segments, postLoginRoute]);
+  }, [token, user?.role, authLoading, segments, postLoginRoute]);
 
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(
@@ -293,7 +301,7 @@ function RootLayoutNav() {
           const data = response?.notification?.request?.content?.data;
           const eventId = data?.eventId;
 
-          if (eventId && token) {
+          if (eventId && token && useAuthStore.getState().user?.role !== 'admin') {
             // Navigate to the event detail page
             router.push(`/event/${eventId}` as any);
           }
@@ -394,19 +402,22 @@ function RootLayoutNav() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
 
-        <AlarmModal
-          visible={!!activeAlarmEvent}
-          event={activeAlarmEvent}
-          onDismiss={handleDismissAlarm}
-          onStartTask={handleStartTaskAlarm}
-        />
+        {user?.role !== 'admin' && (
+          <>
+            <AlarmModal
+              visible={!!activeAlarmEvent}
+              event={activeAlarmEvent}
+              onDismiss={handleDismissAlarm}
+              onStartTask={handleStartTaskAlarm}
+            />
 
-        <DynamicIslandTaskBar />
+            <DynamicIslandTaskBar />
 
-        <ConfettiCelebration />
+            <ConfettiCelebration />
+          </>
+        )}
       </ThemeProvider>
     </GestureHandlerRootView>
   );

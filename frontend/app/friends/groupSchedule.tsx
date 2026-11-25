@@ -108,7 +108,7 @@ export default function GroupScheduleScreen() {
     if (!selected) return;
     setCreating(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await addEvent({
+    const added = await addEvent({
       title: 'Group Session',
       description: 'AI-scheduled group event',
       category: 'Meeting',
@@ -127,6 +127,7 @@ export default function GroupScheduleScreen() {
       sharedWith: selectedFriends,
     } as any);
     setCreating(false);
+    if (!added) return;
     router.back();
   };
 

@@ -318,7 +318,7 @@ export default function StatisticsScreen() {
   const isDarkMode = isDark();
   const colors = getColors();
   const styles = getStyles(colors);
-  const { events } = useEventStore();
+  const { statsEvents: events } = useEventStore();
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('week');
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [aiInsights, setAiInsights] = useState<string[]>([]);

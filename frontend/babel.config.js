@@ -1,8 +1,7 @@
 /**
  * babel.config.js
  * ─────────────────────────────────────────────────────────────────────────────
- * Expo Babel config with module-resolver for clean path aliases.
- * Uses @/* → ./src/* so imports look like: import Foo from '@/components/ui/Foo'
+ * Expo Babel config with module-resolver for clean root path aliases.
  */
 module.exports = function (api) {
   api.cache(true);
@@ -12,14 +11,13 @@ module.exports = function (api) {
       {
         root: ['./'],
         alias: {
-          '@': './src',
-          '@/components': './src/components',
-          '@/constants':  './src/constants',
-          '@/hooks':      './src/hooks',
-          '@/lib':        './src/lib',
-          '@/services':   './src/services',
-          '@/store':      './src/store',
-          '@/types':      './src/types',
+          '@': '.',
+          '@/components': './components',
+          '@/constants': './constants',
+          '@/hooks': './hooks',
+          '@/models': './models',
+          '@/services': './services',
+          '@/store': './store',
         },
         extensions: ['.ts', '.tsx', '.js', '.jsx'],
       },

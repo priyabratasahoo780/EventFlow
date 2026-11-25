@@ -7,14 +7,50 @@
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Event = require('../models/Event');
 const Review = require('../models/Review');
 const FriendRequest = require('../models/FriendRequest');
 const Message = require('../models/Message');
+const FestivalBanner = require('../models/FestivalBanner');
 
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
 const escapeRegex = (str) => String(str || '').replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+
+function computeReviewStats(reviewsList) {
+  const total = reviewsList.length;
+  const breakdown = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+  let ratingSum = 0;
+  let positiveCount = 0;
+  let neutralCount = 0;
+  let negativeCount = 0;
+  let totalLikes = 0;
+
+  for (const rev of reviewsList) {
+    const r = Math.min(5, Math.max(1, Math.round(Number(rev.rating) || 0)));
+    breakdown[r] = (breakdown[r] || 0) + 1;
+    ratingSum += r;
+    totalLikes += Array.isArray(rev.likes) ? rev.likes.length : 0;
+
+    if (r >= 4) positiveCount++;
+    else if (r === 3) neutralCount++;
+    else negativeCount++;
+  }
+
+  return {
+    total,
+    avgRating: total > 0 ? Number((ratingSum / total).toFixed(1)) : 0,
+    positiveCount,
+    neutralCount,
+    negativeCount,
+    positivePercent: total > 0 ? Math.round((positiveCount / total) * 100) : 0,
+    neutralPercent: total > 0 ? Math.round((neutralCount / total) * 100) : 0,
+    negativePercent: total > 0 ? Math.round((negativeCount / total) * 100) : 0,
+    totalLikes,
+    breakdown,
+  };
+}
 
 exports.getOverview = async (req, res) => {
   try {
@@ -24,18 +60,16 @@ exports.getOverview = async (req, res) => {
       twoFactorUsers,
       totalTasks,
       completedTasks,
-      totalReviews,
-      ratingAgg,
+      allReviewsForStats,
       recentUsers,
       recentReviews,
     ] = await Promise.all([
-      User.countDocuments(),
+      User.countDocuments({ role: { $ne: 'admin' } }),
       User.countDocuments({ isBanned: true }),
       User.countDocuments({ twoFactorEnabled: true }),
       Event.countDocuments(),
       Event.countDocuments({ $or: [{ completed: true }, { status: { $in: ['completed', 'late_completed'] } }] }),
-      Review.countDocuments(),
-      Review.aggregate([{ $group: { _id: null, avgRating: { $avg: '$rating' } } }]),
+      Review.find().select('rating likes').lean(),
       User.find()
         .select('name username email uniqueId role isBanned twoFactorEnabled profilePhoto createdAt')
         .sort({ createdAt: -1 })
@@ -48,7 +82,7 @@ exports.getOverview = async (req, res) => {
         .lean(),
     ]);
 
-    const avgRating = ratingAgg[0]?.avgRating ? Number(ratingAgg[0].avgRating.toFixed(1)) : 0;
+    const reviewStats = computeReviewStats(allReviewsForStats);
 
     res.json({
       admin: {
@@ -62,9 +96,10 @@ exports.getOverview = async (req, res) => {
         twoFactorUsers,
         totalTasks,
         completedTasks,
-        totalReviews,
-        avgRating,
+        totalReviews: reviewStats.total,
+        avgRating: reviewStats.avgRating,
       },
+      reviewStats,
       recentUsers,
       recentReviews,
     });
@@ -74,20 +109,34 @@ exports.getOverview = async (req, res) => {
   }
 };
 
+exports.getReviewStats = async (_req, res) => {
+  try {
+    const allReviews = await Review.find().select('rating likes').lean();
+    res.json(computeReviewStats(allReviews));
+  } catch (err) {
+    console.error('Admin getReviewStats error:', err);
+    res.status(500).json({ error: 'Failed to calculate review statistics' });
+  }
+};
+
 exports.getAllReviews = async (req, res) => {
   try {
-    const q = String(req.query.q || '').trim();
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const sentiment = String(req.query.sentiment || 'all').toLowerCase();
     const reviews = await Review.find()
       .populate('user', 'name username email profilePhoto role isBanned')
       .sort({ createdAt: -1 })
       .lean();
 
-    const filtered = q
-      ? reviews.filter((r) => {
-          const hay = `${r.text || ''} ${r.user?.name || ''} ${r.user?.email || ''} ${r.user?.username || ''}`.toLowerCase();
-          return hay.includes(q.toLowerCase());
-        })
-      : reviews;
+    const filtered = reviews.filter((r) => {
+      if (sentiment === 'positive' && r.rating < 4) return false;
+      if (sentiment === 'neutral' && r.rating !== 3) return false;
+      if (sentiment === 'negative' && r.rating > 2) return false;
+
+      if (!q) return true;
+      const hay = `${r.text || ''} ${r.user?.name || ''} ${r.user?.email || ''} ${r.user?.username || ''}`.toLowerCase();
+      return hay.includes(q);
+    });
 
     res.json(filtered);
   } catch (err) {
@@ -240,54 +289,271 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
-exports.getTasks = async (req, res) => {
+exports.getTasks = async (_req, res) => {
+  return res.status(403).json({
+    error: 'Privacy Protection: Admins are strictly prohibited from viewing user tasks.',
+  });
+};
+
+exports.deleteTask = async (_req, res) => {
+  return res.status(403).json({
+    error: 'Privacy Protection: Admins cannot access or modify user tasks.',
+  });
+};
+
+// ── Festival Greeting Cards ─────────────────────────────────────
+
+function parseOptionalDate(val, endOfDay = false) {
+  if (!val || typeof val !== 'string' || !val.trim()) return null;
+  const trimmed = val.trim();
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+    ? new Date(`${trimmed}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}`)
+    : new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+exports.getFestivalBanners = async (_req, res) => {
   try {
-    const q = String(req.query.q || '').trim();
-    const filter = q
-      ? {
-          $or: [
-            { title: { $regex: escapeRegex(q), $options: 'i' } },
-            { category: { $regex: escapeRegex(q), $options: 'i' } },
-            { location: { $regex: escapeRegex(q), $options: 'i' } },
-          ],
-        }
-      : {};
-
-    const tasks = await Event.find(filter)
-      .populate('ownerId', 'name username email')
-      .sort({ createdAt: -1 })
-      .limit(80)
-      .lean();
-
-    res.json(tasks);
+    const banners = await FestivalBanner.find().sort({ createdAt: -1 }).limit(30).lean();
+    res.json(banners);
   } catch (err) {
-    console.error('Admin getTasks error:', err);
-    res.status(500).json({ error: 'Failed to load platform tasks' });
+    console.error('Admin getFestivalBanners error:', err);
+    res.status(500).json({ error: 'Failed to load festival cards' });
   }
 };
 
-exports.deleteTask = async (req, res) => {
+exports.createFestivalBanner = async (req, res) => {
+  try {
+    const { title, imageUrl, greeting, startDate, endDate, isActive } = req.body;
+
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({ error: 'Festival title is required.' });
+    }
+    if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.trim()) {
+      return res.status(400).json({ error: 'Please upload a festival photo.' });
+    }
+    if (!greeting || typeof greeting !== 'string' || !greeting.trim()) {
+      return res.status(400).json({ error: 'Festival greeting message is required.' });
+    }
+
+    const cleanImage = imageUrl.trim().slice(0, 500);
+    if (cleanImage.toLowerCase().startsWith('javascript:')) {
+      return res.status(400).json({ error: 'Invalid image URL.' });
+    }
+
+    const parsedStart = parseOptionalDate(startDate, false);
+    const parsedEnd = parseOptionalDate(endDate, true);
+    if (parsedStart && parsedEnd && parsedEnd <= parsedStart) {
+      return res.status(400).json({ error: 'End date & time must be after start date & time.' });
+    }
+
+    const activeFlag = isActive !== false;
+    if (activeFlag) {
+      // Deactivate previous active festival banners so the newly published one leads
+      await FestivalBanner.updateMany({ isActive: true }, { $set: { isActive: false } });
+    }
+
+    const banner = new FestivalBanner({
+      title: title.trim().slice(0, 100),
+      imageUrl: cleanImage,
+      greeting: greeting.trim().slice(0, 500),
+      startDate: parsedStart,
+      endDate: parsedEnd,
+      isActive: activeFlag,
+      createdBy: req.userId,
+    });
+
+    await banner.save();
+    req.app.get('io')?.emit('festival_updated', { active: banner.isActive });
+    res.status(201).json(banner);
+  } catch (err) {
+    console.error('Admin createFestivalBanner error:', err);
+    res.status(500).json({ error: 'Failed to publish festival card' });
+  }
+};
+
+exports.toggleFestivalBanner = async (req, res) => {
   try {
     const { id } = req.params;
-    const query = mongoose.Types.ObjectId.isValid(String(id || ''))
-      ? { $or: [{ _id: id }, { id }] }
-      : { id };
-
-    const deleted = await Event.findOneAndDelete(query);
-    if (!deleted) {
-      return res.status(404).json({ error: 'Task not found' });
+    if (!mongoose.Types.ObjectId.isValid(String(id || ''))) {
+      return res.status(400).json({ error: 'Invalid festival card ID' });
     }
 
-    if (deleted.image && deleted.image.startsWith('/uploads/')) {
-      fs.unlink(path.join(UPLOAD_DIR, path.basename(deleted.image)), () => {});
-    }
-    if (deleted.video && deleted.video.startsWith('/uploads/')) {
-      fs.unlink(path.join(UPLOAD_DIR, path.basename(deleted.video)), () => {});
+    const banner = await FestivalBanner.findById(id);
+    if (!banner) {
+      return res.status(404).json({ error: 'Festival card not found' });
     }
 
-    res.json({ success: true, message: 'Task removed by admin' });
+    const nextActive = typeof req.body?.isActive === 'boolean' ? req.body.isActive : !banner.isActive;
+    if (nextActive) {
+      await FestivalBanner.updateMany({ _id: { $ne: banner._id }, isActive: true }, { $set: { isActive: false } });
+    }
+
+    banner.isActive = nextActive;
+    await banner.save();
+    req.app.get('io')?.emit('festival_updated', { active: banner.isActive });
+    res.json(banner);
   } catch (err) {
-    console.error('Admin deleteTask error:', err);
-    res.status(500).json({ error: 'Failed to remove task' });
+    console.error('Admin toggleFestivalBanner error:', err);
+    res.status(500).json({ error: 'Failed to toggle festival card' });
+  }
+};
+
+exports.deleteFestivalBanner = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(String(id || ''))) {
+      return res.status(400).json({ error: 'Invalid festival card ID' });
+    }
+
+    const deleted = await FestivalBanner.findByIdAndDelete(id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Festival card not found' });
+    }
+
+    if (deleted.imageUrl && deleted.imageUrl.includes('/uploads/')) {
+      fs.unlink(path.join(UPLOAD_DIR, path.basename(deleted.imageUrl)), () => {});
+    }
+
+    req.app.get('io')?.emit('festival_updated', { active: false });
+    res.json({ success: true, message: 'Festival card deleted' });
+  } catch (err) {
+    console.error('Admin deleteFestivalBanner error:', err);
+    res.status(500).json({ error: 'Failed to delete festival card' });
+  }
+};
+
+exports.getActiveFestivalBanner = async (_req, res) => {
+  try {
+    const now = new Date();
+    const active = await FestivalBanner.findOne({
+      isActive: true,
+      $and: [
+        { $or: [{ startDate: null }, { startDate: { $lte: now } }] },
+        { $or: [{ endDate: null }, { endDate: { $gte: now } }] },
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .select('title imageUrl greeting startDate endDate createdAt')
+      .lean();
+
+    res.json({ banner: active || null });
+  } catch (err) {
+    console.error('getActiveFestivalBanner error:', err);
+    res.status(500).json({ error: 'Failed to fetch active festival greeting' });
+  }
+};
+
+// ── Admin Profile & Password Management ─────────────────────────
+
+function validateStrongAdminPassword(pwd) {
+  if (!pwd || typeof pwd !== 'string' || pwd.length < 8 || pwd.length > 128) {
+    return 'Password must be between 8 and 128 characters long.';
+  }
+  if (!/[A-Z]/.test(pwd)) return 'Password must include an uppercase letter (A-Z).';
+  if (!/[a-z]/.test(pwd)) return 'Password must include a lowercase letter (a-z).';
+  if (!/[0-9]/.test(pwd)) return 'Password must include a number (0-9).';
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd)) {
+    return 'Password must include a special character (e.g. @, #, $, !).';
+  }
+  return null;
+}
+
+exports.updateAdminProfile = async (req, res) => {
+  try {
+    const updates = {};
+    if (typeof req.body.name === 'string') {
+      const cleanName = req.body.name.trim().slice(0, 80);
+      if (!cleanName) {
+        return res.status(400).json({ error: 'Admin name cannot be empty.' });
+      }
+      updates.name = cleanName;
+    }
+
+    if (typeof req.body.profilePhoto === 'string') {
+      const photo = req.body.profilePhoto.trim().slice(0, 500);
+      if (photo.toLowerCase().startsWith('javascript:') || photo.toLowerCase().startsWith('data:text/html')) {
+        return res.status(400).json({ error: 'Invalid profile photo URL.' });
+      }
+      updates.profilePhoto = photo;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No valid profile fields provided.' });
+    }
+
+    const updated = await User.findByIdAndUpdate(
+      req.userId,
+      { $set: updates },
+      { returnDocument: 'after' }
+    ).select('-password -twoFactorOtp -resetPasswordOtp');
+
+    if (!updated) return res.status(404).json({ error: 'Admin account not found.' });
+    res.json({ message: 'Admin profile updated.', user: updated });
+  } catch (err) {
+    console.error('updateAdminProfile error:', err);
+    res.status(500).json({ error: 'Failed to update admin profile.' });
+  }
+};
+
+exports.changeAdminPassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required.' });
+    }
+
+    const pwdError = validateStrongAdminPassword(newPassword);
+    if (pwdError) {
+      return res.status(400).json({ error: pwdError });
+    }
+
+    const adminUser = await User.findById(req.userId);
+    if (!adminUser || adminUser.role !== 'admin') {
+      return res.status(404).json({ error: 'Admin account not found.' });
+    }
+
+    const matchesCurrent = await bcrypt.compare(currentPassword, adminUser.password);
+    if (!matchesCurrent) {
+      return res.status(400).json({ error: 'Current password is incorrect.' });
+    }
+
+    const isSame = await bcrypt.compare(newPassword, adminUser.password);
+    if (isSame) {
+      return res.status(400).json({ error: 'New password must be different from current password.' });
+    }
+
+    const salt = await bcrypt.genSalt(12);
+    adminUser.password = await bcrypt.hash(newPassword, salt);
+    await adminUser.save();
+
+    res.json({ success: true, message: 'Admin password changed successfully.' });
+  } catch (err) {
+    console.error('changeAdminPassword error:', err);
+    res.status(500).json({ error: 'Failed to change admin password.' });
+  }
+};
+
+exports.verifyAdminPassword = async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Password is required.' });
+    }
+
+    const adminUser = await User.findById(req.userId).select('password role');
+    if (!adminUser || adminUser.role !== 'admin') {
+      return res.status(404).json({ error: 'Admin account not found.' });
+    }
+
+    const valid = await bcrypt.compare(password, adminUser.password);
+    if (!valid) {
+      return res.status(401).json({ error: 'Incorrect Admin password.' });
+    }
+
+    res.json({ valid: true });
+  } catch (err) {
+    console.error('verifyAdminPassword error:', err);
+    res.status(500).json({ error: 'Failed to verify password.' });
   }
 };

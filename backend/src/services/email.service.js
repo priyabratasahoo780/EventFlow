@@ -1,7 +1,4 @@
-/**
- * email.service.js
- * Production email delivery service using Nodemailer (Gmail SMTP / Custom SMTP / Account Pool).
- */
+
 'use strict';
 
 const nodemailer = require('nodemailer');
@@ -97,9 +94,7 @@ function getNextAccountAndTransporter() {
 
 exports.isConfigured = () => getConfiguredAccounts().length > 0;
 
-/**
- * Verify SMTP connectivity at server startup without crashing if credentials are not yet provided.
- */
+  // Verify SMTP connectivity at server startup without crashing if credentials are not yet provided.
 exports.verifyEmailTransport = async () => {
   const accounts = getConfiguredAccounts();
   if (accounts.length === 0) {
@@ -154,9 +149,9 @@ function buildOTPEmailHtml({ otp, purpose, expiryMinutes }) {
   `;
 }
 
-/**
- * Send a 6-digit OTP email.
- */
+
+  // Send a 6-digit OTP email.
+ 
 exports.sendOTPEmail = async (toEmail, otp, options = {}) => {
   const purpose = options.purpose || 'Account Verification';
   const expiryMinutes = options.expiryMinutes || 10;

@@ -2,11 +2,12 @@ const express = require('express');
 const router = express.Router();
 const friendController = require('../controllers/friend.controller');
 const eventController = require('../controllers/event.controller');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/auth.middleware');
+const userOnly = require('../middleware/userOnly.middleware');
 
 const { searchLimiter } = require('../middleware/rateLimiter');
 
-router.use(auth);
+router.use(auth, userOnly);
 
 router.post('/search', searchLimiter, friendController.searchFriend);
 router.post('/request', friendController.sendRequest);

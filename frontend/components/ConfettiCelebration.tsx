@@ -19,15 +19,15 @@ import { useThemeStore } from '../store/useThemeStore';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const CONFETTI_COLORS = [
-  '#FF7A00', // EventFlow Vibrant Orange
-  '#10B981', // Emerald Green
-  '#F59E0B', // Amber Gold
-  '#3B82F6', // Electric Blue
-  '#8B5CF6', // Vivid Purple
-  '#EC4899', // Hot Pink
-  '#06B6D4', // Cyan
-  '#F43F5E', // Rose Crimson
-  '#FBBF24', // Sun Gold
+  '#FF7A00', 
+  '#10B981', 
+  '#F59E0B', 
+  '#3B82F6', 
+  '#8B5CF6', 
+  '#EC4899', 
+  '#06B6D4', 
+  '#F43F5E',
+  '#FBBF24', 
 ];
 
 const PARTICLE_COUNT = 55;
@@ -51,7 +51,7 @@ interface ParticleConfig {
 const SingleParticle: React.FC<{
   config: ParticleConfig;
   progress: SharedValue<number>;
-}> = ({ config, progress }) => {
+}> = React.memo(({ config, progress }) => {
   const animStyle = useAnimatedStyle(() => {
     'worklet';
     const p = progress.value;
@@ -59,7 +59,7 @@ const SingleParticle: React.FC<{
       return { opacity: 0 };
     }
 
-    // Trajectory with explosive initial burst + gravity + horizontal air drift
+   
     const x = config.startX + config.velocityX * p + Math.sin(p * config.flutterFreq) * config.flutterAmp;
     const y = config.startY + config.velocityY * p + 0.5 * config.gravity * p * p;
     const rot = config.spin * p;
@@ -91,7 +91,7 @@ const SingleParticle: React.FC<{
       ]}
     />
   );
-};
+});
 
 export default function ConfettiCelebration() {
   const insets = useSafeAreaInsets();
@@ -124,8 +124,8 @@ export default function ConfettiCelebration() {
         startX,
         startY,
         velocityX: (Math.random() - 0.5) * SCREEN_WIDTH * 1.3,
-        velocityY: -(Math.random() * 420 + 260), // Strong upward launch
-        gravity: 850 + Math.random() * 300,     // Natural gravity fall
+        velocityY: -(Math.random() * 420 + 260), 
+        gravity: 850 + Math.random() * 300,     
         flutterFreq: 8 + Math.random() * 12,
         flutterAmp: 18 + Math.random() * 24,
         color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],

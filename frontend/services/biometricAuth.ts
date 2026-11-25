@@ -1,6 +1,6 @@
 /**
  * biometricAuth.ts
- * Crash-proof biometric (Fingerprint / FaceID) authentication wrapper and encrypted Admin Vault storage.
+ * Crash-proof biometric (Fingerprint) & device pattern/PIN lock helper with Admin lock config storage.
  */
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -8,7 +8,21 @@ import { requireOptionalNativeModule } from 'expo-modules-core';
 
 const ADMIN_VAULT_TOKEN_KEY = 'eventflow_admin_vault_token';
 const ADMIN_VAULT_USER_KEY = 'eventflow_admin_vault_user';
-const ADMIN_LOCK_ENABLED_KEY = 'eventflow_admin_biometric_lock';
+const ADMIN_LOCK_CONFIG_KEY = 'eventflow_admin_lock_config';
+
+export interface AdminLockConfig {
+  enabled: boolean;            // Master lock ON/OFF (defaults to false — normal email/password login first)
+  allowFingerprint: boolean;   // Option 1: Fingerprint / Biometric
+  allowDevicePattern: boolean; // Option 2: Phone Pattern / Device PIN
+  allowPassword: boolean;      // Option 3: Normal Admin Password
+}
+
+export const DEFAULT_ADMIN_LOCK_CONFIG: AdminLockConfig = {
+  enabled: false,
+  allowFingerprint: true,
+  allowDevicePattern: true,
+  allowPassword: true,
+};
 
 function getNativeLocalAuth(): typeof import('expo-local-authentication') | null {
   if (Platform.OS === 'web') return null;
@@ -36,19 +50,29 @@ export interface BiometricCapabilities {
   available: boolean;
   hasHardware: boolean;
   isEnrolled: boolean;
+  deviceSecurityAvailable: boolean;
   label: string;
 }
 
 export async function getBiometricCapabilities(): Promise<BiometricCapabilities> {
   const LocalAuth = getNativeLocalAuth();
   if (!LocalAuth) {
-    return { available: false, hasHardware: false, isEnrolled: false, label: 'Biometric' };
+    return {
+      available: false,
+      hasHardware: false,
+      isEnrolled: false,
+      deviceSecurityAvailable: false,
+      label: 'Fingerprint',
+    };
   }
 
   try {
-    const hasHardware = await LocalAuth.hasHardwareAsync();
-    const isEnrolled = await LocalAuth.isEnrolledAsync();
-    const types = await LocalAuth.supportedAuthenticationTypesAsync();
+    const [hasHardware, isEnrolled, types, enrolledLevel] = await Promise.all([
+      LocalAuth.hasHardwareAsync(),
+      LocalAuth.isEnrolledAsync(),
+      LocalAuth.supportedAuthenticationTypesAsync(),
+      LocalAuth.getEnrolledLevelAsync().catch(() => LocalAuth.SecurityLevel.NONE),
+    ]);
 
     let label = 'Fingerprint / Biometric';
     if (types.includes(LocalAuth.AuthenticationType.FINGERPRINT)) {
@@ -61,42 +85,58 @@ export async function getBiometricCapabilities(): Promise<BiometricCapabilities>
       available: hasHardware && isEnrolled,
       hasHardware,
       isEnrolled,
+      deviceSecurityAvailable: enrolledLevel !== LocalAuth.SecurityLevel.NONE,
       label,
     };
   } catch {
-    return { available: false, hasHardware: false, isEnrolled: false, label: 'Biometric' };
+    return {
+      available: false,
+      hasHardware: false,
+      isEnrolled: false,
+      deviceSecurityAvailable: false,
+      label: 'Fingerprint',
+    };
   }
 }
 
 export async function authenticateWithBiometrics(
-  promptMessage = 'Scan Fingerprint to unlock EventFlow Admin Portal'
+  promptMessage = 'Scan Fingerprint to unlock EventFlow Admin Portal',
+  options?: { allowDeviceCredentialFallback?: boolean }
 ): Promise<{ success: boolean; unavailable?: boolean; error?: string }> {
   const LocalAuth = getNativeLocalAuth();
   if (!LocalAuth) {
     return {
       success: false,
       unavailable: true,
-      error: 'Biometric scanner is unavailable in this runtime. Please verify with Admin Password.',
+      error: 'Phone biometric/pattern prompt is unavailable in this runtime. Use Normal Admin Password.',
     };
   }
 
   try {
+    const allowFallback = options?.allowDeviceCredentialFallback ?? true;
     const caps = await getBiometricCapabilities();
-    if (!caps.available) {
+
+    if (!allowFallback && !caps.available) {
       return {
         success: false,
         unavailable: true,
-        error: caps.hasHardware
-          ? 'No fingerprint enrolled on this device. Please verify with Admin Password.'
-          : 'Biometric hardware not found on this device. Please verify with Admin Password.',
+        error: 'No fingerprint enrolled on this device.',
+      };
+    }
+
+    if (allowFallback && !caps.available && !caps.deviceSecurityAvailable) {
+      return {
+        success: false,
+        unavailable: true,
+        error: 'No phone screen lock (Pattern / PIN) or fingerprint set up on this device.',
       };
     }
 
     const result = await LocalAuth.authenticateAsync({
       promptMessage,
-      cancelLabel: 'Use Password',
-      fallbackLabel: 'Use Device PIN',
-      disableDeviceFallback: false,
+      cancelLabel: 'Cancel',
+      fallbackLabel: 'Use Phone Pattern / PIN',
+      disableDeviceFallback: !allowFallback,
     });
 
     if (result.success) {
@@ -105,15 +145,41 @@ export async function authenticateWithBiometrics(
 
     return {
       success: false,
-      error: result.error === 'user_cancel' ? 'Fingerprint scan cancelled.' : 'Fingerprint authentication failed.',
+      error: result.error === 'user_cancel' ? 'Authentication cancelled.' : 'Verification failed.',
     };
   } catch (err: any) {
     return {
       success: false,
       unavailable: true,
-      error: err?.message || 'Biometric authentication error.',
+      error: err?.message || 'Biometric/pattern authentication error.',
     };
   }
+}
+
+export async function authenticateWithDevicePatternOrPin(
+  promptMessage = 'Use your Phone Pattern, PIN, or Passcode to unlock Admin Portal'
+): Promise<{ success: boolean; unavailable?: boolean; error?: string }> {
+  return authenticateWithBiometrics(promptMessage, { allowDeviceCredentialFallback: true });
+}
+
+export async function getAdminLockConfig(): Promise<AdminLockConfig> {
+  try {
+    const raw = await AsyncStorage.getItem(ADMIN_LOCK_CONFIG_KEY);
+    if (!raw) return { ...DEFAULT_ADMIN_LOCK_CONFIG };
+    const parsed = JSON.parse(raw);
+    return {
+      enabled: Boolean(parsed.enabled),
+      allowFingerprint: parsed.allowFingerprint !== false,
+      allowDevicePattern: parsed.allowDevicePattern !== false,
+      allowPassword: parsed.allowPassword !== false,
+    };
+  } catch {
+    return { ...DEFAULT_ADMIN_LOCK_CONFIG };
+  }
+}
+
+export async function saveAdminLockConfig(config: AdminLockConfig): Promise<void> {
+  await AsyncStorage.setItem(ADMIN_LOCK_CONFIG_KEY, JSON.stringify(config));
 }
 
 export async function saveAdminVaultSession(token: string, user: any): Promise<void> {
@@ -174,14 +240,11 @@ export async function clearAdminVaultSession(): Promise<void> {
 }
 
 export async function isAdminBiometricLockEnabled(): Promise<boolean> {
-  try {
-    const val = await AsyncStorage.getItem(ADMIN_LOCK_ENABLED_KEY);
-    return val === null ? true : JSON.parse(val);
-  } catch {
-    return true;
-  }
+  const cfg = await getAdminLockConfig();
+  return cfg.enabled;
 }
 
 export async function setAdminBiometricLockEnabled(enabled: boolean): Promise<void> {
-  await AsyncStorage.setItem(ADMIN_LOCK_ENABLED_KEY, JSON.stringify(enabled));
+  const cfg = await getAdminLockConfig();
+  await saveAdminLockConfig({ ...cfg, enabled });
 }

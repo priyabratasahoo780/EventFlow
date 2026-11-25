@@ -11,7 +11,10 @@ const IS_PROD = NODE_ENV === 'production';
 function formatMessage(level, message, meta) {
   const ts = new Date().toISOString();
   const base = `[${ts}] [${level.toUpperCase()}] ${message}`;
-  if (meta && Object.keys(meta).length > 0) {
+  if (typeof meta === 'string' && meta.length > 0) {
+    return `${base} ${meta}`;
+  }
+  if (meta && typeof meta === 'object' && Object.keys(meta).length > 0) {
     return `${base} ${JSON.stringify(meta)}`;
   }
   return base;

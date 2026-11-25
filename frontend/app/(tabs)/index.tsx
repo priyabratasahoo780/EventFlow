@@ -29,6 +29,8 @@ import {
 } from 'lucide-react-native';
 import { Event } from '../../models/Event';
 import { priorityService } from '../../services/priorityService';
+import api from '../../services/api';
+import { socketService } from '../../services/socketService';
 import { useAuthStore } from '../../store/useAuthStore';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -86,6 +88,14 @@ export default function HomeScreen() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [festivalBanner, setFestivalBanner] = useState<{
+    _id?: string;
+    title: string;
+    imageUrl: string;
+    greeting: string;
+    startDate?: string | null;
+    endDate?: string | null;
+  } | null>(null);
   const appState = useRef(AppState.currentState);
 
   const statusCounts = useMemo<Record<string, number>>(() => {
@@ -195,10 +205,25 @@ export default function HomeScreen() {
     } catch {}
   }, [syncFriendSharedEvents]);
 
+  const fetchActiveFestival = useCallback(async () => {
+    try {
+      const res = await api.get('/festival/active');
+      setFestivalBanner(res.data?.banner || null);
+    } catch {
+      // Non-blocking if offline
+    }
+  }, []);
+
   useEffect(() => {
     initSocket();
     loadEvents();
     fetchFriendsEvents();
+    fetchActiveFestival();
+
+    const onFestivalUpdated = () => {
+      fetchActiveFestival();
+    };
+    socketService.on('festival_updated', onFestivalUpdated);
 
     let syncInterval: ReturnType<typeof setInterval> | null = setInterval(() => {
       syncFriendSharedEvents().catch(() => {});
@@ -208,15 +233,42 @@ export default function HomeScreen() {
       if (appState.current?.match(/inactive|background/) && nextAppState === 'active') {
         fetchFriendsEvents();
         loadEvents();
+        fetchActiveFestival();
       }
       appState.current = nextAppState;
     });
 
     return () => {
+      socketService.off('festival_updated', onFestivalUpdated);
       if (syncInterval) clearInterval(syncInterval);
       subscription.remove();
     };
-  }, [fetchFriendsEvents, loadEvents, syncFriendSharedEvents]);
+  }, [fetchFriendsEvents, loadEvents, syncFriendSharedEvents, fetchActiveFestival]);
+
+  // Auto-hide festival banner the moment its scheduled endDate+time expires
+  useEffect(() => {
+    if (!festivalBanner) return;
+    const nowMs = Date.now();
+    const startMs = festivalBanner.startDate ? new Date(festivalBanner.startDate).getTime() : null;
+    const endMs = festivalBanner.endDate ? new Date(festivalBanner.endDate).getTime() : null;
+
+    if ((startMs && nowMs < startMs) || (endMs && nowMs > endMs)) {
+      setFestivalBanner(null);
+      return;
+    }
+
+    if (endMs) {
+      const remaining = endMs - nowMs;
+      // Cap setTimeout below 32-bit signed max (~24 days)
+      if (remaining > 0 && remaining < 2_000_000_000) {
+        const timer = setTimeout(() => {
+          setFestivalBanner(null);
+          fetchActiveFestival();
+        }, remaining + 500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [festivalBanner, fetchActiveFestival]);
 
   const triggeredAlarms = useRef<Set<string>>(new Set());
 
@@ -376,9 +428,9 @@ export default function HomeScreen() {
   const onRefresh = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRefreshing(true);
-    await Promise.all([loadEvents(), fetchFriendsEvents()]);
+    await Promise.all([loadEvents(), fetchFriendsEvents(), fetchActiveFestival()]);
     setRefreshing(false);
-  }, [loadEvents, fetchFriendsEvents]);
+  }, [loadEvents, fetchFriendsEvents, fetchActiveFestival]);
 
   const filteredEvents = useMemo(() => getFilteredEvents(location), [getFilteredEvents, location, events, filters]);
   const topTask = useMemo(() => getTopRecommendation(location), [getTopRecommendation, location, events]);
@@ -1089,6 +1141,62 @@ export default function HomeScreen() {
   };
 
 
+  const resolveFestivalImage = useCallback((url?: string) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('file://')) return url;
+    const base = api.defaults.baseURL?.replace(/\/api\/?$/, '') || '';
+    return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+  }, []);
+
+  const renderFestivalCardBody = () => {
+    if (!festivalBanner) return null;
+    const nowMs = Date.now();
+    if (festivalBanner.startDate && nowMs < new Date(festivalBanner.startDate).getTime()) return null;
+    if (festivalBanner.endDate && nowMs > new Date(festivalBanner.endDate).getTime()) return null;
+    const imgUri = resolveFestivalImage(festivalBanner.imageUrl);
+
+    return (
+      <View style={{ width: '100%', alignItems: 'center' }}>
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: rs(6),
+          backgroundColor: `${colors.secondary}18`,
+          paddingHorizontal: rs(12),
+          paddingVertical: rs(4),
+          borderRadius: rs(14),
+          marginBottom: rs(10),
+        }}>
+          <Sparkles color={colors.secondary} size={rs(13)} strokeWidth={2.3} />
+          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: ms(10.5), color: colors.secondary, letterSpacing: 0.6 }}>
+            FESTIVAL WISHES
+          </Text>
+        </View>
+
+        <Text style={[s.aiEmptyTitle, { fontSize: ms(22), marginBottom: rs(12), color: colors.secondary, textAlign: 'center', letterSpacing: -0.4 }]}>
+          {festivalBanner.title}
+        </Text>
+
+        {imgUri ? (
+          <Image
+            source={{ uri: imgUri }}
+            style={{
+              width: '100%',
+              height: rs(175),
+              borderRadius: rs(20),
+              marginBottom: rs(14),
+            }}
+            resizeMode="cover"
+          />
+        ) : null}
+
+        <Text style={[s.aiEmptySub, { fontSize: ms(14.5), textAlign: 'center', paddingHorizontal: rs(10), lineHeight: ms(22), color: colors.textSecondary }]}>
+          {festivalBanner.greeting}
+        </Text>
+      </View>
+    );
+  };
+
   const renderHeroFocusCard = () => {
     if (heroTasks.length === 0) {
       return (
@@ -1099,7 +1207,7 @@ export default function HomeScreen() {
             end={{ x: 1, y: 1 }}
             style={[s.heroCard, { 
               alignItems: 'center', 
-              paddingVertical: rs(40), 
+              paddingVertical: festivalBanner ? rs(24) : rs(40), 
               borderWidth: 1.5, 
               borderColor: `${colors.secondary}40`,
               borderStyle: 'dashed',
@@ -1110,65 +1218,71 @@ export default function HomeScreen() {
               shadowOpacity: 0
             }]}
           >
-            {/* Perfectly centered layered circles */}
-            <Animated.View style={{
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: rs(20),
-              transform: [{
-                translateY: emptyFloatAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, -10]
-                })
-              }]
-            }}>
-              {/* Outer orange glow ring */}
-              <View style={{
-                width: rs(130),
-                height: rs(130),
-                borderRadius: rs(65),
-                backgroundColor: `${colors.secondary}22`,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                {/* Mid orange ring */}
-                <View style={{
-                  width: rs(104),
-                  height: rs(104),
-                  borderRadius: rs(52),
-                  backgroundColor: `${colors.secondary}18`,
+            {festivalBanner ? (
+              renderFestivalCardBody()
+            ) : (
+              <>
+                {/* Perfectly centered layered circles */}
+                <Animated.View style={{
                   alignItems: 'center',
                   justifyContent: 'center',
+                  marginBottom: rs(20),
+                  transform: [{
+                    translateY: emptyFloatAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -10]
+                    })
+                  }]
                 }}>
-                  {/* Inner white circle with icon */}
+                  {/* Outer orange glow ring */}
                   <View style={{
-                    width: rs(76),
-                    height: rs(76),
-                    borderRadius: rs(38),
-                    backgroundColor: colors.card,
+                    width: rs(130),
+                    height: rs(130),
+                    borderRadius: rs(65),
+                    backgroundColor: `${colors.secondary}22`,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    shadowColor: colors.secondary,
-                    shadowOffset: { width: 0, height: 8 },
-                    shadowOpacity: 0.2,
-                    shadowRadius: 16,
-                    elevation: 10,
                   }}>
-                    <Sparkles color={colors.secondary} size={rs(36)} strokeWidth={2} />
+                    {/* Mid orange ring */}
+                    <View style={{
+                      width: rs(104),
+                      height: rs(104),
+                      borderRadius: rs(52),
+                      backgroundColor: `${colors.secondary}18`,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      {/* Inner white circle with icon */}
+                      <View style={{
+                        width: rs(76),
+                        height: rs(76),
+                        borderRadius: rs(38),
+                        backgroundColor: colors.card,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        shadowColor: colors.secondary,
+                        shadowOffset: { width: 0, height: 8 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 16,
+                        elevation: 10,
+                      }}>
+                        <Sparkles color={colors.secondary} size={rs(36)} strokeWidth={2} />
+                      </View>
+                    </View>
                   </View>
-                </View>
-              </View>
-            </Animated.View>
-            
-            <Text style={[s.aiEmptyTitle, { fontSize: ms(24), marginBottom: rs(8), color: colors.secondary, letterSpacing: -0.5 }]}>All Caught Up! 🎉</Text>
-            
-            <Text style={[s.aiEmptySub, { fontSize: ms(15), textAlign: 'center', paddingHorizontal: rs(20), lineHeight: ms(22), color: colors.textSecondary }]}>
-              You've conquered your list. Take a breather or plan your next move!
-            </Text>
+                </Animated.View>
+                
+                <Text style={[s.aiEmptyTitle, { fontSize: ms(24), marginBottom: rs(8), color: colors.secondary, letterSpacing: -0.5 }]}>All Caught Up! 🎉</Text>
+                
+                <Text style={[s.aiEmptySub, { fontSize: ms(15), textAlign: 'center', paddingHorizontal: rs(20), lineHeight: ms(22), color: colors.textSecondary }]}>
+                  You've conquered your list. Take a breather or plan your next move!
+                </Text>
+              </>
+            )}
             
             <Pressable 
               style={({pressed}) => [{ 
-                marginTop: rs(28), 
+                marginTop: rs(24), 
                 backgroundColor: colors.secondary, 
                 paddingHorizontal: rs(28), 
                 paddingVertical: rs(16), 
@@ -1195,18 +1309,47 @@ export default function HomeScreen() {
       );
     }
 
+    const festivalBannerStrip = festivalBanner ? (
+      <View style={{ paddingHorizontal: rs(16), marginTop: rs(10), marginBottom: rs(10) }}>
+        <LinearGradient
+          colors={[`${colors.secondary}15`, `${colors.secondary}05`, colors.card]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[s.heroCard, {
+            alignItems: 'center',
+            paddingVertical: rs(20),
+            borderWidth: 1.5,
+            borderColor: `${colors.secondary}40`,
+            borderStyle: 'dashed',
+            borderRadius: rs(28),
+            marginHorizontal: 0,
+            paddingHorizontal: rs(18),
+            elevation: 0,
+            shadowOpacity: 0,
+          }]}
+        >
+          {renderFestivalCardBody()}
+        </LinearGradient>
+      </View>
+    ) : null;
+
     // Single event → plain card, no scroll
     if (heroTasks.length === 1) {
       return (
-        <View style={{ paddingHorizontal: rs(16), paddingBottom: rs(20), paddingTop: rs(10), alignItems: 'center' }}>
-          {buildHeroCard(heroTasks[0], SCREEN.width - rs(32))}
-        </View>
+        <>
+          {festivalBannerStrip}
+          <View style={{ paddingHorizontal: rs(16), paddingBottom: rs(20), paddingTop: rs(10), alignItems: 'center' }}>
+            {buildHeroCard(heroTasks[0], SCREEN.width - rs(32))}
+          </View>
+        </>
       );
     }
 
     // 2+ events → horizontal auto-scroll carousel
     return (
-      <View style={{ marginBottom: rs(10) }}>
+      <>
+        {festivalBannerStrip}
+        <View style={{ marginBottom: rs(10) }}>
         <FlatList
           ref={carouselRef}
           data={heroTasks}
@@ -1232,6 +1375,7 @@ export default function HomeScreen() {
           ))}
         </View>
       </View>
+      </>
     );
   };
 

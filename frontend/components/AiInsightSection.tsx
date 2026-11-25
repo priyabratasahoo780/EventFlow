@@ -4,7 +4,6 @@ import {
   StyleSheet,
   View,
   Text,
-  Dimensions,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -15,7 +14,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Sparkles, BrainCircuit } from 'lucide-react-native';
+import { Sparkles } from 'lucide-react-native';
 import { ColorTheme } from '../constants/theme';
 import AiInsightCard from './AiInsightCard';
 

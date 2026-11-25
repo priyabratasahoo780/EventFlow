@@ -260,7 +260,8 @@ export default function AddEventScreen() {
             updatedAt: new Date().toISOString(),
           };
 
-          await addEvent(newEvent as Event);
+          const added = await addEvent(newEvent as Event);
+          if (!added) return;
           if (Platform.OS === 'android') ToastAndroid.show('TASK CREATED 🔥', ToastAndroid.SHORT);
         }
         
@@ -471,7 +472,8 @@ export default function AddEventScreen() {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
-        await addEvent(newEvent as Event);
+        const added = await addEvent(newEvent as Event);
+        if (!added) return;
         if (Platform.OS === 'android') ToastAndroid.show('TASK CREATED 🔥', ToastAndroid.SHORT);
       }
       

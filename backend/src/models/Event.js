@@ -68,11 +68,19 @@ const eventSchema = new mongoose.Schema({
 
   // Reminders & Alarm configurations
   reminders: [{ type: Object, default: [] }],
+
+  // Soft-archive flags (hides from user screen while preserving Statistics forever)
+  isArchived: { type: Boolean, default: false },
+  archivedAt: { type: Date, default: null },
 }, { timestamps: true });
 
-// Optimize query performance for task lists
+// Optimize query performance for task lists, archive caps, and shared events
 eventSchema.index({ ownerId: 1, status: 1 });
 eventSchema.index({ ownerId: 1, date: 1 });
 eventSchema.index({ ownerId: 1, date: 1, status: 1 });
+eventSchema.index({ ownerId: 1, isArchived: 1, createdAt: 1 });
+eventSchema.index({ id: 1 });
+eventSchema.index({ sharedWith: 1 });
+eventSchema.index({ ownerId: 1, isArchived: 1, createdAt: 1 });
 
 module.exports = mongoose.model('Event', eventSchema);

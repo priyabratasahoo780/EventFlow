@@ -8,6 +8,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 const errorMiddleware = require('./middleware/error.middleware');
 
@@ -25,6 +26,7 @@ const uploadRoutes = require('./routes/upload.routes');
 const userRoutes = require('./routes/user.routes');
 const reviewRoutes = require('./routes/review.routes');
 const adminRoutes = require('./routes/admin.routes');
+const festivalRoutes = require('./routes/festival.routes');
 
 const { apiLimiter } = require('./middleware/rateLimiter');
 
@@ -110,7 +112,12 @@ app.use('/api', apiLimiter);
 
 // Health check
 app.get(['/', '/api', '/api/health'], (_req, res) => {
-  res.status(200).json({ status: 'ok', message: 'EventFlow API is running 🚀' });
+  const dbReady = mongoose.connection.readyState === 1;
+  res.status(200).json({
+    status: 'ok',
+    db: dbReady ? 'connected' : 'connecting',
+    message: 'EventFlow API is running 🚀',
+  });
 });
 
 // Routes
@@ -123,6 +130,12 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/festival', festivalRoutes);
+
+// Standardized JSON 404 for unknown API routes (Express 5 safe)
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'API endpoint not found.' });
+});
 
 // Error Handler
 app.use(errorMiddleware);

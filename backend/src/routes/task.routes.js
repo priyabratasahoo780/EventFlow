@@ -5,9 +5,10 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth.middleware');
+const userOnly = require('../middleware/userOnly.middleware');
 const taskController = require('../controllers/task.controller');
 
-router.use(authMiddleware);
+router.use(authMiddleware, userOnly);
 
 router.get('/', taskController.getTasks);
 router.get('/recommendation', taskController.getRecommendation);
