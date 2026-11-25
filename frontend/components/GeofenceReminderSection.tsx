@@ -1,5 +1,5 @@
 // Geofence Reminder Section
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,10 @@ import {
   LayoutAnimation,
   UIManager,
   Platform,
-  ScrollView,
+  Linking,
+  Alert,
 } from 'react-native';
+import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import {
   MapPin,
@@ -21,7 +23,7 @@ import {
   Plus,
   Navigation2,
   List,
-  ChevronRight,
+  ShieldAlert,
 } from 'lucide-react-native';
 import { useThemeStore } from '../store/useThemeStore';
 import { ChecklistItem } from '../models/Event';
@@ -87,14 +89,61 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
   const s = styles(dark);
 
   const [checklistInput, setChecklistInput] = useState('');
+  const [hasBgPermission, setHasBgPermission] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    Location.getBackgroundPermissionsAsync()
+      .then((res) => setHasBgPermission(res.status === 'granted'))
+      .catch(() => {});
+  }, [config.locationReminderEnabled]);
 
   //  Handlers 
 
+  const requestBackgroundAccess = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const fg = await Location.requestForegroundPermissionsAsync();
+      if (fg.status !== 'granted') {
+        Alert.alert(
+          'Location Permission Needed',
+          'Please allow location access in Settings so Arrive & Leave alerts can work.',
+          [{ text: 'Open Settings', onPress: () => Linking.openSettings() }, { text: 'Cancel', style: 'cancel' }]
+        );
+        return;
+      }
+      const bg = await Location.requestBackgroundPermissionsAsync();
+      const granted = bg.status === 'granted';
+      setHasBgPermission(granted);
+      if (!granted) {
+        Alert.alert(
+          'Allow All the Time Required',
+          'To trigger Arrive & Leave alerts when the app is closed or in the background, set Location permission to "Allow all the time".',
+          [{ text: 'Open Settings', onPress: () => Linking.openSettings() }, { text: 'Later', style: 'cancel' }]
+        );
+      }
+    } catch {}
+  };
+
   const setEnabled = (v: boolean) => {
-    if (!hasLocation && v) return;
+    if (!hasLocation && v) {
+      Alert.alert('Pin a Location First', 'Please search an address, tap GPS, or pick a spot on the map above.');
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     anim();
     onChange({ locationReminderEnabled: v });
+    if (v && Platform.OS !== 'web') {
+      Location.getBackgroundPermissionsAsync()
+        .then((res) => {
+          const ok = res.status === 'granted';
+          setHasBgPermission(ok);
+          if (!ok) {
+            requestBackgroundAccess();
+          }
+        })
+        .catch(() => {});
+    }
   };
 
   const addItem = () => {
@@ -136,10 +185,12 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
           </Text>
           <Text style={s.headerSub} numberOfLines={1}>
             {!hasLocation
-              ? 'Set a location above to enable'
+              ? 'Pin a location above to enable'
               : config.locationReminderEnabled
-              ? '📍 Geofence active & watching'
-              : 'Enable to trigger alarm on arrival'}
+              ? config.triggerType === 'leave'
+                ? `🚶 Alerts when leaving (${config.geofenceRadius}m)`
+                : `📍 Alerts on arrival (${config.geofenceRadius}m)`
+              : 'Enable Arrive or Leave location alert'}
           </Text>
         </View>
         <Switch
@@ -156,6 +207,33 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
       {/*  BODY */}
       {config.locationReminderEnabled && (
         <View style={s.body}>
+
+          {!hasBgPermission && Platform.OS !== 'web' && (
+            <Pressable
+              onPress={requestBackgroundAccess}
+              style={{
+                marginTop: 14,
+                padding: 12,
+                borderRadius: 12,
+                backgroundColor: dark ? 'rgba(245,158,11,0.14)' : '#FEF3C7',
+                borderWidth: 1,
+                borderColor: dark ? 'rgba(245,158,11,0.35)' : '#FCD34D',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <ShieldAlert color="#D97706" size={18} strokeWidth={2.4} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11.5, color: '#D97706' }}>
+                  Enable Background Location
+                </Text>
+                <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 10.5, color: dark ? '#FDE68A' : '#92400E' }}>
+                  Tap to allow "All the time" so Arrive & Leave work when app is closed.
+                </Text>
+              </View>
+            </Pressable>
+          )}
 
           {/*  TRIGGER  */}
           <View style={s.section}>
@@ -354,7 +432,9 @@ export default function GeofenceReminderSection({ config, hasLocation, onChange 
                   </Text>
                 </Text>
                 <Text style={s.boxSub}>
-                  Items shown when you arrive (e.g. Shopping List)
+                  {config.triggerType === 'leave'
+                    ? 'Items shown before you leave (e.g. Keys, Wallet)'
+                    : 'Items shown when you arrive (e.g. Shopping List)'}
                 </Text>
               </View>
             </View>

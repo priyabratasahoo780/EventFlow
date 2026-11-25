@@ -135,7 +135,7 @@ function RootLayoutNav() {
       try {
         const data = notification?.request?.content?.data;
         const eventId = data?.eventId;
-        if (eventId) {
+        if (eventId && data?.type !== 'geofence') {
           const events = useEventStore.getState().events;
           const found = events.find((e) => e.id === eventId);
           if (found && !found.completed && found.status !== 'completed') {

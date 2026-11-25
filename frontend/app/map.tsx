@@ -23,7 +23,7 @@ export default function MapScreen() {
   const styles = getStyles(colors, isDarkMode);
   const router = useRouter();
   const { events } = useEventStore();
-  const { location, geocodeAddress, searchPlaces } = useLocation(events);
+  const { location, geocodeAddress, searchPlaces } = useLocation(events, { enableMonitoring: false });
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   const [hasAutoZoomed, setHasAutoZoomed] = useState(false);
@@ -201,10 +201,24 @@ export default function MapScreen() {
                   latitude: task.locationDetails.latitude,
                   longitude: task.locationDetails.longitude,
                 }}
-                radius={300}
-                strokeWidth={1}
-                strokeColor={isActive ? colors.primary : 'transparent'}
-                fillColor={isActive ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.05)'}
+                radius={task.geofenceRadius || 500}
+                strokeWidth={1.5}
+                strokeColor={
+                  isActive
+                    ? task.triggerType === 'leave'
+                      ? '#F59E0B'
+                      : colors.primary
+                    : 'transparent'
+                }
+                fillColor={
+                  task.triggerType === 'leave'
+                    ? isActive
+                      ? 'rgba(245, 158, 11, 0.18)'
+                      : 'rgba(245, 158, 11, 0.06)'
+                    : isActive
+                    ? 'rgba(99, 102, 241, 0.18)'
+                    : 'rgba(99, 102, 241, 0.06)'
+                }
               />
             </React.Fragment>
           );

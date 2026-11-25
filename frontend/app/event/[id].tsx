@@ -206,10 +206,32 @@ export default function EventDetailsScreen() {
           </BrutalCard>
         </View>
 
-        {event.location ? (
+            {event.location ? (
           <BrutalCard shadowOffset={4} color="#FFF" style={styles.infoCard}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Theme.spacing.sm }}>
-              <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>LOCATION</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>LOCATION</Text>
+                {event.locationReminderEnabled && (
+                  <View
+                    style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 2,
+                      borderRadius: 8,
+                      backgroundColor: event.triggerType === 'leave' ? '#FEF3C7' : '#ECFDF5',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: 'Poppins_700Bold',
+                        fontSize: 10,
+                        color: event.triggerType === 'leave' ? '#D97706' : '#047857',
+                      }}
+                    >
+                      {event.triggerType === 'leave' ? '🚶 ON LEAVE' : '📍 ON ARRIVE'} · {event.geofenceRadius || 500}m
+                    </Text>
+                  </View>
+                )}
+              </View>
               {event.locationDetails?.latitude && event.locationDetails?.longitude && (
                 <Pressable onPress={() => setShowMap(!showMap)}>
                   <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 12, color: Colors.light.primary }}>

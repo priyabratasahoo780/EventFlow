@@ -4,7 +4,7 @@ import React, {
 import {
   StyleSheet, View, FlatList, TextInput, ScrollView,
   RefreshControl, Text, Pressable, AppState, Image, Modal,
-  Animated, Dimensions, Easing,
+  Animated, Dimensions, Easing, Platform,
 } from 'react-native';
 import { rs, ms, hs, SCREEN } from '../../constants/responsive';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +36,8 @@ import ZenModePermissionModal from '../../components/ZenModePermissionModal';
 import { zenModeService } from '../../services/zenModeService';
 import { getDepartureSuggestion, formatLeaveBy, modeEmoji, DepartureSuggestion } from '../../services/travelService';
 import { notificationService } from '../../services/notificationService';
+import { geofencingService } from '../../services/geofencingService';
+import { alarmService } from '../../services/alarmService';
 
 
 const CATEGORIES = [
@@ -224,7 +226,7 @@ export default function HomeScreen() {
       const data = notification.request.content.data;
       const eventId = data?.eventId;
       // Only trigger alarm modal for event notifications (not cheers, messages, or friend requests)
-      if (!eventId || data?.type === 'cheer_nudge' || data?.type === 'friend_request' || data?.type === 'message') {
+      if (!eventId || data?.type === 'geofence' || data?.type === 'cheer_nudge' || data?.type === 'friend_request' || data?.type === 'message') {
         return;
       }
 
@@ -239,7 +241,7 @@ export default function HomeScreen() {
     const resSub = Notifications.addNotificationResponseReceivedListener((response: any) => {
       const data = response.notification.request.content.data;
       const eventId = data?.eventId;
-      if (!eventId || data?.type === 'cheer_nudge' || data?.type === 'friend_request' || data?.type === 'message') {
+      if (!eventId || data?.type === 'geofence' || data?.type === 'cheer_nudge' || data?.type === 'friend_request' || data?.type === 'message') {
         return;
       }
 
@@ -433,20 +435,38 @@ export default function HomeScreen() {
   const handleSmartSnooze = useCallback(async (task: Event, type: 'time' | 'exit_reentry') => {
     const taskId = (task.id || task._id) as string;
     if (type === 'exit_reentry') {
-      try {
-        const pendingExitStr = await AsyncStorage.getItem('geofencing_pending_exit_tasks');
-        const pendingExitTasks = pendingExitStr ? JSON.parse(pendingExitStr) : {};
-        pendingExitTasks[taskId] = true;
-        await AsyncStorage.setItem('geofencing_pending_exit_tasks', JSON.stringify(pendingExitTasks));
-        console.log(`[Smart Context] EC4: Task "${task.title}" marked as pending_exit. Will re-trigger when they leave and re-enter.`);
-      } catch (e) {
-        console.error('Failed to set pending_exit_task:', e);
-      }
+      await geofencingService.setTaskPendingExit(taskId);
     } else {
-      const newTime = new Date(Date.now() + 15 * 60000);
-      const h = String(newTime.getHours()).padStart(2, '0');
-      const m = String(newTime.getMinutes()).padStart(2, '0');
-      console.log(`[Smart Context] Standard 15-min snooze for "${task.title}". Reminding at ${h}:${m}`);
+      const triggerMs = Date.now() + 15 * 60 * 1000;
+      const triggerDate = new Date(triggerMs);
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `⏱ Snoozed Reminder: ${task.title}`,
+            body: `15-minute snooze complete${task.location ? ` for ${task.location}` : ''}. Ready to start?`,
+            sound: 'default',
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            data: { eventId: taskId, type: 'snooze_reminder' },
+            ...(Platform.OS === 'android' ? { channelId: 'focusflow_alarm_v2' } : {}),
+          } as any,
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: triggerDate,
+            ...(Platform.OS === 'android' ? { channelId: 'focusflow_alarm_v2' } : {}),
+          } as any,
+        });
+
+        await alarmService.scheduleAlarm(
+          `geo_snooze_${taskId}_${triggerMs}`,
+          triggerMs,
+          `⏱ Snoozed: ${task.title}`,
+          `Time to handle "${task.title}"`,
+          taskId,
+          task.isCritical ?? false
+        );
+      } catch (e) {
+        console.warn('15-min smart snooze schedule error:', e);
+      }
     }
   }, []);
 
@@ -1306,10 +1326,39 @@ export default function HomeScreen() {
                   </View>
                 )}
                 {item.location ? (
-                  <View style={[s.locTag, item.locationReminderEnabled && { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0', borderWidth: 1 }]}>
-                    <MapPin color={item.locationReminderEnabled ? '#15803D' : colors.textSecondary} size={11} />
-                    <Text style={[s.locTagText, item.locationReminderEnabled && { color: '#15803D', fontFamily: 'Poppins_600SemiBold' }]} numberOfLines={1}>
-                      {item.locationReminderEnabled ? `📍 Reminder Set` : item.location}
+                  <View
+                    style={[
+                      s.locTag,
+                      item.locationReminderEnabled && {
+                        backgroundColor: item.triggerType === 'leave' ? '#FFFBEB' : '#F0FDF4',
+                        borderColor: item.triggerType === 'leave' ? '#FDE68A' : '#BBF7D0',
+                        borderWidth: 1,
+                      },
+                    ]}
+                  >
+                    <MapPin
+                      color={
+                        item.locationReminderEnabled
+                          ? item.triggerType === 'leave'
+                            ? '#D97706'
+                            : '#15803D'
+                          : colors.textSecondary
+                      }
+                      size={11}
+                    />
+                    <Text
+                      style={[
+                        s.locTagText,
+                        item.locationReminderEnabled && {
+                          color: item.triggerType === 'leave' ? '#D97706' : '#15803D',
+                          fontFamily: 'Poppins_600SemiBold',
+                        },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {item.locationReminderEnabled
+                        ? `${item.triggerType === 'leave' ? '🚶 Leave' : '📍 Arrive'} (${item.geofenceRadius || 500}m)`
+                        : item.location}
                     </Text>
                   </View>
                 ) : null}

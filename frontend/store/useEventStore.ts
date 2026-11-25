@@ -226,11 +226,32 @@ export const useEventStore = create<EventState>((set, get) => ({
   loadEvents: async () => {
     set({ isLoading: true });
     
+    const localEvents = await storageService.getEvents();
+    const localMap = new Map<string, Event>();
+    for (const le of localEvents) {
+      const lid = le.id || le._id;
+      if (lid) localMap.set(lid, le);
+    }
+
     let rawEvents = null;
     try {
       const res = await api.get('/tasks');
       if (res.data && Array.isArray(res.data)) {
-        rawEvents = res.data;
+        rawEvents = res.data.map((remote: any) => {
+          const rid = remote.id || remote._id;
+          const local = rid ? localMap.get(rid) : undefined;
+          if (!local) return remote;
+          // Preserve local geofence settings when older server records omit them
+          return {
+            ...remote,
+            locationReminderEnabled: remote.locationReminderEnabled ?? local.locationReminderEnabled,
+            geofenceRadius: remote.geofenceRadius ?? local.geofenceRadius,
+            triggerType: remote.triggerType ?? local.triggerType,
+            locationTimeGate: remote.locationTimeGate ?? local.locationTimeGate,
+            isCritical: remote.isCritical ?? local.isCritical,
+            checklist: (remote.checklist && remote.checklist.length > 0) ? remote.checklist : local.checklist,
+          };
+        });
         await storageService.saveEvents(rawEvents);
       }
     } catch (e) {
@@ -238,9 +259,9 @@ export const useEventStore = create<EventState>((set, get) => ({
     }
 
     if (!rawEvents) {
-      rawEvents = await storageService.getEvents();
+      rawEvents = localEvents;
     }
-    const migratedEvents = rawEvents.map((e: any) => ({
+    const migratedEvents: Event[] = rawEvents.map((e: any) => ({
       ...e,
       id: e.id || e._id,
       reminders: e.reminders || [],
@@ -249,6 +270,9 @@ export const useEventStore = create<EventState>((set, get) => ({
     }));
 
     set({ events: migratedEvents, isLoading: false });
+
+    // Re-sync active Arrive/Leave geofences after load & prune stale ones
+    geofencingService.syncGeofences(migratedEvents).catch(() => {});
   },
 
   addEvent: async (event: Event) => {
@@ -374,6 +398,9 @@ export const useEventStore = create<EventState>((set, get) => ({
         console.warn('[BehaviorService] record error (non-fatal):', e)
       );
       behaviorService.clearDismissals(id).catch(() => {});
+    } else if (resolvedStatus === 'pending' && updatedEvent.locationReminderEnabled) {
+      // Task unmarked back to pending: re-arm Arrive/Leave geofence
+      geofencingService.startGeofence(updatedEvent).catch(() => {});
     }
 
     zenModeService
@@ -419,6 +446,7 @@ export const useEventStore = create<EventState>((set, get) => ({
     const newEvents = events.filter(e => !isTaskDone(e));
     await storageService.saveEvents(newEvents);
     set({ events: newEvents });
+    geofencingService.syncGeofences(newEvents).catch(() => {});
 
     for (const ev of completedEvents) {
       try {

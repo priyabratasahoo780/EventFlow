@@ -1,32 +1,28 @@
-import { useState, useEffect, useRef } from 'react';
+/**
+ * useLocation.ts
+ * Foreground location hook providing geocoding, place search, and Arrive/Leave monitoring.
+ */
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { AppState, DeviceEventEmitter } from 'react-native';
 import * as Location from 'expo-location';
-import * as Notifications from '../mock-expo-notifications';
 import { Event } from '../models/Event';
-import { priorityService } from '../services/priorityService';
-import { alarmService } from '../services/alarmService';
-import * as Haptics from 'expo-haptics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  GEOFENCE_TRIGGERED_EVENT,
+  fireLocationAlarm,
+  getDistanceMeters,
+  isTaskActiveForGeofence,
+  isWithinTimeGate,
+  loadGeofenceState,
+  saveGeofenceState,
+} from '../services/geofencingService';
 
-const TRIGGERED_KEY = '@eventflow_geofence_triggered';
-const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-// Load cooldown timestamps from storage
-async function loadTriggered(): Promise<Record<string, number>> {
-  try {
-    const raw = await AsyncStorage.getItem(TRIGGERED_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+interface UseLocationOptions {
+  enableMonitoring?: boolean;
 }
 
-async function saveTriggered(data: Record<string, number>): Promise<void> {
-  try {
-    await AsyncStorage.setItem(TRIGGERED_KEY, JSON.stringify(data));
-  } catch {}
-}
+export function useLocation(tasks: Event[] = [], options: UseLocationOptions = {}) {
+  const { enableMonitoring = true } = options;
 
-export function useLocation(tasks: Event[] = []) {
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [address, setAddress] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -36,21 +32,137 @@ export function useLocation(tasks: Event[] = []) {
   const tasksRef = useRef<Event[]>(tasks);
   tasksRef.current = tasks;
 
-  const prevLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
-  const insideGeofences = useRef<Record<string, boolean>>({});
+  const locationRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const isCheckingRef = useRef(false);
+
+  const checkGeofenceAlerts = useCallback(
+    async (userCoords: { latitude: number; longitude: number }) => {
+      if (!enableMonitoring || isCheckingRef.current) return;
+      isCheckingRef.current = true;
+
+      try {
+        const now = Date.now();
+        const pendingTasks = tasksRef.current;
+        const state = await loadGeofenceState();
+        let stateModified = false;
+
+        for (const task of pendingTasks) {
+          if (!isTaskActiveForGeofence(task)) continue;
+
+          const taskId = (task.id || task._id) as string;
+          const targetRadius = (task.locationDetails as any)?.radius || task.geofenceRadius || 500;
+          // Hysteresis buffer prevents GPS drift from triggering false Leave exits indoors
+          const exitRadius = targetRadius + Math.min(25, Math.round(targetRadius * 0.1));
+          const dist = getDistanceMeters(
+            userCoords.latitude,
+            userCoords.longitude,
+            task.locationDetails!.latitude!,
+            task.locationDetails!.longitude!
+          );
+
+          const wasInside = state.inside[taskId] ?? false;
+          const isInside = dist <= targetRadius;
+          const isOutside = dist > exitRadius;
+          const triggerType: 'arrive' | 'leave' = task.triggerType === 'leave' ? 'leave' : 'arrive';
+
+          // Always prime Leave state immediately if currently inside (even during creation grace period)
+          const createdAt = task.createdAt ? new Date(task.createdAt).getTime() : 0;
+          if (createdAt && now - createdAt < 30000) {
+            if (triggerType === 'leave' && isInside && !state.inside[taskId]) {
+              state.inside[taskId] = true;
+              stateModified = true;
+            }
+            continue;
+          }
+
+          if (triggerType === 'arrive') {
+            if (!wasInside && isInside) {
+              state.inside[taskId] = true;
+              stateModified = true;
+
+              if (state.pendingExit[taskId]) {
+                delete state.pendingExit[taskId];
+              }
+
+              if (isWithinTimeGate(task.locationTimeGate)) {
+                await fireLocationAlarm(task, taskId, 'arrive', state);
+              }
+            } else if (wasInside && isOutside) {
+              state.inside[taskId] = false;
+              delete state.pendingExit[taskId];
+              delete state.lastFired[taskId];
+              stateModified = true;
+            }
+          } else {
+            // Trigger type: 'leave'
+            if (!wasInside && isInside) {
+              state.inside[taskId] = true;
+              delete state.lastFired[taskId];
+              stateModified = true;
+            } else if (wasInside && isOutside) {
+              state.inside[taskId] = false;
+              stateModified = true;
+
+              if (isWithinTimeGate(task.locationTimeGate)) {
+                await fireLocationAlarm(task, taskId, 'leave', state);
+              }
+            }
+          }
+        }
+
+        if (stateModified) {
+          await saveGeofenceState(state);
+        }
+      } catch (err) {
+        console.warn('[useLocation] checkGeofenceAlerts error:', err);
+      } finally {
+        isCheckingRef.current = false;
+      }
+    },
+    [enableMonitoring]
+  );
+
+  // Listen to geofence events fired by background OS or foreground checks
+  useEffect(() => {
+    if (!enableMonitoring) return;
+
+    const sub = DeviceEventEmitter.addListener(
+      GEOFENCE_TRIGGERED_EVENT,
+      (payload: { taskId: string; triggerType: 'arrive' | 'leave'; event?: Event }) => {
+        const matched =
+          payload.event ||
+          tasksRef.current.find((t) => (t.id || t._id) === payload.taskId) ||
+          null;
+        if (matched && !matched.completed && matched.status !== 'completed') {
+          setArrivedTriggerType(payload.triggerType || 'arrive');
+          setArrivedTask(matched);
+        }
+      }
+    );
+
+    return () => sub.remove();
+  }, [enableMonitoring]);
+
+  // Re-evaluate geofences whenever task list updates (e.g. creating a Leave task at Home)
+  useEffect(() => {
+    if (enableMonitoring && locationRef.current) {
+      checkGeofenceAlerts(locationRef.current);
+    }
+  }, [tasks, enableMonitoring, checkGeofenceAlerts]);
 
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null;
+    let isMounted = true;
 
     async function initLocation() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
-          setErrorMsg('Permission to access location was denied');
+          if (isMounted) setErrorMsg('Permission to access location was denied');
           return;
         }
 
-        let coords = { latitude: 37.7749, longitude: -122.4194 };
+        let coords: { latitude: number; longitude: number } | null = null;
         try {
           const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
           coords = { latitude: current.coords.latitude, longitude: current.coords.longitude };
@@ -63,196 +175,69 @@ export function useLocation(tasks: Event[] = []) {
           } catch {}
         }
 
-        setLocation(coords);
-        prevLocationRef.current = coords;
+        if (!isMounted || !coords) return;
 
-        // Reverse geocode to get readable address
-        try {
-          const [result] = await Location.reverseGeocodeAsync(coords);
-          if (result) {
-            const formattedAddr = [result.name, result.street, result.city, result.region].filter(Boolean).join(', ');
-            setAddress(formattedAddr);
-          }
-        } catch (e) {
-          console.warn('Reverse geocode error:', e);
+        locationRef.current = coords;
+        setLocation(coords);
+
+        if (enableMonitoring) {
+          await checkGeofenceAlerts(coords);
         }
 
-        // Start real-time location watcher
+        // Reverse geocode current address
+        try {
+          const [result] = await Location.reverseGeocodeAsync(coords);
+          if (result && isMounted) {
+            const formattedAddr = [result.name, result.street, result.city, result.region]
+              .filter(Boolean)
+              .join(', ');
+            setAddress(formattedAddr);
+          }
+        } catch {}
+
+        if (!enableMonitoring) return;
+
         subscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Balanced,
             timeInterval: 8000,
-            distanceInterval: 20,
+            distanceInterval: 15,
           },
           async (loc: Location.LocationObject) => {
+            if (!isMounted) return;
             const updated = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+            locationRef.current = updated;
             setLocation(updated);
-            // Always pass the latest tasks from ref
             await checkGeofenceAlerts(updated);
-            prevLocationRef.current = updated;
           }
         );
       } catch (err: any) {
-        setErrorMsg(err.message || 'Location service error');
+        if (isMounted) setErrorMsg(err?.message || 'Location service error');
       }
     }
 
     initLocation();
 
-    return () => {
-      if (subscription) subscription.remove();
-    };
-  }, []);
-
-  const checkGeofenceAlerts = async (
-    userCoords: { latitude: number; longitude: number }
-  ) => {
-    const now = Date.now();
-    const pendingTasks = tasksRef.current; // always fresh
-
-    const triggered = await loadTriggered();
-    let changed = false;
-
-    for (const task of pendingTasks) {
-      if (
-        !task.completed &&
-        task.status !== 'completed' &&
-        task.locationReminderEnabled &&
-        task.locationDetails?.latitude &&
-        task.locationDetails?.longitude
-      ) {
-        const createdAt = task.createdAt ? new Date(task.createdAt).getTime() : now;
-        if (now - createdAt < 30000) continue;
-
-        if (task.locationTimeGate) {
-          const currentDate = new Date();
-          const currentHour = currentDate.getHours();
-          const currentDay = WEEKDAY_NAMES[currentDate.getDay()];
-          const { startHour, endHour, days } = task.locationTimeGate;
-
-          const isSameDayGate = startHour <= endHour;
-          let isTimeValid = false;
-
-          if (isSameDayGate) {
-            isTimeValid = currentHour >= startHour && currentHour < endHour;
-          } else {
-            isTimeValid = currentHour >= startHour || currentHour < endHour;
+    const appSub = AppState.addEventListener('change', async (nextState) => {
+      if (nextState === 'active' && enableMonitoring) {
+        try {
+          const pos = await Location.getLastKnownPositionAsync({ maxAge: 30000 });
+          if (pos && isMounted) {
+            const updated = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+            locationRef.current = updated;
+            setLocation(updated);
+            await checkGeofenceAlerts(updated);
           }
-
-          if (!days.includes(currentDay) || !isTimeValid) {
-            continue; // Outside allowed time-gate window
-          }
-        }
-
-        const targetRadius = (task.locationDetails as any).radius || task.geofenceRadius || 500;
-        const dist = priorityService.getDistance(
-          userCoords.latitude,
-          userCoords.longitude,
-          task.locationDetails.latitude,
-          task.locationDetails.longitude
-        );
-
-        const wasInside = insideGeofences.current[task.id] ?? false;
-        const isInside = dist <= targetRadius;
-        const triggerType = task.triggerType || 'arrive';
-
-        // Detect transition: outside → inside
-        if (!wasInside && isInside) {
-          insideGeofences.current[task.id] = true;
-
-          if (triggerType === 'arrive') {
-            const lastTriggered = triggered[task.id] || 0;
-            // Cooldown: 20 minutes per task
-            if (now - lastTriggered > 20 * 60 * 1000) {
-              triggered[task.id] = now;
-              changed = true;
-              setArrivedTask(task);
-              setArrivedTriggerType('arrive');
-
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-
-              try {
-                const locationLabel = task.location || 'Your Destination';
-                await Notifications.scheduleNotificationAsync({
-                  content: {
-                    title: `📍 Arrived Near ${locationLabel}!`,
-                    body: `Location reminder: "${task.title}" — tap to start the task.`,
-                    data: { eventId: task.id, type: 'geofence', triggerType: 'arrive' },
-                    sound: 'default',
-                    priority: Notifications.AndroidNotificationPriority.MAX,
-                    vibrate: [0, 300, 200, 300],
-                  } as any,
-                  trigger: null,
-                });
-
-                if (task.isCritical) {
-                  await alarmService.scheduleAlarm(
-                    `geo_arr_${task.id}_${Date.now()}`,
-                    Date.now() + 1000,
-                    `🚨 Arrived at ${locationLabel}`,
-                    `Critical Task: ${task.title}`,
-                    task.id,
-                    true
-                  );
-                }
-              } catch (notifyErr) {
-                console.warn('Geofence arrival notification error:', notifyErr);
-              }
-            }
-          }
-        }
-
-        // Detect transition: inside → outside
-        if (wasInside && !isInside) {
-          insideGeofences.current[task.id] = false;
-
-          if (triggerType === 'leave') {
-            const lastTriggered = triggered[task.id] || 0;
-            if (now - lastTriggered > 20 * 60 * 1000) {
-              triggered[task.id] = now;
-              changed = true;
-              setArrivedTask(task);
-              setArrivedTriggerType('leave');
-
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-
-              try {
-                const locationLabel = task.location || 'Your Destination';
-                await Notifications.scheduleNotificationAsync({
-                  content: {
-                    title: `🚶 Leaving ${locationLabel}!`,
-                    body: `Don't forget: "${task.title}" is associated with this location!`,
-                    data: { eventId: task.id, type: 'geofence', triggerType: 'leave' },
-                    sound: 'default',
-                    priority: Notifications.AndroidNotificationPriority.MAX,
-                    vibrate: [0, 250, 150, 250],
-                  } as any,
-                  trigger: null,
-                });
-
-                if (task.isCritical) {
-                  await alarmService.scheduleAlarm(
-                    `geo_lev_${task.id}_${Date.now()}`,
-                    Date.now() + 1000,
-                    `🚨 Leaving ${locationLabel}`,
-                    `Critical Task: ${task.title}`,
-                    task.id,
-                    true
-                  );
-                }
-              } catch (notifyErr) {
-                console.warn('Geofence leave notification error:', notifyErr);
-              }
-            }
-          }
-        }
+        } catch {}
       }
-    }
+    });
 
-    if (changed) {
-      await saveTriggered(triggered);
-    }
-  };
+    return () => {
+      isMounted = false;
+      subscription?.remove();
+      appSub.remove();
+    };
+  }, [enableMonitoring, checkGeofenceAlerts]);
 
   const reverseGeocode = async (lat: number, lng: number) => {
     try {
@@ -283,15 +268,15 @@ export function useLocation(tasks: Event[] = []) {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queryText)}&format=json&addressdetails=1&limit=5`;
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'EventFlowApp/1.0 (contact@eventflow.app)'
-        }
+          'User-Agent': 'EventFlowApp/2.0 (contact@eventflow.app)',
+        },
       });
       const data = await response.json();
       return data.map((item: any) => ({
         id: item.place_id,
         name: item.display_name,
         latitude: parseFloat(item.lat),
-        longitude: parseFloat(item.lon)
+        longitude: parseFloat(item.lon),
       }));
     } catch (e) {
       console.warn('Place search error:', e);

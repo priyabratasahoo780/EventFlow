@@ -852,9 +852,13 @@ export default function AddEventScreen() {
 
               <LocationSelector
                 value={locationText}
+                initialDetails={locationDetails}
                 onChangeLocation={(addr, details) => {
                   setLocationText(addr);
-                  if (details) setLocationDetails(details);
+                  setLocationDetails(details);
+                  if (!details?.latitude && geofenceConfig.locationReminderEnabled) {
+                    setGeofenceConfig(prev => ({ ...prev, locationReminderEnabled: false }));
+                  }
                 }}
                 radius={geofenceConfig.geofenceRadius}
                 onChangeRadius={(rad) => setGeofenceConfig(prev => ({ ...prev, geofenceRadius: rad }))}
