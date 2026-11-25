@@ -6,11 +6,11 @@
 import { Event } from '../models/Event';
 
 export interface FreeSlot {
-  date: string;         // YYYY-MM-DD
-  time: string;         // HH:MM
-  dateMs: number;       // epoch ms
-  label: string;        // human-readable  e.g. "Today at 6:30 PM"
-  freeForMins: number;  // available gap in minutes
+  date: string;
+  time: string;
+  dateMs: number;
+  label: string;
+  freeForMins: number;
   confidence: 'high' | 'medium' | 'low';
 }
 
@@ -25,7 +25,7 @@ function toDateStr(d: Date): string {
 }
 
 function toTimeStr(d: Date): string {
-  return d.toTimeString().slice(0, 5); // HH:MM
+  return d.toTimeString().slice(0, 5); 
 }
 
 function formatSlotLabel(d: Date): string {
@@ -62,8 +62,7 @@ function getEventIntervalMs(event: Event): { startMs: number; endMs: number } | 
 export const reschedulingService = {
 
   /**
-   * Find the next available time slot that has at least minDurationMins
-   * free gap, scanning up to 7 days from now.
+   * Finds the next available free time slot with sufficient duration.
    */
   findNextFreeSlot(allEvents: Event[], minDurationMins: number = 30): FreeSlot | null {
     const now = new Date();
@@ -122,7 +121,7 @@ export const reschedulingService = {
   },
 
   /**
-   * Generate 3 ranked reschedule suggestions for the Triage screen.
+   * Generates ranked reschedule suggestions for the Triage screen.
    */
   generateAiSlots(allEvents: Event[], missedEvent: Event): RescheduleSuggestion[] {
     const minMins = missedEvent.estimatedDuration || 30;
@@ -163,7 +162,7 @@ export const reschedulingService = {
   },
 
   /**
-   * Find friend-shared tasks that may be impacted if a task is missed/delayed.
+   * Finds friend-shared tasks impacted by a delayed or missed task.
    */
   getMissedTaskImpact(missedEvent: Event, allEvents: Event[]): Event[] {
     if (!missedEvent.sharedWith || missedEvent.sharedWith.length === 0) return [];
