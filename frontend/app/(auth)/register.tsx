@@ -281,7 +281,7 @@ export default function RegisterScreen() {
                 onFocus={() => setFocusedField('name')}
                 onBlur={() => {
                   setFocusedField(null);
-                  formik.handleBlur('name')('name');
+                  formik.setFieldTouched('name', true);
                 }}
                 autoCapitalize="words"
                 textContentType="name"
@@ -322,7 +322,7 @@ export default function RegisterScreen() {
                 onFocus={() => setFocusedField('username')}
                 onBlur={() => {
                   setFocusedField(null);
-                  formik.handleBlur('username')('username');
+                  formik.setFieldTouched('username', true);
                 }}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -356,7 +356,7 @@ export default function RegisterScreen() {
                 onFocus={() => setFocusedField('city')}
                 onBlur={() => {
                   setFocusedField(null);
-                  formik.handleBlur('city')('city');
+                  formik.setFieldTouched('city', true);
                 }}
                 autoCapitalize="words"
                 returnKeyType="next"
@@ -390,7 +390,7 @@ export default function RegisterScreen() {
                 onFocus={() => setFocusedField('email')}
                 onBlur={() => {
                   setFocusedField(null);
-                  formik.handleBlur('email')('email');
+                  formik.setFieldTouched('email', true);
                 }}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -442,7 +442,7 @@ export default function RegisterScreen() {
                 onFocus={() => setFocusedField('password')}
                 onBlur={() => {
                   setFocusedField(null);
-                  formik.handleBlur('password')('password');
+                  formik.setFieldTouched('password', true);
                 }}
                 secureTextEntry={!showPassword}
                 textContentType="newPassword"

@@ -162,7 +162,7 @@ export default function ForgotPasswordScreen() {
                 onFocus={() => setFocusedField('email')}
                 onBlur={() => {
                   setFocusedField(null);
-                  formik.handleBlur('email')('email');
+                  formik.setFieldTouched('email', true);
                 }}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -211,7 +211,7 @@ export default function ForgotPasswordScreen() {
                 onFocus={() => setFocusedField('newPassword')}
                 onBlur={() => {
                   setFocusedField(null);
-                  formik.handleBlur('newPassword')('newPassword');
+                  formik.setFieldTouched('newPassword', true);
                 }}
                 secureTextEntry={!showPassword}
                 returnKeyType="done"
