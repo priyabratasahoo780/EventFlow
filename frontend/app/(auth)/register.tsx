@@ -204,6 +204,7 @@ export default function RegisterScreen() {
       if (!result || !result.user?.email) return;
 
       const res = await api.post('/auth/google', {
+        sessionId: result.sessionId,
         email: result.user.email,
         name: result.user.name || formik.values.name.trim() || 'Google User',
         profilePhoto: result.user.profilePhoto || '',

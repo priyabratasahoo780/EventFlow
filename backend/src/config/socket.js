@@ -1,14 +1,18 @@
 /**
  * src/config/socket.js
- * Socket.io setup extracted from server.js for separation of concerns.
- * Call setupSocket(httpServer) once at startup; it returns the io instance.
+ * Socket.io setup with JWT authentication and temporary-token rejection.
  */
-
 'use strict';
 
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
+
+function getAllowedSocketOrigins() {
+  const raw = process.env.CORS_ORIGIN || process.env.CLIENT_ORIGIN;
+  if (!raw || raw.trim() === '*') return '*';
+  return raw.split(',').map((o) => o.trim()).filter(Boolean);
+}
 
 /**
  * Attaches socket.io to an existing HTTP server.
@@ -18,7 +22,7 @@ const logger = require('../utils/logger');
 function setupSocket(httpServer) {
   const io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_ORIGIN || '*',
+      origin: getAllowedSocketOrigins(),
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     },
   });
@@ -28,12 +32,19 @@ function setupSocket(httpServer) {
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error('Authentication error: no token provided'));
 
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) return next(new Error('Server authentication configuration error'));
+
     try {
-      const jwtSecret = process.env.JWT_SECRET;
       const decoded = jwt.verify(token, jwtSecret);
-      socket.userId = decoded._id || decoded.id;
+      if (!decoded || decoded.isTemp) {
+        return next(new Error('Authentication error: temporary token rejected'));
+      }
+      const userId = decoded._id || decoded.id;
+      if (!userId) return next(new Error('Authentication error: invalid token payload'));
+      socket.userId = userId.toString();
       next();
-    } catch (err) {
+    } catch (_err) {
       next(new Error('Authentication error: invalid token'));
     }
   });

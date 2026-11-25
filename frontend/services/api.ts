@@ -1,16 +1,18 @@
-
+/**
+ * api.ts
+ * Axios API client with encrypted JWT injection and standardized 401 session cleanup.
+ */
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { getAuthToken, removeAuthToken } from './secureStorage';
 
 const getApiUrl = (): string => {
-  // 1. Production APK: always use the env variable set in eas.json
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
-  // 2. Dev fallback: try to detect Metro host
   const debuggerHost =
     Constants.expoConfig?.hostUri ||
     (Constants as any).manifest?.debuggerHost ||
@@ -21,12 +23,10 @@ const getApiUrl = (): string => {
     return `http://${hostIp}:5000/api`;
   }
 
-  // 3. Android emulator default
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:5000/api';
   }
 
-  // 4. iOS simulator default
   return 'http://localhost:5000/api';
 };
 
@@ -38,12 +38,12 @@ if (__DEV__) {
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 15000, 
+  timeout: 15000,
 });
 
 api.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem('token');
+    const token = await getAuthToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -56,10 +56,18 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    const requestUrl = String(error.config?.url || '');
+    const isAuthAttempt =
+      requestUrl.includes('/auth/login') ||
+      requestUrl.includes('/auth/2fa/') ||
+      requestUrl.includes('/auth/forgot-password');
+
+    if (error.response?.status === 401 && !isAuthAttempt) {
       try {
-        await AsyncStorage.multiRemove(['token', 'user']);
-      } catch (e) {
+        await removeAuthToken();
+        await AsyncStorage.removeItem('user');
+      } catch {
+        // Ignore storage cleanup errors
       }
     }
 

@@ -1,3 +1,9 @@
+/**
+ * app.js
+ * Express application setup with security headers, CORS, sanitization, rate limiting, and routes.
+ */
+'use strict';
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -23,14 +29,53 @@ const { apiLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
+// Trust first reverse proxy (Render/Nginx/Cloudflare) so rate limiters read real client IPs
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+
 // Connect Database
 connectDB();
 
-// Middleware
-// Set security HTTP headers (crossOriginResourcePolicy disabled to allow external mobile app access to /uploads)
-app.use(helmet({ crossOriginResourcePolicy: false }));
+// Security HTTP headers
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow mobile app image/video loading from /uploads
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+  })
+);
 
-app.use(cors());
+// Configurable CORS (native mobile apps have no Origin header; browser origins checked against CORS_ORIGIN)
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes('*')) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Origin not allowed by CORS'));
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
+// Body parsers capped at 2MB to prevent memory DoS (media uses multipart via multer)
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ limit: '2mb', extended: true }));
 
 // Data sanitization against NoSQL query injection (Express 5 safe in-place sanitization)
 app.use((req, _res, next) => {
@@ -46,9 +91,20 @@ app.use(hpp());
 // Compress API responses
 app.use(compression());
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Static media serving locked down against script/HTML execution & sniffing
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, '../uploads'), {
+    dotfiles: 'deny',
+    index: false,
+    maxAge: '7d',
+    setHeaders(res) {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    },
+  })
+);
+
 app.use('/api', apiLimiter);
 
 // Health check

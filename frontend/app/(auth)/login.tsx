@@ -65,6 +65,7 @@ export default function LoginScreen() {
   const [otp, setOtp] = useState('');
 
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
+  const autoSentTokenRef = useRef<string | null>(null);
   const login = useAuthStore((state) => state.login);
   const router = useRouter();
   const { signInWithGoogle } = useGoogleAuth();
@@ -96,23 +97,39 @@ export default function LoginScreen() {
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
-  const send2FACode = useCallback(async (email: string) => {
+  const send2FACode = useCallback(async (email: string, token: string) => {
+    if (!email || !token) return;
     setOtpSending(true);
     try {
-      await api.post('/auth/2fa/send', { email });
+      await api.post('/auth/2fa/send', { email, tempToken: token });
       setResendCooldown(30);
-    } catch {
-      Alert.alert('Code Delivery Failed', 'Could not send the verification code. Please tap Resend Code.');
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const serverError = err?.response?.data?.error;
+
+      if (status === 401) {
+        setRequires2FA(false);
+        setOtp('');
+        setTempToken('');
+        autoSentTokenRef.current = null;
+        Alert.alert('Session Expired', serverError || 'Please sign in again to continue.');
+      } else {
+        Alert.alert(
+          'Code Delivery Failed',
+          serverError || 'Could not send the verification code. Please tap Resend Code.'
+        );
+      }
     } finally {
       setOtpSending(false);
     }
   }, []);
 
   useEffect(() => {
-    if (requires2FA && emailFor2FA) {
-      send2FACode(emailFor2FA);
+    if (requires2FA && emailFor2FA && tempToken && autoSentTokenRef.current !== tempToken) {
+      autoSentTokenRef.current = tempToken;
+      send2FACode(emailFor2FA, tempToken);
     }
-  }, [requires2FA, emailFor2FA, send2FACode]);
+  }, [requires2FA, emailFor2FA, tempToken, send2FACode]);
 
   const formik = useFormik({
     initialValues: { email: '', password: '' },
@@ -199,6 +216,7 @@ export default function LoginScreen() {
       if (!result || !result.user?.email) return;
 
       const res = await api.post('/auth/google', {
+        sessionId: result.sessionId,
         email: result.user.email,
         name: result.user.name,
         profilePhoto: result.user.profilePhoto,
@@ -252,6 +270,8 @@ export default function LoginScreen() {
               if (requires2FA) {
                 setRequires2FA(false);
                 setOtp('');
+                setTempToken('');
+                autoSentTokenRef.current = null;
               } else if (router.canGoBack()) {
                 router.back();
               } else {
@@ -313,7 +333,7 @@ export default function LoginScreen() {
               />
 
               <Pressable
-                onPress={() => send2FACode(emailFor2FA)}
+                onPress={() => send2FACode(emailFor2FA, tempToken)}
                 disabled={otpSending || resendCooldown > 0}
                 style={styles.resendRow}
               >

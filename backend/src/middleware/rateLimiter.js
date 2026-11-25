@@ -22,7 +22,18 @@ exports.authLimiter = rateLimit({
   }
 });
 
-// 3. Search & Sync Rate Limiter
+// 3. Strict 2FA OTP Rate Limiter (Prevents OTP spam & brute-force guessing)
+exports.otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 15, // Max 15 OTP send/verify requests per 15 mins per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'Too many verification attempts. Please wait a few minutes before trying again.'
+  }
+});
+
+// 4. Search & Sync Rate Limiter
 exports.searchLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 60, // Max 60 queries per minute

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, Switch, Pressable, ScrollView, Alert, ToastAndroid, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { VolumeX, Moon, Bell, Download, Upload, Trash2, Info, Users, Volume2, UserPlus, Sun, Lock } from 'lucide-react-native';
+import { VolumeX, Moon, Bell, Download, Upload, Trash2, Info, Users, Volume2, UserPlus, Sun, Lock, UserX } from 'lucide-react-native';
 import { useEventStore } from '../../store/useEventStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -29,8 +29,9 @@ export default function SettingsScreen() {
   const [showTestAlarmModal, setShowTestAlarmModal] = useState(false);
   const router = useRouter();
   
-  const { user, updateUserProfile } = useAuthStore();
+  const { user, updateUserProfile, logout } = useAuthStore();
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(user?.twoFactorEnabled || false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const { events, clearCompletedEvents, addEvent, loadEvents } = useEventStore();
 
@@ -153,6 +154,38 @@ export default function SettingsScreen() {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           }
         }
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    Alert.alert(
+      'Delete Account Permanently',
+      'Are you sure you want to delete your account? This will permanently delete your profile, tasks, messages, and all personal data. This action CANNOT be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete My Account',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeletingAccount(true);
+            try {
+              await api.delete('/users/account');
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              if (Platform.OS === 'android') {
+                ToastAndroid.show('Account permanently deleted', ToastAndroid.LONG);
+              }
+              await logout();
+              router.replace('/(auth)/welcome');
+            } catch (err: any) {
+              const msg = err.response?.data?.error || 'Failed to delete account. Please try again.';
+              Alert.alert('Error', msg);
+            } finally {
+              setIsDeletingAccount(false);
+            }
+          },
+        },
       ]
     );
   };
@@ -420,6 +453,30 @@ export default function SettingsScreen() {
                   <Info color={colors.primary} size={18} strokeWidth={2.5} />
                 </View>
                 <Text style={styles.settingText}>Privacy & Security</Text>
+              </View>
+            </Pressable>
+          </View>
+
+          <Text style={[styles.sectionTitle, { color: colors.error }]}>DANGER ZONE</Text>
+          
+          <View style={styles.premiumCard}>
+            <Pressable 
+              style={({pressed}) => [styles.settingRow, pressed && { opacity: 0.7 }]} 
+              onPress={handleDeleteAccount}
+              disabled={isDeletingAccount}
+            >
+              <View style={styles.settingLeft}>
+                <View style={[styles.iconBadge, { backgroundColor: colors.dangerLight }]}>
+                  <UserX color={colors.error} size={18} strokeWidth={2.5} />
+                </View>
+                <View>
+                  <Text style={[styles.settingText, { color: colors.error }]}>
+                    {isDeletingAccount ? 'Deleting Account...' : 'Delete Account'}
+                  </Text>
+                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: colors.textSecondary }}>
+                    Permanently delete your account & all data
+                  </Text>
+                </View>
               </View>
             </Pressable>
           </View>

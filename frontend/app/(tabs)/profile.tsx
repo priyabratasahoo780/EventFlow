@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/useAuthStore';
+import { generateSecureUniqueId } from '../../services/secureStorage';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { 
@@ -168,25 +169,12 @@ export default function ProfileScreen() {
 
   const handleRegenerateId = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const lowers = 'abcdefghijkmnopqrstuvwxyz';
-    const numbers = '23456789';
-    const symbols = '!@#$%&*_-';
-    const getRandom = (set: string) => set[Math.floor(Math.random() * set.length)];
-    const chars = [
-      getRandom(uppers), getRandom(lowers), getRandom(numbers), getRandom(symbols),
-      getRandom(uppers), getRandom(lowers), getRandom(numbers), getRandom(symbols)
-    ];
-    for (let i = chars.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [chars[i], chars[j]] = [chars[j], chars[i]];
-    }
-    const newId = chars.join(''); // Exact 8 characters
+    const newId = generateSecureUniqueId();
 
     await updateUserProfile({ uniqueId: newId });
     try {
-      await api.post('/auth/sync', { ...user, uniqueId: newId });
-    } catch (e) {}
+      await api.post('/auth/sync', { uniqueId: newId });
+    } catch {}
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert('New Unique ID Generated! ✨', `Your 8-character Unique ID is:\n\n${newId}`);

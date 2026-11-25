@@ -7,6 +7,7 @@ require('dotenv').config();
 const http = require('http');
 const { validateEnv } = require('./src/config/env');
 const { setupSocket } = require('./src/config/socket');
+const { verifyEmailTransport } = require('./src/services/email.service');
 const logger = require('./src/utils/logger');
 
 // Fail fast if any required env vars are missing
@@ -23,4 +24,5 @@ app.set('io', io);
 // Start listening
 server.listen(env.PORT, '0.0.0.0', () => {
   logger.info(`EventFlow Backend running on port ${env.PORT} [${env.NODE_ENV}]`);
+  verifyEmailTransport().catch(() => {});
 });

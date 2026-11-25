@@ -2,27 +2,83 @@
  * task.controller.js
  * Controller for task lifecycle, dynamic priority scoring, and recommendations.
  */
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const mongoose = require('mongoose');
 const Event = require('../models/Event');
+const User = require('../models/User');
+const { Expo } = require('expo-server-sdk');
 const { calculatePriorityScore, getPriorityLevel } = require('../services/priority.service');
+
+const ALLOWED_TASK_FIELDS = [
+  'id',
+  'title',
+  'description',
+  'date',
+  'time',
+  'isAllDay',
+  'category',
+  'priority',
+  'estimatedDuration',
+  'status',
+  'completed',
+  'location',
+  'locationDetails',
+  'locationReminderEnabled',
+  'geofenceRadius',
+  'triggerType',
+  'locationReminderTriggered',
+  'locationTimeGate',
+  'pendingExitGeofenceId',
+  'isCritical',
+  'checklist',
+  'image',
+  'video',
+  'linkedContact',
+  'startedAt',
+  'completedAt',
+  'visibility',
+  'sharedWith',
+  'reminders',
+];
+
+function pickTaskFields(body) {
+  const payload = {};
+  for (const field of ALLOWED_TASK_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(body, field) && body[field] !== undefined) {
+      payload[field] = body[field];
+    }
+  }
+  return payload;
+}
+
+function sanitizeSharedWith(sharedWith, allowedFriendSet) {
+  if (!Array.isArray(sharedWith)) return [];
+  return sharedWith
+    .map((id) => String(id))
+    .filter((id) => mongoose.Types.ObjectId.isValid(id) && allowedFriendSet.has(id));
+}
 
 // Get all tasks for user with dynamic priority scores
 exports.getTasks = async (req, res) => {
   try {
     const tasks = await Event.find({
-      $or: [
-        { ownerId: req.userId },
-        { sharedWith: req.userId }
-      ]
-    }).sort({ date: 1 }).lean();
-    const tasksWithScores = tasks.map(t => {
+      $or: [{ ownerId: req.userId }, { sharedWith: req.userId }],
+    })
+      .sort({ date: 1 })
+      .lean();
+
+    const tasksWithScores = tasks.map((t) => {
       const taskObj = { ...t };
       taskObj.priorityScore = calculatePriorityScore(taskObj);
       taskObj.priorityDetails = getPriorityLevel(taskObj.priorityScore);
       return taskObj;
     });
     res.json(tasksWithScores);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (_err) {
+    res.status(500).json({ error: 'Failed to load tasks' });
   }
 };
 
@@ -30,71 +86,77 @@ exports.getTasks = async (req, res) => {
 exports.getRecommendation = async (req, res) => {
   try {
     const { latitude, longitude } = req.query;
-    const userLocation = (latitude && longitude) ? { latitude: parseFloat(latitude), longitude: parseFloat(longitude) } : null;
+    const latNum = parseFloat(latitude);
+    const lngNum = parseFloat(longitude);
+    const hasValidLocation =
+      Number.isFinite(latNum) &&
+      Number.isFinite(lngNum) &&
+      latNum >= -90 &&
+      latNum <= 90 &&
+      lngNum >= -180 &&
+      lngNum <= 180;
+
+    const userLocation = hasValidLocation ? { latitude: latNum, longitude: lngNum } : null;
 
     const pendingTasks = await Event.find({
-      $or: [
-        { ownerId: req.userId },
-        { sharedWith: req.userId }
-      ],
+      $or: [{ ownerId: req.userId }, { sharedWith: req.userId }],
       completed: false,
-      status: { $ne: 'completed' }
+      status: { $ne: 'completed' },
     }).lean();
 
     if (pendingTasks.length === 0) {
-      return res.json({ recommendation: null, message: "No pending tasks! You are all caught up. 🎉" });
+      return res.json({ recommendation: null, message: 'No pending tasks! You are all caught up. 🎉' });
     }
 
-    const scoredTasks = pendingTasks.map(t => {
+    const scoredTasks = pendingTasks.map((t) => {
       const taskObj = { ...t };
       taskObj.priorityScore = calculatePriorityScore(taskObj, userLocation);
       taskObj.priorityDetails = getPriorityLevel(taskObj.priorityScore);
       return taskObj;
     });
 
-    // Sort descending by priorityScore
     scoredTasks.sort((a, b) => b.priorityScore - a.priorityScore);
 
-    const topTask = scoredTasks[0];
     res.json({
-      recommendation: topTask,
+      recommendation: scoredTasks[0],
       totalPending: pendingTasks.length,
-      allScored: scoredTasks
+      allScored: scoredTasks,
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (_err) {
+    res.status(500).json({ error: 'Failed to generate recommendation' });
   }
 };
-
-const User = require('../models/User');
-const { Expo } = require('expo-server-sdk');
 
 // Create task
 exports.createTask = async (req, res) => {
   try {
     const currentUser = await User.findById(req.userId);
-    let sharedFriends = req.body.sharedWith || [];
+    const allowedFriends = new Set((currentUser?.friends || []).map((f) => f.toString()));
 
-    // If visibility is 'friends', auto-share with all connected friends
-    if (req.body.visibility === 'friends' && currentUser && currentUser.friends && currentUser.friends.length > 0) {
-      sharedFriends = currentUser.friends.map(f => f.toString());
+    const payload = pickTaskFields(req.body);
+    let sharedFriends = sanitizeSharedWith(payload.sharedWith, allowedFriends);
+
+    if (payload.visibility === 'friends' && allowedFriends.size > 0) {
+      sharedFriends = Array.from(allowedFriends);
     }
 
     const newTask = new Event({
-      ...req.body,
+      ...payload,
       sharedWith: sharedFriends,
-      ownerId: req.userId
+      ownerId: req.userId,
     });
     newTask.priorityScore = calculatePriorityScore(newTask.toObject());
     await newTask.save();
-    
+
     // 1. Emit real-time Socket event to friends
     const io = req.app.get('io');
     if (io && sharedFriends.length > 0) {
-      sharedFriends.forEach(friendId => {
+      sharedFriends.forEach((friendId) => {
         io.to(friendId.toString()).emit('task_created', {
           ...newTask.toObject(),
-          ownerId: currentUser ? { _id: currentUser._id, name: currentUser.name, username: currentUser.username } : newTask.ownerId
+          ownerId: currentUser
+            ? { _id: currentUser._id, name: currentUser.name, username: currentUser.username }
+            : newTask.ownerId,
         });
       });
     }
@@ -104,7 +166,7 @@ exports.createTask = async (req, res) => {
       try {
         const friendsWithTokens = await User.find({
           _id: { $in: sharedFriends },
-          expoPushToken: { $exists: true, $ne: '' }
+          expoPushToken: { $exists: true, $ne: '' },
         }).lean();
 
         const messages = [];
@@ -119,7 +181,7 @@ exports.createTask = async (req, res) => {
               body: `"${newTask.title}" at ${newTask.time}. Reminder & Alarm are scheduled on your phone!`,
               data: { eventId: newTask.id, type: 'shared_event' },
               priority: 'high',
-              channelId: 'focusflow_alarm_v2'
+              channelId: 'focusflow_alarm_v2',
             });
           }
         }
@@ -131,64 +193,84 @@ exports.createTask = async (req, res) => {
         console.error('Shared event push notification error:', pushErr);
       }
     }
-    
+
     res.status(201).json(newTask);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(400).json({ error: err.name === 'ValidationError' ? err.message : 'Failed to create task' });
   }
 };
 
 // Get single task by ID
 exports.getTaskById = async (req, res) => {
   try {
-    const task = await Event.findOne({ 
-      id: req.params.id, 
-      $or: [{ ownerId: req.userId }, { sharedWith: req.userId }]
+    const task = await Event.findOne({
+      id: req.params.id,
+      $or: [{ ownerId: req.userId }, { sharedWith: req.userId }],
     }).lean();
     if (!task) return res.status(404).json({ error: 'Task not found' });
-    
+
     const taskObj = { ...task };
     taskObj.priorityScore = calculatePriorityScore(taskObj);
     taskObj.priorityDetails = getPriorityLevel(taskObj.priorityScore);
     res.json(taskObj);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (_err) {
+    res.status(500).json({ error: 'Failed to load task' });
   }
 };
 
 // Update task
 exports.updateTask = async (req, res) => {
   try {
+    const existingTask = await Event.findOne({
+      id: req.params.id,
+      $or: [{ ownerId: req.userId }, { sharedWith: req.userId }],
+    });
+    if (!existingTask) return res.status(404).json({ error: 'Task not found' });
+
+    const isOwner = existingTask.ownerId.toString() === req.userId.toString();
+    const updates = pickTaskFields(req.body);
+    delete updates.id; // Prevent changing task ID
+
+    // Only task owner may change sharing permissions or visibility
+    if (!isOwner) {
+      delete updates.visibility;
+      delete updates.sharedWith;
+    } else if (Object.prototype.hasOwnProperty.call(updates, 'sharedWith')) {
+      const currentUser = await User.findById(req.userId).select('friends').lean();
+      const allowedFriends = new Set((currentUser?.friends || []).map((f) => f.toString()));
+      updates.sharedWith = sanitizeSharedWith(updates.sharedWith, allowedFriends);
+    }
+
     const updated = await Event.findOneAndUpdate(
-      { id: req.params.id, $or: [{ ownerId: req.userId }, { sharedWith: req.userId }] },
-      { $set: req.body },
+      { _id: existingTask._id },
+      { $set: updates },
       { returnDocument: 'after' }
     );
-    if (!updated) return res.status(404).json({ error: 'Task not found' });
 
     const currentUser = await User.findById(req.userId);
-    const emitIds = new Set([updated.ownerId.toString(), ...(updated.sharedWith || []).map(id => id.toString())]);
+    const emitIds = new Set([
+      updated.ownerId.toString(),
+      ...(updated.sharedWith || []).map((id) => id.toString()),
+    ]);
 
-    // 1. Socket real-time event
     const io = req.app.get('io');
     if (io) {
-      emitIds.forEach(id => {
+      emitIds.forEach((id) => {
         if (id !== req.userId.toString()) {
           io.to(id).emit('task_updated', {
             ...updated.toObject(),
-            lastModifiedBy: currentUser ? currentUser.name : 'A team member'
+            lastModifiedBy: currentUser ? currentUser.name : 'A team member',
           });
         }
       });
     }
 
-    // 2. Send Push Notification to all other group members
-    const otherMembers = Array.from(emitIds).filter(id => id !== req.userId.toString());
+    const otherMembers = Array.from(emitIds).filter((id) => id !== req.userId.toString());
     if (otherMembers.length > 0 && currentUser) {
       try {
         const usersWithTokens = await User.find({
           _id: { $in: otherMembers },
-          expoPushToken: { $exists: true, $ne: '' }
+          expoPushToken: { $exists: true, $ne: '' },
         }).lean();
 
         const messages = [];
@@ -203,7 +285,7 @@ exports.updateTask = async (req, res) => {
               body: `"${updated.title}" has been modified (Time: ${updated.time}).`,
               data: { eventId: updated.id, type: 'task_updated' },
               priority: 'high',
-              channelId: 'focusflow_alarm_v2'
+              channelId: 'focusflow_alarm_v2',
             });
           }
         }
@@ -218,23 +300,20 @@ exports.updateTask = async (req, res) => {
 
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(400).json({ error: err.name === 'ValidationError' ? err.message : 'Failed to update task' });
   }
 };
 
-// Update task status (Pending, In Progress, Completed, Overdue, Cancelled)
+// Update task status
 exports.updateStatus = async (req, res) => {
   try {
     const { status } = req.body;
-
-    // Edge Case Fix: Validate status enum before touching DB
     const VALID_STATUSES = ['pending', 'in_progress', 'completed', 'late_completed', 'overdue', 'cancelled', 'pending_exit'];
     if (!status || !VALID_STATUSES.includes(status)) {
       return res.status(400).json({ error: `Invalid status value "${status}". Must be one of: ${VALID_STATUSES.join(', ')}` });
     }
 
     const completed = status === 'completed' || status === 'late_completed';
-    
     const setQuery = { status, completed, completedAt: completed ? new Date() : null };
     if (status === 'in_progress') setQuery.startedAt = new Date();
 
@@ -246,27 +325,29 @@ exports.updateStatus = async (req, res) => {
     if (!updated) return res.status(404).json({ error: 'Task not found' });
 
     const currentUser = await User.findById(req.userId);
-    const emitIds = new Set([updated.ownerId.toString(), ...(updated.sharedWith || []).map(id => id.toString())]);
+    const emitIds = new Set([
+      updated.ownerId.toString(),
+      ...(updated.sharedWith || []).map((id) => id.toString()),
+    ]);
 
     const io = req.app.get('io');
     if (io) {
-      emitIds.forEach(id => {
+      emitIds.forEach((id) => {
         if (id !== req.userId.toString()) {
           io.to(id).emit('task_updated', {
             ...updated.toObject(),
-            lastModifiedBy: currentUser ? currentUser.name : 'A team member'
+            lastModifiedBy: currentUser ? currentUser.name : 'A team member',
           });
         }
       });
     }
 
-    // Send push notification for status change
-    const otherMembers = Array.from(emitIds).filter(id => id !== req.userId.toString());
+    const otherMembers = Array.from(emitIds).filter((id) => id !== req.userId.toString());
     if (otherMembers.length > 0 && currentUser) {
       try {
         const usersWithTokens = await User.find({
           _id: { $in: otherMembers },
-          expoPushToken: { $exists: true, $ne: '' }
+          expoPushToken: { $exists: true, $ne: '' },
         }).lean();
 
         const statusLabel = status === 'completed' ? 'COMPLETED ✅' : status === 'in_progress' ? 'STARTED ⚡' : status.toUpperCase();
@@ -282,7 +363,7 @@ exports.updateStatus = async (req, res) => {
               body: `${currentUser.name} marked "${updated.title}" as ${status.replace('_', ' ')}.`,
               data: { eventId: updated.id, type: 'task_status_updated' },
               priority: 'high',
-              channelId: 'focusflow_alarm_v2'
+              channelId: 'focusflow_alarm_v2',
             });
           }
         }
@@ -296,24 +377,20 @@ exports.updateStatus = async (req, res) => {
     }
 
     res.json(updated);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (_err) {
+    res.status(500).json({ error: 'Failed to update task status' });
   }
 };
 
 // Delete task
 exports.deleteTask = async (req, res) => {
   try {
-    const deleted = await Event.findOneAndDelete({ 
-      id: req.params.id, 
-      $or: [{ ownerId: req.userId }, { sharedWith: req.userId }] 
+    const deleted = await Event.findOneAndDelete({
+      id: req.params.id,
+      $or: [{ ownerId: req.userId }, { sharedWith: req.userId }],
     });
     if (!deleted) return res.status(404).json({ error: 'Task not found' });
 
-    // Clean up associated media files from server storage
-    const fs = require('fs');
-    const path = require('path');
-    
     if (deleted.image && deleted.image.startsWith('/uploads/')) {
       const imagePath = path.join(__dirname, '../../uploads', path.basename(deleted.image));
       fs.unlink(imagePath, (err) => {
@@ -330,44 +407,41 @@ exports.deleteTask = async (req, res) => {
 
     const io = req.app.get('io');
     if (io) {
-      const emitIds = new Set([deleted.ownerId.toString(), ...(deleted.sharedWith || []).map(id => id.toString())]);
-      emitIds.forEach(id => {
-        if (id !== req.userId) {
+      const emitIds = new Set([
+        deleted.ownerId.toString(),
+        ...(deleted.sharedWith || []).map((id) => id.toString()),
+      ]);
+      emitIds.forEach((id) => {
+        if (id !== req.userId.toString()) {
           io.to(id).emit('task_deleted', req.params.id);
         }
       });
     }
 
     res.json({ message: 'Task deleted successfully' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (_err) {
+    res.status(500).json({ error: 'Failed to delete task' });
   }
 };
 
 // Geofence Buddy Alert
-// Called by a friend's phone when they enter the geofence of a shared task.
-// Emits a real-time 'buddy_near_location' socket event to the task owner & other members.
-// Sends a push notification as background fallback.
 exports.buddyNearLocation = async (req, res) => {
   try {
     const taskId = req.params.id;
-    const friendId = req.userId; // The friend who triggered the geofence (caller)
+    const friendId = req.userId;
 
-    // Find the shared task — friend must be in sharedWith or be the owner
     const task = await Event.findOne({
       id: taskId,
-      $or: [{ ownerId: friendId }, { sharedWith: friendId }]
+      $or: [{ ownerId: friendId }, { sharedWith: friendId }],
     });
     if (!task) return res.status(404).json({ error: 'Task not found or not shared with you' });
 
-    // Load the friend (the one near the location)
     const friend = await User.findById(friendId).select('name username profilePhoto').lean();
     if (!friend) return res.status(404).json({ error: 'User not found' });
 
-    // Recipients: everyone EXCEPT the friend who just entered (they already know they're there)
     const allMemberIds = new Set([
       task.ownerId.toString(),
-      ...(task.sharedWith || []).map(id => id.toString())
+      ...(task.sharedWith || []).map((id) => id.toString()),
     ]);
     allMemberIds.delete(friendId.toString());
     const recipientIds = Array.from(allMemberIds);
@@ -378,28 +452,24 @@ exports.buddyNearLocation = async (req, res) => {
       taskTitle: task.title,
       taskLocation: task.location || 'the location',
       taskChecklist: task.checklist || [],
-      friendId: friendId,
+      friendId,
       friendName: friend.name,
       friendUsername: friend.username,
       friendPhoto: friend.profilePhoto || '',
     };
 
-    // 1. Emit real-time socket event to all recipients
     const io = req.app.get('io');
     if (io) {
-      recipientIds.forEach(id => {
+      recipientIds.forEach((id) => {
         io.to(id).emit('buddy_near_location', buddyPayload);
       });
     }
 
-    // 2. Send Expo Push Notification as fallback (for when app is in background)
     try {
-      const { Expo } = require('expo-server-sdk');
       const expo = new Expo();
-
       const recipientUsers = await User.find({
         _id: { $in: recipientIds },
-        expoPushToken: { $exists: true, $ne: '' }
+        expoPushToken: { $exists: true, $ne: '' },
       }).lean();
 
       const messages = [];
@@ -424,10 +494,8 @@ exports.buddyNearLocation = async (req, res) => {
       console.error('[Buddy Alert] Push notification error:', pushErr);
     }
 
-    console.log(`[Buddy Alert] 📍 ${friend.name} is near "${task.location}" for task "${task.title}". Notified ${recipientIds.length} members.`);
     res.json({ success: true, notified: recipientIds.length });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (_err) {
+    res.status(500).json({ error: 'Failed to trigger buddy alert' });
   }
 };
-

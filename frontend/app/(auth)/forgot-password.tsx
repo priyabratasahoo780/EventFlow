@@ -1,12 +1,13 @@
 /**
  * forgot-password.tsx
- * Password reset screen validating email and enforcing strong password rules.
+ * Two-step OTP verified password reset screen enforcing strong password rules.
  */
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
-import { useState, useRef, useCallback, ComponentRef } from 'react';
+import { useState, useEffect, useRef, useCallback, ComponentRef } from 'react';
 import {
   View,
+  Text,
   TextInput,
   StyleSheet,
   Alert,
@@ -14,10 +15,13 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   FadeInDown,
+  FadeOutUp,
+  ZoomIn,
   useSharedValue,
   useAnimatedStyle,
   withSequence,
@@ -31,13 +35,20 @@ import {
 } from '../../components/AuthUI';
 import api from '../../services/api';
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react-native';
+import { Eye, EyeOff, Mail, Lock, ShieldCheck, KeyRound, ArrowRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
 
-const validationSchema = yup.object().shape({
+const emailSchema = yup.object().shape({
   email: yup.string().email('Invalid email address').required('Registered email is required'),
+});
+
+const resetSchema = yup.object().shape({
+  otp: yup
+    .string()
+    .matches(/^\d{6}$/, 'Enter the 6-digit verification code')
+    .required('6-digit OTP is required'),
   newPassword: yup
     .string()
     .min(8, 'Password must be at least 8 characters')
@@ -55,9 +66,13 @@ export default function ForgotPasswordScreen() {
   const styles = getStyles(colors);
   const insets = useSafeAreaInsets();
 
+  const [step, setStep] = useState<'request' | 'verify'>('request');
+  const [targetEmail, setTargetEmail] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [otpResending, setOtpResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
   const router = useRouter();
 
@@ -78,44 +93,108 @@ export default function ForgotPasswordScreen() {
     );
   }, [shakeX]);
 
-  const formik = useFormik({
-    initialValues: { email: '', newPassword: '' },
-    validationSchema,
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  const emailFormik = useFormik({
+    initialValues: { email: '' },
+    validationSchema: emailSchema,
     onSubmit: async (values) => {
+      const cleanEmail = values.email.trim().toLowerCase();
       setLoading(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       try {
-        await api.post('/auth/forgot-password', {
-          email: values.email.trim().toLowerCase(),
-          newPassword: values.newPassword,
-        });
-
+        await api.post('/auth/forgot-password/send-otp', { email: cleanEmail });
+        setTargetEmail(cleanEmail);
+        setResendCooldown(30);
+        setStep('verify');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          'Password Reset Successful',
-          'Your password has been updated. You can now log in with your new password.',
-          [{ text: 'GO TO LOGIN', onPress: () => router.replace('/(auth)/login') }]
-        );
       } catch (err: any) {
         triggerShake();
-        const errorMsg =
-          err.response?.data?.error || 'Unable to reset password. Please verify your email.';
-        Alert.alert('Reset Failed', errorMsg);
+        Alert.alert(
+          'Request Failed',
+          err.response?.data?.error || 'Could not send reset verification code. Please check your email.'
+        );
       } finally {
         setLoading(false);
       }
     },
   });
 
-  const handleSubmitForm = async () => {
-    const errors = await formik.validateForm();
+  const resetFormik = useFormik({
+    initialValues: { otp: '', newPassword: '' },
+    validationSchema: resetSchema,
+    onSubmit: async (values) => {
+      setLoading(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      try {
+        await api.post('/auth/forgot-password', {
+          email: targetEmail,
+          otp: values.otp.trim(),
+          newPassword: values.newPassword,
+        });
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          'Password Reset Successful',
+          'Your password has been updated securely. You can now log in with your new password.',
+          [{ text: 'GO TO LOGIN', onPress: () => router.replace('/(auth)/login') }]
+        );
+      } catch (err: any) {
+        triggerShake();
+        Alert.alert(
+          'Reset Failed',
+          err.response?.data?.error || 'Unable to verify OTP or update password.'
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+  });
+
+  const handleRequestOtp = async () => {
+    const errors = await emailFormik.validateForm();
     if (Object.keys(errors).length > 0) {
-      formik.setTouched({ email: true, newPassword: true });
+      emailFormik.setTouched({ email: true });
       triggerShake();
       return;
     }
-    formik.handleSubmit();
+    emailFormik.handleSubmit();
+  };
+
+  const handleResendOtp = async () => {
+    if (!targetEmail || otpResending || resendCooldown > 0) return;
+    setOtpResending(true);
+    try {
+      await api.post('/auth/forgot-password/send-otp', { email: targetEmail });
+      setResendCooldown(30);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err: any) {
+      triggerShake();
+      Alert.alert(
+        'Resend Failed',
+        err.response?.data?.error || 'Could not resend verification code. Please try again.'
+      );
+    } finally {
+      setOtpResending(false);
+    }
+  };
+
+  const handleResetSubmit = async () => {
+    const errors = await resetFormik.validateForm();
+    if (Object.keys(errors).length > 0) {
+      resetFormik.setTouched({ otp: true, newPassword: true });
+      triggerShake();
+      return;
+    }
+    resetFormik.handleSubmit();
   };
 
   return (
@@ -138,54 +217,131 @@ export default function ForgotPasswordScreen() {
           ]}
         >
           <AuthHeader
-            title="Forgot Password?"
-            subtitle="Enter your account email and choose a strong new password."
-            onBack={() => router.back()}
+            title={step === 'verify' ? 'Verify & Reset' : 'Forgot Password?'}
+            subtitle={
+              step === 'verify'
+                ? 'Enter the 6-digit code sent to your email and set a new password.'
+                : 'Enter your registered email to receive a secure verification OTP.'
+            }
+            onBack={() => {
+              if (step === 'verify') {
+                setStep('request');
+                resetFormik.resetForm();
+              } else {
+                router.back();
+              }
+            }}
           />
 
-          <Animated.View style={shakeStyle}>
-            <Animated.View entering={FadeInDown.delay(110).duration(420).springify()}>
+          {step === 'request' ? (
+            <Animated.View key="step-request" style={shakeStyle}>
+              <Animated.View entering={FadeInDown.delay(110).duration(420).springify()}>
+                <AuthInput
+                  label="REGISTERED EMAIL"
+                  colors={colors}
+                  isDark={dark}
+                  isFocused={focusedField === 'email'}
+                  error={emailFormik.errors.email}
+                  touched={emailFormik.touched.email}
+                  isValid={emailFormik.values.email.trim().length > 0 && !emailFormik.errors.email}
+                  leftIcon={
+                    <Mail
+                      color={focusedField === 'email' ? colors.secondary : colors.textSecondary}
+                      size={18}
+                      strokeWidth={2}
+                    />
+                  }
+                  placeholder="your.email@example.com"
+                  value={emailFormik.values.email}
+                  onChangeText={emailFormik.handleChange('email')}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    emailFormik.setFieldTouched('email', true);
+                  }}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  returnKeyType="done"
+                  onSubmitEditing={handleRequestOtp}
+                />
+              </Animated.View>
+
+              <Animated.View
+                entering={FadeInDown.delay(190).duration(420).springify()}
+                style={{ marginTop: 8 }}
+              >
+                <AnimatedPrimaryButton
+                  title="Send Verification Code"
+                  onPress={handleRequestOtp}
+                  loading={loading}
+                  rightIcon={<ArrowRight color="#FFF" size={18} strokeWidth={2.5} />}
+                />
+              </Animated.View>
+            </Animated.View>
+          ) : (
+            <Animated.View
+              key="step-verify"
+              entering={FadeInDown.duration(350).springify()}
+              exiting={FadeOutUp.duration(200)}
+              style={shakeStyle}
+            >
+              <Animated.View
+                entering={ZoomIn.delay(80).duration(350).springify()}
+                style={[
+                  styles.otpBadgeCard,
+                  { backgroundColor: colors.card, borderColor: dark ? colors.border : '#EAE2D8' },
+                ]}
+              >
+                <View style={[styles.otpIconWrap, { backgroundColor: colors.secondaryLight }]}>
+                  <ShieldCheck color={colors.secondary} size={28} strokeWidth={2} />
+                </View>
+                <Text style={[styles.otpSub, { color: colors.textSecondary }]}>
+                  6-digit verification code sent to{'\n'}
+                  <Text style={[styles.otpEmail, { color: colors.text }]}>{targetEmail}</Text>
+                </Text>
+              </Animated.View>
+
               <AuthInput
-                label="REGISTERED EMAIL"
+                label="6-DIGIT OTP CODE"
                 colors={colors}
                 isDark={dark}
-                isFocused={focusedField === 'email'}
-                error={formik.errors.email}
-                touched={formik.touched.email}
-                isValid={formik.values.email.trim().length > 0 && !formik.errors.email}
+                isFocused={focusedField === 'otp'}
+                error={resetFormik.errors.otp}
+                touched={resetFormik.touched.otp}
+                isValid={/^\d{6}$/.test(resetFormik.values.otp)}
                 leftIcon={
-                  <Mail
-                    color={focusedField === 'email' ? colors.secondary : colors.textSecondary}
+                  <KeyRound
+                    color={focusedField === 'otp' ? colors.secondary : colors.textSecondary}
                     size={18}
                     strokeWidth={2}
                   />
                 }
-                placeholder="your.email@example.com"
-                value={formik.values.email}
-                onChangeText={formik.handleChange('email')}
-                onFocus={() => setFocusedField('email')}
+                placeholder="123456"
+                value={resetFormik.values.otp}
+                onChangeText={(t) => resetFormik.setFieldValue('otp', t.replace(/[^0-9]/g, ''))}
+                onFocus={() => setFocusedField('otp')}
                 onBlur={() => {
                   setFocusedField(null);
-                  formik.setFieldTouched('email', true);
+                  resetFormik.setFieldTouched('otp', true);
                 }}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus
                 returnKeyType="next"
                 blurOnSubmit={false}
                 onSubmitEditing={() => passwordRef.current?.focus()}
+                style={styles.otpInput}
               />
-            </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(170).duration(420).springify()}>
               <AuthInput
                 ref={passwordRef}
                 label="NEW PASSWORD"
                 colors={colors}
                 isDark={dark}
                 isFocused={focusedField === 'newPassword'}
-                error={formik.errors.newPassword}
-                touched={formik.touched.newPassword}
+                error={resetFormik.errors.newPassword}
+                touched={resetFormik.touched.newPassword}
                 leftIcon={
                   <Lock
                     color={focusedField === 'newPassword' ? colors.secondary : colors.textSecondary}
@@ -210,31 +366,45 @@ export default function ForgotPasswordScreen() {
                   </Pressable>
                 }
                 placeholder="At least 8 characters"
-                value={formik.values.newPassword}
-                onChangeText={formik.handleChange('newPassword')}
+                value={resetFormik.values.newPassword}
+                onChangeText={resetFormik.handleChange('newPassword')}
                 onFocus={() => setFocusedField('newPassword')}
                 onBlur={() => {
                   setFocusedField(null);
-                  formik.setFieldTouched('newPassword', true);
+                  resetFormik.setFieldTouched('newPassword', true);
                 }}
                 secureTextEntry={!showPassword}
                 returnKeyType="done"
-                onSubmitEditing={handleSubmitForm}
+                onSubmitEditing={handleResetSubmit}
               />
-            </Animated.View>
 
-            <Animated.View
-              entering={FadeInDown.delay(230).duration(420).springify()}
-              style={{ marginTop: 8 }}
-            >
               <AnimatedPrimaryButton
                 title="Reset Password"
-                onPress={handleSubmitForm}
+                onPress={handleResetSubmit}
                 loading={loading}
                 rightIcon={<ArrowRight color="#FFF" size={18} strokeWidth={2.5} />}
               />
+
+              <Pressable
+                onPress={handleResendOtp}
+                disabled={otpResending || resendCooldown > 0}
+                style={styles.resendRow}
+              >
+                {otpResending ? (
+                  <ActivityIndicator size="small" color={colors.secondary} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.resendText,
+                      { color: resendCooldown > 0 ? colors.textSecondary : colors.secondary },
+                    ]}
+                  >
+                    {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend Code'}
+                  </Text>
+                )}
+              </Pressable>
             </Animated.View>
-          </Animated.View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -253,5 +423,44 @@ const getStyles = (_colors: ColorTheme) =>
     },
     eyeBtn: {
       padding: 4,
+    },
+    otpBadgeCard: {
+      borderRadius: 18,
+      borderWidth: 1,
+      padding: 18,
+      alignItems: 'center',
+      marginBottom: 20,
+      gap: 10,
+    },
+    otpIconWrap: {
+      width: 54,
+      height: 54,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    otpSub: {
+      fontFamily: 'Poppins_400Regular',
+      fontSize: 13.5,
+      textAlign: 'center',
+      lineHeight: 21,
+    },
+    otpEmail: {
+      fontFamily: 'Poppins_600SemiBold',
+    },
+    otpInput: {
+      letterSpacing: 8,
+      fontSize: 20,
+      fontFamily: 'Poppins_600SemiBold',
+      textAlign: 'center',
+    },
+    resendRow: {
+      alignItems: 'center',
+      marginTop: 18,
+      paddingVertical: 6,
+    },
+    resendText: {
+      fontFamily: 'Poppins_700Bold',
+      fontSize: 14,
     },
   });

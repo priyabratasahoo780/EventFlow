@@ -18,6 +18,13 @@ const userSchema = new mongoose.Schema({
   twoFactorEnabled: { type: Boolean, default: false },
   twoFactorOtp: { type: String, default: null },         // hashed OTP
   twoFactorOtpExpiry: { type: Date, default: null },     // 10-min TTL
+  twoFactorOtpAttempts: { type: Number, default: 0 },    // failed verification attempts
+  twoFactorLastSentAt: { type: Date, default: null },    // resend cooldown timestamp
+  // Password Reset OTP fields
+  resetPasswordOtp: { type: String, default: null },
+  resetPasswordOtpExpiry: { type: Date, default: null },
+  resetPasswordOtpAttempts: { type: Number, default: 0 },
+  resetPasswordLastSentAt: { type: Date, default: null },
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);
