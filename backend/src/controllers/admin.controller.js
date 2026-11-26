@@ -310,7 +310,7 @@ exports.deleteTask = async (_req, res) => {
   });
 };
 
-// ── Festival Greeting Cards ─────────────────────────────────────
+// Festival Greeting Cards 
 
 function parseOptionalDate(val, endOfDay = false) {
   if (!val || typeof val !== 'string' || !val.trim()) return null;
