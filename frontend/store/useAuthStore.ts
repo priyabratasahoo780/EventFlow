@@ -151,7 +151,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             profilePhoto: parsedUser.profilePhoto?.startsWith('file://') ? '' : parsedUser.profilePhoto,
           });
 
-          if (res.data?.user) {
+          if (res.data?.user && get().token === token) {
             const localPhotoKey = `local_profile_photo_${parsedUser._id || parsedUser.email}`;
             const savedLocalPhoto = await AsyncStorage.getItem(localPhotoKey).catch(() => null);
             const mergedPhoto =
@@ -171,7 +171,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({ user: syncedUser, token: finalToken });
           }
 
-          if (parsedUser.role !== 'admin') {
+          if (parsedUser.role !== 'admin' && get().token === token) {
             const pushToken = await notificationService.registerForPushNotificationsAsync();
             if (pushToken) {
               await api.post('/users/push-token', { token: pushToken }).catch(() => {});
@@ -179,7 +179,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         } catch (syncErr: any) {
           const status = syncErr?.response?.status;
-          if (status === 401 || status === 403) {
+          // Only clear session if no newer login/signup has replaced the token
+          if ((status === 401 || status === 403) && get().token === token) {
             await removeAuthToken();
             await AsyncStorage.removeItem('user').catch(() => {});
             set({ token: null, user: null });

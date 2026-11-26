@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -79,6 +80,7 @@ export default function LoginScreen() {
   const [formBannerError, setFormBannerError] = useState('');
   const [modalConfig, setModalConfig] = useState<AuthModalConfig>(INITIAL_MODAL);
 
+  const scrollViewRef = useRef<ScrollView>(null);
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
   const autoSentTokenRef = useRef<string | null>(null);
   const login = useAuthStore((state) => state.login);
@@ -166,7 +168,6 @@ export default function LoginScreen() {
 
   const formik = useFormik({
     initialValues: { email: initialEmail, password: '' },
-    enableReinitialize: true,
     validationSchema,
     onSubmit: async (values) => {
       if (loading || googleLoading) return;
@@ -194,6 +195,7 @@ export default function LoginScreen() {
         }
       } catch (err: any) {
         triggerShake();
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
         const parsed = extractApiError(err, 'Login failed. Please check your credentials and try again.');
 
         if (parsed.accountNotFound) {
@@ -296,11 +298,29 @@ export default function LoginScreen() {
     },
   });
 
+  useEffect(() => {
+    if (initialEmail && !formik.values.email) {
+      formik.setFieldValue('email', initialEmail, false);
+    }
+  }, [initialEmail]);
+
+  useEffect(() => {
+    if (initial2FAToken && initial2FAEmail) {
+      setTempToken(initial2FAToken);
+      setEmailFor2FA(initial2FAEmail);
+      setRequires2FA(true);
+    }
+  }, [initial2FAToken, initial2FAEmail]);
+
   const handleSubmitForm = async () => {
+    Keyboard.dismiss();
     setFormBannerError('');
     const errors = await formik.validateForm();
-    if (Object.keys(errors).length > 0) {
+    const firstError = errors.email || errors.password;
+    if (firstError) {
       formik.setTouched({ email: true, password: true });
+      setFormBannerError(String(firstError));
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       triggerShake();
       return;
     }
@@ -308,6 +328,7 @@ export default function LoginScreen() {
   };
 
   const handleVerify2FA = async () => {
+    Keyboard.dismiss();
     if (!otp || otp.length !== 6) {
       triggerShake();
       setOtpError('Please enter all 6 digits from your verification email.');
@@ -355,6 +376,7 @@ export default function LoginScreen() {
 
   const handleGoogleLogin = async () => {
     if (loading || googleLoading) return;
+    Keyboard.dismiss();
     setGoogleLoading(true);
     setFormBannerError('');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -417,6 +439,7 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={[
             styles.container,
             {

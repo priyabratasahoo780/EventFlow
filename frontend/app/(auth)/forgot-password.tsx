@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -47,12 +48,13 @@ import { useFormik } from 'formik';
 import * as yup from 'yup';
 
 const emailSchema = yup.object().shape({
-  email: yup.string().email('Invalid email address').required('Registered email is required'),
+  email: yup.string().trim().email('Invalid email address').required('Registered email is required'),
 });
 
 const resetSchema = yup.object().shape({
   otp: yup
     .string()
+    .trim()
     .matches(/^\d{6}$/, 'Enter the 6-digit verification code')
     .required('6-digit OTP is required'),
   newPassword: yup
@@ -61,7 +63,7 @@ const resetSchema = yup.object().shape({
     .matches(/[A-Z]/, 'Password requires an uppercase letter (A-Z)')
     .matches(/[a-z]/, 'Password requires a lowercase letter (a-z)')
     .matches(/[0-9]/, 'Password requires a number (0-9)')
-    .matches(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, 'Password requires a special symbol')
+    .matches(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/, 'Password requires a special symbol')
     .required('New password is required'),
 });
 
@@ -129,7 +131,6 @@ export default function ForgotPasswordScreen() {
 
   const emailFormik = useFormik({
     initialValues: { email: initialEmail },
-    enableReinitialize: true,
     validationSchema: emailSchema,
     onSubmit: async (values) => {
       if (loading) return;
@@ -240,11 +241,19 @@ export default function ForgotPasswordScreen() {
     },
   });
 
+  useEffect(() => {
+    if (initialEmail && !emailFormik.values.email) {
+      emailFormik.setFieldValue('email', initialEmail, false);
+    }
+  }, [initialEmail]);
+
   const handleRequestOtp = async () => {
+    Keyboard.dismiss();
     setBannerError('');
     const errors = await emailFormik.validateForm();
-    if (Object.keys(errors).length > 0) {
+    if (errors.email) {
       emailFormik.setTouched({ email: true });
+      setBannerError(String(errors.email));
       triggerShake();
       return;
     }
@@ -275,10 +284,13 @@ export default function ForgotPasswordScreen() {
   };
 
   const handleResetSubmit = async () => {
+    Keyboard.dismiss();
     setBannerError('');
     const errors = await resetFormik.validateForm();
-    if (Object.keys(errors).length > 0) {
+    const firstErr = errors.otp || errors.newPassword;
+    if (firstErr) {
       resetFormik.setTouched({ otp: true, newPassword: true });
+      setBannerError(String(firstErr));
       triggerShake();
       return;
     }

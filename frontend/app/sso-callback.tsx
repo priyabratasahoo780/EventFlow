@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Redirect } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useAuthStore } from '../store/useAuthStore';
 import LoadingScreen from '../components/LoadingScreen';
 
@@ -10,10 +10,17 @@ import LoadingScreen from '../components/LoadingScreen';
  */
 export default function SSOCallbackScreen() {
   const { token, user } = useAuthStore();
+  const router = useRouter();
 
   useEffect(() => {
-    // WebBrowser.openAuthSessionAsync completes in the background on login/register
-  }, []);
+    if (token) return;
+    const timeout = setTimeout(() => {
+      if (!useAuthStore.getState().token) {
+        router.replace('/(auth)/login');
+      }
+    }, 12000);
+    return () => clearTimeout(timeout);
+  }, [token, router]);
 
   if (token) {
     if (user?.role === 'admin') {

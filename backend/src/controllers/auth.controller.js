@@ -95,7 +95,7 @@ const validateStrongPassword = (pwd) => {
   if (!/[0-9]/.test(pwd)) {
     return 'Password must contain at least one number (0-9).';
   }
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd)) {
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(pwd)) {
     return 'Password must contain at least one special character (e.g. @, #, $, %, !, &, *).';
   }
   return null;
@@ -132,10 +132,23 @@ const verifyClerkGoogleSession = async (sessionId) => {
     'Content-Type': 'application/json',
   };
 
-  const sessionRes = await fetch(
-    `https://api.clerk.com/v1/sessions/${encodeURIComponent(sessionId)}`,
-    { headers, signal: AbortSignal.timeout(8000) }
-  );
+  let sessionRes;
+  try {
+    sessionRes = await fetch(
+      `https://api.clerk.com/v1/sessions/${encodeURIComponent(sessionId)}`,
+      { headers, signal: AbortSignal.timeout(15000) }
+    );
+  } catch {
+    const netErr = new Error('Google verification service timed out. Please try again.');
+    netErr.statusCode = 503;
+    throw netErr;
+  }
+
+  if (sessionRes.status >= 500) {
+    const srvErr = new Error('Google verification service is temporarily busy. Please try again.');
+    srvErr.statusCode = 503;
+    throw srvErr;
+  }
 
   if (!sessionRes.ok) {
     throw new Error('Invalid or expired Google OAuth session.');
@@ -146,13 +159,22 @@ const verifyClerkGoogleSession = async (sessionId) => {
     throw new Error('Google OAuth session is no longer active.');
   }
 
-  const userRes = await fetch(
-    `https://api.clerk.com/v1/users/${encodeURIComponent(sessionData.user_id)}`,
-    { headers, signal: AbortSignal.timeout(8000) }
-  );
+  let userRes;
+  try {
+    userRes = await fetch(
+      `https://api.clerk.com/v1/users/${encodeURIComponent(sessionData.user_id)}`,
+      { headers, signal: AbortSignal.timeout(15000) }
+    );
+  } catch {
+    const netErr = new Error('Timed out retrieving Google profile. Please try again.');
+    netErr.statusCode = 503;
+    throw netErr;
+  }
 
-  if (!userRes.ok) {
-    throw new Error('Could not retrieve verified Google profile.');
+  if (userRes.status >= 500 || !userRes.ok) {
+    const err = new Error('Could not retrieve verified Google profile. Please try again.');
+    if (userRes.status >= 500) err.statusCode = 503;
+    throw err;
   }
 
   const clerkUser = await userRes.json();
@@ -211,18 +233,34 @@ exports.register = async (req, res) => {
       });
     }
 
-    const rawUsername = String(username || cleanEmail.split('@')[0])
-      .replace(/[^a-zA-Z0-9_.-]/g, '')
-      .trim()
-      .toLowerCase()
-      .slice(0, 40);
+    const hasExplicitUsername = typeof username === 'string' && username.trim().length > 0;
+    let rawUsername = '';
 
-    if (rawUsername.length < 3) {
-      return res.status(400).json({
-        error: 'Username must be at least 3 characters.',
-        code: 'INVALID_USERNAME',
-        field: 'username',
-      });
+    if (hasExplicitUsername) {
+      rawUsername = username.trim().toLowerCase();
+      if (rawUsername.length < 3 || rawUsername.length > 40) {
+        return res.status(400).json({
+          error: 'Username must be between 3 and 40 characters.',
+          code: 'INVALID_USERNAME',
+          field: 'username',
+        });
+      }
+      if (!/^[a-zA-Z0-9_.-]+$/.test(rawUsername)) {
+        return res.status(400).json({
+          error: 'Username can only contain letters, numbers, underscores (_), dots (.), and hyphens (-).',
+          code: 'INVALID_USERNAME',
+          field: 'username',
+        });
+      }
+    } else {
+      let baseUsername = (cleanEmail.split('@')[0] || cleanName)
+        .replace(/[^a-zA-Z0-9_.-]/g, '')
+        .toLowerCase()
+        .slice(0, 32);
+      if (baseUsername.length < 3) {
+        baseUsername = `${baseUsername}user`.slice(0, 32);
+      }
+      rawUsername = baseUsername;
     }
 
     const existingEmailUser = await User.findOne({ email: cleanEmail }).select('_id email').lean();
@@ -237,12 +275,22 @@ exports.register = async (req, res) => {
 
     const existingUsernameUser = await User.findOne({ username: rawUsername }).select('_id username').lean();
     if (existingUsernameUser) {
-      return res.status(409).json({
-        error: `Username "@${rawUsername}" is already taken. Please choose another username.`,
-        code: 'USERNAME_TAKEN',
-        usernameTaken: true,
-        field: 'username',
-      });
+      if (hasExplicitUsername) {
+        return res.status(409).json({
+          error: `Username "@${rawUsername}" is already taken. Please choose another username.`,
+          code: 'USERNAME_TAKEN',
+          usernameTaken: true,
+          field: 'username',
+        });
+      }
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const candidate = `${rawUsername.slice(0, 30)}${crypto.randomInt(100, 9999)}`;
+        const taken = await User.findOne({ username: candidate }).select('_id').lean();
+        if (!taken) {
+          rawUsername = candidate;
+          break;
+        }
+      }
     }
 
     const uniqueId = await generateUniqueId();
@@ -570,7 +618,9 @@ exports.googleLogin = async (req, res) => {
     try {
       verifiedProfile = await verifyClerkGoogleSession(sessionId);
     } catch (verifyErr) {
-      const status = verifyErr.message === 'CLERK_NOT_CONFIGURED' ? 503 : 401;
+      const status = verifyErr.message === 'CLERK_NOT_CONFIGURED'
+        ? 503
+        : (verifyErr.statusCode || 401);
       return res.status(status).json({
         error:
           verifyErr.message === 'CLERK_NOT_CONFIGURED'
@@ -590,10 +640,14 @@ exports.googleLogin = async (req, res) => {
         .replace(/[^a-zA-Z0-9_]/g, '')
         .toLowerCase()
         .slice(0, 32) || 'user';
+      if (cleanUsername.length < 3) {
+        cleanUsername = `${cleanUsername}user`.slice(0, 32);
+      }
 
-      const existingUsername = await User.findOne({ username: cleanUsername });
-      if (existingUsername) {
-        cleanUsername = `${cleanUsername}${crypto.randomInt(100, 9999)}`;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const existingUsername = await User.findOne({ username: cleanUsername }).select('_id').lean();
+        if (!existingUsername) break;
+        cleanUsername = `${cleanUsername.slice(0, 26)}${crypto.randomInt(100, 9999)}`;
       }
 
       user = new User({
@@ -608,7 +662,11 @@ exports.googleLogin = async (req, res) => {
 
       await user.save();
     } else if (user.isBanned) {
-      return res.status(403).json({ error: 'Your account has been suspended by an administrator.' });
+      return res.status(403).json({
+        error: 'Your account has been suspended by an administrator. Please contact support.',
+        code: 'ACCOUNT_BANNED',
+        accountBanned: true,
+      });
     }
 
     if (user.twoFactorEnabled) {
@@ -633,7 +691,12 @@ exports.googleLogin = async (req, res) => {
     });
   } catch (err) {
     console.error('Google login error:', err);
-    res.status(500).json({ error: 'Google authentication failed' });
+    if (err && err.code === 11000) {
+      return res.status(409).json({
+        error: 'An account conflict occurred while completing Google Sign-In. Please tap Continue with Google once more.',
+      });
+    }
+    res.status(500).json({ error: 'Google authentication failed. Please try again.' });
   }
 };
 

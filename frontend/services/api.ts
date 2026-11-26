@@ -24,6 +24,9 @@ const getApiUrl = (): string => {
 
   if (debuggerHost) {
     const hostIp = debuggerHost.split(':')[0];
+    if (hostIp.includes('exp.direct') || hostIp.includes('ngrok')) {
+      return PRODUCTION_API_URL;
+    }
     return `http://${hostIp}:5000/api`;
   }
 

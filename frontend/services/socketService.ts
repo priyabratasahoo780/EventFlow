@@ -31,6 +31,9 @@ class SocketService {
 
     if (debuggerHost) {
       hostIp = debuggerHost.split(':')[0];
+      if (hostIp.includes('exp.direct') || hostIp.includes('ngrok')) {
+        return PRODUCTION_SOCKET_URL;
+      }
     } else if (Platform.OS === 'android') {
       hostIp = '10.0.2.2';
     }

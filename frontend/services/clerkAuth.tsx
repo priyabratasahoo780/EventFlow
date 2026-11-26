@@ -92,10 +92,21 @@ export const useGoogleAuth = () => {
 
       // Detect Clerk Dashboard requirements blocking SSO (e.g., required phone_number or missing redirect_url)
       if (!result?.createdSessionId) {
+        if (!result?.authSessionResult) {
+          throw new Error(
+            'Google Sign-In is still initializing or could not connect to authentication service. Please wait a second and try again.'
+          );
+        }
+
         if (su?.status === 'missing_requirements') {
-          const missing = Array.isArray((su as any).missingFields) && (su as any).missingFields.length > 0
-            ? (su as any).missingFields.join(', ')
-            : 'additional profile verification';
+          const missingList = [
+            ...(Array.isArray((su as any).missingFields) ? (su as any).missingFields : []),
+            ...(Array.isArray((su as any).unverifiedFields) ? (su as any).unverifiedFields : []),
+          ].filter(Boolean);
+          const uniqueMissing = Array.from(new Set(missingList));
+          const missing = uniqueMissing.length > 0
+            ? uniqueMissing.join(', ')
+            : 'additional profile verification (e.g., phone_number)';
           throw new Error(
             `Google Sign-Up could not complete because Clerk requires: ${missing}. Make Phone Number optional in Clerk Dashboard.`
           );

@@ -11,6 +11,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -57,19 +58,18 @@ const validationSchema = yup.object().shape({
   username: yup
     .string()
     .trim()
-    .min(3, 'Min 3 chars')
+    .test('min-if-provided', 'Username must be at least 3 characters', (val) => !val || val.length >= 3)
     .max(40, 'Max 40 chars')
-    .matches(/^[a-zA-Z0-9_.-]+$/, 'Letters, numbers, _, ., - only')
-    .required('Username required'),
-  email: yup.string().email('Invalid email address').trim().required('Email is required'),
-  city: yup.string().trim().min(2, 'Enter a valid city').required('City required'),
+    .matches(/^[a-zA-Z0-9_.-]*$/, 'Letters, numbers, _, ., - only'),
+  email: yup.string().trim().email('Invalid email address').required('Email is required'),
+  city: yup.string().trim().max(80, 'City name is too long'),
   password: yup
     .string()
     .min(8, 'Password must be at least 8 characters')
     .matches(/[A-Z]/, 'Password requires an uppercase letter')
     .matches(/[a-z]/, 'Password requires a lowercase letter')
     .matches(/[0-9]/, 'Password requires a number')
-    .matches(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, 'Password requires a symbol')
+    .matches(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/, 'Password requires a symbol')
     .required('Password is required'),
 });
 
@@ -97,6 +97,7 @@ export default function RegisterScreen() {
   const [formBannerError, setFormBannerError] = useState('');
   const [modalConfig, setModalConfig] = useState<AuthModalConfig>(INITIAL_MODAL);
 
+  const scrollViewRef = useRef<ScrollView>(null);
   const usernameRef = useRef<ComponentRef<typeof TextInput>>(null);
   const emailRef = useRef<ComponentRef<typeof TextInput>>(null);
   const cityRef = useRef<ComponentRef<typeof TextInput>>(null);
@@ -135,7 +136,6 @@ export default function RegisterScreen() {
 
   const formik = useFormik({
     initialValues: { name: '', username: '', email: initialEmail, city: '', password: '' },
-    enableReinitialize: true,
     validationSchema,
     onSubmit: async (values) => {
       if (loading || googleLoading) return;
@@ -144,13 +144,13 @@ export default function RegisterScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const cleanEmail = values.email.trim().toLowerCase();
-      const cleanUsername = (values.username || values.name.split(' ')[0]).trim().toLowerCase();
+      const cleanUsername = values.username.trim().toLowerCase();
       const cleanName = values.name.trim();
 
       try {
         const res = await api.post('/auth/register', {
           name: cleanName,
-          username: cleanUsername,
+          ...(cleanUsername ? { username: cleanUsername } : {}),
           email: cleanEmail,
           city: values.city.trim(),
           password: values.password,
@@ -162,6 +162,7 @@ export default function RegisterScreen() {
         await login(res.data.token, res.data.user);
       } catch (err: any) {
         triggerShake();
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
         const parsed = extractApiError(err, 'Registration failed. Please check your details and try again.');
 
         if (parsed.accountExists) {
@@ -233,10 +234,19 @@ export default function RegisterScreen() {
     },
   });
 
+  useEffect(() => {
+    if (initialEmail && !formik.values.email) {
+      formik.setFieldValue('email', initialEmail, false);
+    }
+  }, [initialEmail]);
+
   const handleSubmitForm = async () => {
+    Keyboard.dismiss();
     setFormBannerError('');
     const errors = await formik.validateForm();
-    if (Object.keys(errors).length > 0) {
+    const errorOrder: Array<keyof typeof formik.values> = ['name', 'username', 'city', 'email', 'password'];
+    const firstKey = errorOrder.find((key) => Boolean(errors[key]));
+    if (firstKey) {
       formik.setTouched({
         name: true,
         username: true,
@@ -244,6 +254,8 @@ export default function RegisterScreen() {
         city: true,
         password: true,
       });
+      setFormBannerError(String(errors[firstKey]));
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       triggerShake();
       return;
     }
@@ -256,7 +268,7 @@ export default function RegisterScreen() {
   const hasUpper = /[A-Z]/.test(password);
   const hasLower = /[a-z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
-  const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+  const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(password);
   const passedCount = [hasMinLength, hasUpper, hasLower, hasNumber, hasSymbol].filter(Boolean).length;
   const isPasswordStrong = passedCount === 5;
   const strengthColor = isPasswordStrong ? '#10B981' : passedCount >= 3 ? '#F59E0B' : '#EF4444';
@@ -274,6 +286,7 @@ export default function RegisterScreen() {
 
   const handleGoogleSignUp = async () => {
     if (loading || googleLoading) return;
+    Keyboard.dismiss();
     setGoogleLoading(true);
     setFormBannerError('');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -338,8 +351,10 @@ export default function RegisterScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
+          ref={scrollViewRef}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
           contentContainerStyle={[
             styles.container,
             {
@@ -424,7 +439,7 @@ export default function RegisterScreen() {
                 ref={usernameRef}
                 compact
                 containerStyle={styles.halfCol}
-                label="USERNAME"
+                label="USERNAME (OPT.)"
                 colors={colors}
                 isDark={dark}
                 isFocused={focusedField === 'username'}
@@ -461,7 +476,7 @@ export default function RegisterScreen() {
                 ref={cityRef}
                 compact
                 containerStyle={styles.halfCol}
-                label="CITY"
+                label="CITY (OPTIONAL)"
                 colors={colors}
                 isDark={dark}
                 isFocused={focusedField === 'city'}
@@ -477,7 +492,10 @@ export default function RegisterScreen() {
                 }
                 placeholder="New York"
                 value={formik.values.city}
-                onChangeText={formik.handleChange('city')}
+                onChangeText={(text) => {
+                  if (formBannerError) setFormBannerError('');
+                  formik.handleChange('city')(text);
+                }}
                 onFocus={() => setFocusedField('city')}
                 onBlur={() => {
                   setFocusedField(null);
@@ -566,7 +584,10 @@ export default function RegisterScreen() {
                 }
                 placeholder="••••••••"
                 value={formik.values.password}
-                onChangeText={formik.handleChange('password')}
+                onChangeText={(text) => {
+                  if (formBannerError) setFormBannerError('');
+                  formik.handleChange('password')(text);
+                }}
                 onFocus={() => setFocusedField('password')}
                 onBlur={() => {
                   setFocusedField(null);
