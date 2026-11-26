@@ -113,7 +113,8 @@ export default function AuthStatusModal({ config, onClose }: Props) {
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <View style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <Animated.View
           entering={ZoomIn.duration(220).springify()}
           style={[
@@ -124,10 +125,7 @@ export default function AuthStatusModal({ config, onClose }: Props) {
             },
           ]}
         >
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
-            style={styles.innerPressable}
-          >
+          <View style={styles.innerPressable}>
             <Pressable
               onPress={() => {
                 Haptics.selectionAsync();
@@ -217,9 +215,9 @@ export default function AuthStatusModal({ config, onClose }: Props) {
                 </Text>
               </Pressable>
             </View>
-          </Pressable>
+          </View>
         </Animated.View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
