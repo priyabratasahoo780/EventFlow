@@ -117,6 +117,7 @@
       "expo-status-bar",
       "expo-video",
       "expo-audio",
+      "@clerk/expo",
       "./plugins/withAlarmManager.js",
       "expo-asset"
     ],

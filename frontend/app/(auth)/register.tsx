@@ -282,15 +282,15 @@ export default function RegisterScreen() {
       const result = await signInWithGoogle();
       if (!result || result.cancelled) return;
 
-      if (!result.sessionId || !result.user?.email) {
-        throw new Error('Google did not return a verified email session. Please try again.');
+      if (!result.sessionId) {
+        throw new Error('Google did not return an active session. Please try again.');
       }
 
       const res = await api.post('/auth/google', {
         sessionId: result.sessionId,
-        email: result.user.email,
-        name: result.user.name || formik.values.name.trim() || 'Google User',
-        profilePhoto: result.user.profilePhoto || '',
+        email: result.user?.email || '',
+        name: result.user?.name || formik.values.name.trim() || 'Google User',
+        profilePhoto: result.user?.profilePhoto || '',
       });
 
       if (res.data?.requires2FA) {
@@ -684,6 +684,7 @@ export default function RegisterScreen() {
       </KeyboardAvoidingView>
 
       <AuthStatusModal config={modalConfig} onClose={closeModal} />
+      <View nativeID="clerk-captcha" />
     </View>
   );
 }

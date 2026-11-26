@@ -21,7 +21,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useThemeStore } from '../store/useThemeStore';
 import { warmUpBackend } from '../services/api';
 import { ClerkProvider } from '../services/clerkAuth';
-import { tokenCache } from '../services/tokenCache';
+import { tokenCache } from '@clerk/expo/token-cache';
 import '../services/geofencingService'; // Initialize Geofencing Background Task
 import * as Location from 'expo-location';
 import { alarmService } from '../services/alarmService';
@@ -277,9 +277,10 @@ function RootLayoutNav() {
     const seg0 = (segments as string[])[0];
     const inAuthGroup = seg0 === '(auth)';
     const inAdminPortal = seg0 === 'admin';
+    const inOAuthCallback = seg0 === 'sso-callback';
     const atRootIndex = !seg0;
 
-    if (!token && !inAuthGroup) {
+    if (!token && !inAuthGroup && !inOAuthCallback) {
       router.replace('/(auth)/welcome');
     } else if (token && user?.role === 'admin') {
       // Strict portal isolation: Admin can NEVER enter user portal routes

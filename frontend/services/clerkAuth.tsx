@@ -11,11 +11,9 @@ import {
   useAuth as useExpoAuth,
   useSignIn as useExpoSignIn,
   useSignUp as useExpoSignUp,
+  getClerkInstance,
 } from '@clerk/expo';
-import { tokenCache } from './tokenCache';
-
-// Initialize web browser for OAuth redirects
-WebBrowser.maybeCompleteAuthSession();
+import { tokenCache as defaultClerkTokenCache } from '@clerk/expo/token-cache';
 
 // Warm up the browser for faster OAuth popups on Android
 export const useWarmUpBrowser = () => {
@@ -32,7 +30,7 @@ export const useWarmUpBrowser = () => {
 export const ClerkProvider = ({
   children,
   publishableKey,
-  tokenCache: cache = tokenCache,
+  tokenCache: cache = defaultClerkTokenCache,
 }: {
   children: React.ReactNode;
   publishableKey?: string;
@@ -74,9 +72,9 @@ export const useGoogleAuth = () => {
 
   const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
     try {
+      // Automatically resolves to eventflow://sso-callback in standalone APK and exp://.../sso-callback in Expo Go
       const redirectUrl = AuthSession.makeRedirectUri({
         path: 'sso-callback',
-        scheme: 'eventflow',
       });
 
       const result = await startSSOFlow({
@@ -89,31 +87,59 @@ export const useGoogleAuth = () => {
         return { success: false, cancelled: true };
       }
 
-      let createdSessionId: string | null = null;
-      if (result?.createdSessionId && result?.setActive) {
-        createdSessionId = result.createdSessionId;
-        await result.setActive({ session: result.createdSessionId });
-      }
-
-      if (!createdSessionId) {
-        // User backed out before completing Google sign-in
-        return { success: false, cancelled: true };
-      }
-
       const su = result?.signUp;
       const si = result?.signIn;
 
+      // Detect Clerk Dashboard requirements blocking SSO (e.g., required phone_number or missing redirect_url)
+      if (!result?.createdSessionId) {
+        if (su?.status === 'missing_requirements') {
+          const missing = Array.isArray((su as any).missingFields) && (su as any).missingFields.length > 0
+            ? (su as any).missingFields.join(', ')
+            : 'additional profile verification';
+          throw new Error(
+            `Google Sign-Up could not complete because Clerk requires: ${missing}. Make Phone Number optional in Clerk Dashboard.`
+          );
+        }
+
+        if (result?.authSessionResult?.type === 'success') {
+          throw new Error(
+            `Google OAuth returned without a session. Make sure redirect URL "${redirectUrl}" is whitelisted in Clerk Dashboard -> Native Applications.`
+          );
+        }
+
+        return { success: false, cancelled: true };
+      }
+
+      if (result?.setActive) {
+        await result.setActive({ session: result.createdSessionId });
+      }
+
+      const clerkUser = (() => {
+        try {
+          return getClerkInstance()?.user;
+        } catch {
+          return null;
+        }
+      })();
+
       const email =
-        su?.emailAddress || si?.identifier || (su as any)?.emailAddresses?.[0]?.emailAddress || '';
-      const fName = su?.firstName || (si as any)?.userData?.firstName || '';
-      const lName = su?.lastName || (si as any)?.userData?.lastName || '';
+        clerkUser?.primaryEmailAddress?.emailAddress ||
+        clerkUser?.emailAddresses?.[0]?.emailAddress ||
+        su?.emailAddress ||
+        si?.identifier ||
+        (su as any)?.emailAddresses?.[0]?.emailAddress ||
+        '';
+      const fName = clerkUser?.firstName || su?.firstName || (si as any)?.userData?.firstName || '';
+      const lName = clerkUser?.lastName || su?.lastName || (si as any)?.userData?.lastName || '';
       const name =
-        [fName, lName].filter(Boolean).join(' ') || (email ? email.split('@')[0] : 'Google User');
-      const profilePhoto = (su as any)?.imageUrl || (si as any)?.imageUrl || '';
+        clerkUser?.fullName ||
+        [fName, lName].filter(Boolean).join(' ') ||
+        (email ? email.split('@')[0] : 'Google User');
+      const profilePhoto = clerkUser?.imageUrl || (su as any)?.imageUrl || (si as any)?.imageUrl || '';
 
       return {
         success: true,
-        sessionId: createdSessionId,
+        sessionId: result.createdSessionId,
         user: {
           email,
           name,
