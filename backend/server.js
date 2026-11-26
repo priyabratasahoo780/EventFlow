@@ -2,7 +2,7 @@
  * server.js
  * EventFlow backend HTTP server and WebSocket entry point.
  */
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const http = require('http');
 const mongoose = require('mongoose');

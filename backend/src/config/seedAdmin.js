@@ -9,7 +9,15 @@ async function seedAdminAccount() {
   const adminPassword = process.env.ADMIN_PASSWORD || '';
 
   if (!adminEmail || !adminPassword) {
-    logger.warn('[AdminSeed] ADMIN_EMAIL or ADMIN_PASSWORD not set in .env — admin auto-seed skipped.');
+    const existingAdmin = adminEmail
+      ? await User.findOne({ email: adminEmail, role: 'admin' }).select('_id email').lean().catch(() => null)
+      : await User.findOne({ role: 'admin' }).select('_id email').lean().catch(() => null);
+
+    if (existingAdmin) {
+      logger.info(`[AdminSeed] Admin account verified: ${existingAdmin.email}`);
+    } else {
+      logger.warn('[AdminSeed] ADMIN_EMAIL or ADMIN_PASSWORD not set in environment — admin auto-seed skipped.');
+    }
     return;
   }
 
@@ -49,6 +57,8 @@ async function seedAdminAccount() {
       if (dirty) {
         await adminUser.save();
         logger.info(`[AdminSeed] Admin privileges verified for ${adminEmail}`);
+      } else {
+        logger.info(`[AdminSeed] Admin account ready: ${adminEmail}`);
       }
     }
   } catch (err) {
