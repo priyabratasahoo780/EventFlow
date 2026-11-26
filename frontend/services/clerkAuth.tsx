@@ -1,17 +1,16 @@
-
 import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
-import { 
-  ClerkProvider as ExpoClerkProvider, 
-  ClerkLoaded as ExpoClerkLoaded, 
+import {
+  ClerkProvider as ExpoClerkProvider,
+  ClerkLoaded as ExpoClerkLoaded,
   useSSO as useExpoSSO,
   useOAuth as useExpoOAuth,
   useUser as useExpoUser,
   useAuth as useExpoAuth,
   useSignIn as useExpoSignIn,
-  useSignUp as useExpoSignUp
+  useSignUp as useExpoSignUp,
 } from '@clerk/expo';
 import { tokenCache } from './tokenCache';
 
@@ -58,47 +57,59 @@ export const useAuth = useExpoAuth;
 export const useSignIn = useExpoSignIn;
 export const useSignUp = useExpoSignUp;
 
+export interface GoogleAuthResult {
+  success: boolean;
+  cancelled?: boolean;
+  sessionId?: string | null;
+  user?: {
+    email: string;
+    name: string;
+    profilePhoto: string;
+  };
+}
 
 export const useGoogleAuth = () => {
   useWarmUpBrowser();
   const { startSSOFlow } = useExpoSSO();
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
     try {
       const redirectUrl = AuthSession.makeRedirectUri({
         path: 'sso-callback',
         scheme: 'eventflow',
       });
 
-      let createdSessionId: string | null = null;
-      let email = '';
-      let name = '';
-      let profilePhoto = '';
+      const result = await startSSOFlow({
+        strategy: 'oauth_google',
+        redirectUrl,
+      });
 
-      try {
-        const result = await startSSOFlow({
-          strategy: 'oauth_google',
-          redirectUrl,
-        });
-
-        if (result?.createdSessionId && result?.setActive) {
-          createdSessionId = result.createdSessionId;
-          await result.setActive({ session: result.createdSessionId });
-        }
-
-        const su = result?.signUp;
-        const si = result?.signIn;
-
-        email = su?.emailAddress || si?.identifier || (su as any)?.emailAddresses?.[0]?.emailAddress || '';
-        const fName = su?.firstName || (si as any)?.userData?.firstName || '';
-        const lName = su?.lastName || (si as any)?.userData?.lastName || '';
-        name = [fName, lName].filter(Boolean).join(' ') || (email ? email.split('@')[0] : 'Google User');
-        profilePhoto = (su as any)?.imageUrl || (si as any)?.imageUrl || '';
-      } catch (ssoErr: any) {
-        console.warn('[Clerk SSO Warning]:', ssoErr?.message || ssoErr);
-        // Throw to be handled by the outer block, or if it's a known cancel, it can just fall through.
-        throw ssoErr;
+      const sessionType = (result as any)?.authSessionResult?.type;
+      if (sessionType === 'cancel' || sessionType === 'dismiss') {
+        return { success: false, cancelled: true };
       }
+
+      let createdSessionId: string | null = null;
+      if (result?.createdSessionId && result?.setActive) {
+        createdSessionId = result.createdSessionId;
+        await result.setActive({ session: result.createdSessionId });
+      }
+
+      if (!createdSessionId) {
+        // User backed out before completing Google sign-in
+        return { success: false, cancelled: true };
+      }
+
+      const su = result?.signUp;
+      const si = result?.signIn;
+
+      const email =
+        su?.emailAddress || si?.identifier || (su as any)?.emailAddresses?.[0]?.emailAddress || '';
+      const fName = su?.firstName || (si as any)?.userData?.firstName || '';
+      const lName = su?.lastName || (si as any)?.userData?.lastName || '';
+      const name =
+        [fName, lName].filter(Boolean).join(' ') || (email ? email.split('@')[0] : 'Google User');
+      const profilePhoto = (su as any)?.imageUrl || (si as any)?.imageUrl || '';
 
       return {
         success: true,
@@ -110,9 +121,24 @@ export const useGoogleAuth = () => {
         },
       };
     } catch (err: any) {
+      const rawMsg = String(err?.message || '').toLowerCase();
+      const errCode = String(err?.code || '');
+      const isCancelled =
+        errCode === 'ERR_REQUEST_CANCELED' ||
+        rawMsg.includes('cancel') ||
+        rawMsg.includes('dismiss');
+
+      if (isCancelled) {
+        return { success: false, cancelled: true };
+      }
+
       console.warn('[Google OAuth Flow Error]:', err?.message || err);
-      // Return null on failure or cancellation instead of generating a fake user
-      return null;
+      throw new Error(
+        err?.errors?.[0]?.longMessage ||
+          err?.errors?.[0]?.message ||
+          err?.message ||
+          'Google sign-in could not be completed. Please check your connection and try again.'
+      );
     }
   };
 

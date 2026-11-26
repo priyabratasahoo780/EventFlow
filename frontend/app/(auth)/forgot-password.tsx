@@ -1,4 +1,3 @@
- 
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useResponsive } from '../../constants/responsive';
@@ -8,7 +7,6 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  Alert,
   Pressable,
   ScrollView,
   KeyboardAvoidingView,
@@ -31,9 +29,19 @@ import {
   AuthInput,
   AnimatedPrimaryButton,
 } from '../../components/AuthUI';
-import api from '../../services/api';
-import { useRouter } from 'expo-router';
-import { Eye, EyeOff, Mail, Lock, ShieldCheck, KeyRound, ArrowRight } from 'lucide-react-native';
+import AuthStatusModal, { AuthModalConfig } from '../../components/AuthStatusModal';
+import api, { extractApiError, warmUpBackend } from '../../services/api';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  ShieldCheck,
+  KeyRound,
+  ArrowRight,
+  AlertCircle,
+} from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
@@ -57,6 +65,13 @@ const resetSchema = yup.object().shape({
     .required('New password is required'),
 });
 
+const INITIAL_MODAL: AuthModalConfig = {
+  visible: false,
+  type: 'error',
+  title: '',
+  message: '',
+};
+
 export default function ForgotPasswordScreen() {
   const { getColors, isDark } = useThemeStore();
   const colors = getColors();
@@ -64,6 +79,8 @@ export default function ForgotPasswordScreen() {
   const styles = getStyles(colors);
   const insets = useSafeAreaInsets();
   const { authMaxWidth, isSmall } = useResponsive();
+  const params = useLocalSearchParams<{ email?: string }>();
+  const initialEmail = typeof params.email === 'string' ? params.email.trim() : '';
 
   const [step, setStep] = useState<'request' | 'verify'>('request');
   const [targetEmail, setTargetEmail] = useState('');
@@ -72,8 +89,18 @@ export default function ForgotPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [otpResending, setOtpResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [bannerError, setBannerError] = useState('');
+  const [modalConfig, setModalConfig] = useState<AuthModalConfig>(INITIAL_MODAL);
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
   const router = useRouter();
+
+  const closeModal = useCallback(() => {
+    setModalConfig((prev) => ({ ...prev, visible: false }));
+  }, []);
+
+  useEffect(() => {
+    warmUpBackend();
+  }, []);
 
   const shakeX = useSharedValue(0);
   const shakeStyle = useAnimatedStyle(() => ({
@@ -101,11 +128,14 @@ export default function ForgotPasswordScreen() {
   }, [resendCooldown]);
 
   const emailFormik = useFormik({
-    initialValues: { email: '' },
+    initialValues: { email: initialEmail },
+    enableReinitialize: true,
     validationSchema: emailSchema,
     onSubmit: async (values) => {
+      if (loading) return;
       const cleanEmail = values.email.trim().toLowerCase();
       setLoading(true);
+      setBannerError('');
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       try {
@@ -116,10 +146,44 @@ export default function ForgotPasswordScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (err: any) {
         triggerShake();
-        Alert.alert(
-          'Request Failed',
-          err.response?.data?.error || 'Could not send reset verification code. Please check your email.'
+        const parsed = extractApiError(
+          err,
+          'Could not send reset verification code. Please check your email.'
         );
+        setBannerError(parsed.message);
+
+        if (parsed.accountNotFound) {
+          emailFormik.setFieldError('email', 'Email not registered');
+          emailFormik.setFieldTouched('email', true, false);
+          setModalConfig({
+            visible: true,
+            type: 'account_not_found',
+            title: 'Account Not Found',
+            highlightText: cleanEmail,
+            message: 'No EventFlow account exists with this email address. Create a new account instead?',
+            primaryAction: {
+              label: 'Create Account',
+              onPress: () => {
+                closeModal();
+                router.push({
+                  pathname: '/(auth)/register',
+                  params: { email: cleanEmail },
+                } as any);
+              },
+            },
+            secondaryAction: {
+              label: 'Try Different Email',
+              onPress: closeModal,
+            },
+          });
+        } else {
+          setModalConfig({
+            visible: true,
+            type: parsed.isNetworkError || parsed.isTimeout ? 'network' : 'error',
+            title: parsed.title || 'Request Failed',
+            message: parsed.message,
+          });
+        }
       } finally {
         setLoading(false);
       }
@@ -130,7 +194,9 @@ export default function ForgotPasswordScreen() {
     initialValues: { otp: '', newPassword: '' },
     validationSchema: resetSchema,
     onSubmit: async (values) => {
+      if (loading) return;
       setLoading(true);
+      setBannerError('');
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       try {
@@ -141,17 +207,33 @@ export default function ForgotPasswordScreen() {
         });
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          'Password Reset Successful',
-          'Your password has been updated securely. You can now log in with your new password.',
-          [{ text: 'GO TO LOGIN', onPress: () => router.replace('/(auth)/login') }]
-        );
+        setModalConfig({
+          visible: true,
+          type: 'account_exists',
+          title: 'Password Reset Successful',
+          highlightText: targetEmail,
+          message: 'Your password has been updated securely. You can now log in with your new password.',
+          primaryAction: {
+            label: 'Go to Login',
+            onPress: () => {
+              closeModal();
+              router.replace({
+                pathname: '/(auth)/login',
+                params: { email: targetEmail },
+              } as any);
+            },
+          },
+        });
       } catch (err: any) {
         triggerShake();
-        Alert.alert(
-          'Reset Failed',
-          err.response?.data?.error || 'Unable to verify OTP or update password.'
-        );
+        const parsed = extractApiError(err, 'Unable to verify OTP or update password.');
+        setBannerError(parsed.message);
+        setModalConfig({
+          visible: true,
+          type: parsed.isNetworkError || parsed.isTimeout ? 'network' : 'error',
+          title: parsed.title || 'Reset Failed',
+          message: parsed.message,
+        });
       } finally {
         setLoading(false);
       }
@@ -159,6 +241,7 @@ export default function ForgotPasswordScreen() {
   });
 
   const handleRequestOtp = async () => {
+    setBannerError('');
     const errors = await emailFormik.validateForm();
     if (Object.keys(errors).length > 0) {
       emailFormik.setTouched({ email: true });
@@ -171,22 +254,28 @@ export default function ForgotPasswordScreen() {
   const handleResendOtp = async () => {
     if (!targetEmail || otpResending || resendCooldown > 0) return;
     setOtpResending(true);
+    setBannerError('');
     try {
       await api.post('/auth/forgot-password/send-otp', { email: targetEmail });
       setResendCooldown(30);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
       triggerShake();
-      Alert.alert(
-        'Resend Failed',
-        err.response?.data?.error || 'Could not resend verification code. Please try again.'
-      );
+      const parsed = extractApiError(err, 'Could not resend verification code. Please try again.');
+      setBannerError(parsed.message);
+      setModalConfig({
+        visible: true,
+        type: parsed.isNetworkError || parsed.isTimeout ? 'network' : 'error',
+        title: 'Resend Failed',
+        message: parsed.message,
+      });
     } finally {
       setOtpResending(false);
     }
   };
 
   const handleResetSubmit = async () => {
+    setBannerError('');
     const errors = await resetFormik.validateForm();
     if (Object.keys(errors).length > 0) {
       resetFormik.setTouched({ otp: true, newPassword: true });
@@ -227,6 +316,7 @@ export default function ForgotPasswordScreen() {
                 : 'Enter your registered email to receive a secure verification OTP.'
             }
             onBack={() => {
+              setBannerError('');
               if (step === 'verify') {
                 setStep('request');
                 resetFormik.resetForm();
@@ -235,6 +325,21 @@ export default function ForgotPasswordScreen() {
               }
             }}
           />
+
+          {bannerError ? (
+            <Animated.View
+              entering={FadeInDown.duration(220)}
+              style={[
+                styles.errorBanner,
+                { backgroundColor: colors.dangerLight, borderColor: colors.error },
+              ]}
+            >
+              <AlertCircle color={colors.error} size={17} strokeWidth={2.2} />
+              <Text style={[styles.errorBannerText, { color: colors.error }]}>
+                {bannerError}
+              </Text>
+            </Animated.View>
+          ) : null}
 
           {step === 'request' ? (
             <Animated.View key="step-request" style={shakeStyle}>
@@ -256,7 +361,10 @@ export default function ForgotPasswordScreen() {
                   }
                   placeholder="your.email@example.com"
                   value={emailFormik.values.email}
-                  onChangeText={emailFormik.handleChange('email')}
+                  onChangeText={(text) => {
+                    if (bannerError) setBannerError('');
+                    emailFormik.handleChange('email')(text);
+                  }}
                   onFocus={() => setFocusedField('email')}
                   onBlur={() => {
                     setFocusedField(null);
@@ -322,7 +430,10 @@ export default function ForgotPasswordScreen() {
                 }
                 placeholder="123456"
                 value={resetFormik.values.otp}
-                onChangeText={(t) => resetFormik.setFieldValue('otp', t.replace(/[^0-9]/g, ''))}
+                onChangeText={(t) => {
+                  if (bannerError) setBannerError('');
+                  resetFormik.setFieldValue('otp', t.replace(/[^0-9]/g, ''));
+                }}
                 onFocus={() => setFocusedField('otp')}
                 onBlur={() => {
                   setFocusedField(null);
@@ -368,7 +479,7 @@ export default function ForgotPasswordScreen() {
                     )}
                   </Pressable>
                 }
-                placeholder="At least 8 characters"
+                placeholder="Min 8 chars, A-Z, a-z, 0-9, !@#"
                 value={resetFormik.values.newPassword}
                 onChangeText={resetFormik.handleChange('newPassword')}
                 onFocus={() => setFocusedField('newPassword')}
@@ -410,6 +521,8 @@ export default function ForgotPasswordScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <AuthStatusModal config={modalConfig} onClose={closeModal} />
     </View>
   );
 }
@@ -423,6 +536,22 @@ const getStyles = (_colors: ColorTheme) =>
       flexGrow: 1,
       paddingHorizontal: 24,
       justifyContent: 'center',
+    },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+      paddingHorizontal: 13,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      marginBottom: 14,
+    },
+    errorBannerText: {
+      flex: 1,
+      fontFamily: 'Poppins_500Medium',
+      fontSize: 12.5,
+      lineHeight: 18,
     },
     eyeBtn: {
       padding: 4,

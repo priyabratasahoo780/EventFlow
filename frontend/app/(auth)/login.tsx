@@ -1,4 +1,3 @@
-
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useResponsive } from '../../constants/responsive';
@@ -8,7 +7,6 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  Alert,
   Pressable,
   ScrollView,
   KeyboardAvoidingView,
@@ -33,19 +31,27 @@ import {
   AnimatedPrimaryButton,
   AuthDivider,
 } from '../../components/AuthUI';
-import api from '../../services/api';
+import AuthStatusModal, { AuthModalConfig } from '../../components/AuthStatusModal';
+import api, { extractApiError, warmUpBackend } from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
-import { useRouter } from 'expo-router';
-import { Eye, EyeOff, Mail, Lock, ShieldCheck, ArrowRight } from 'lucide-react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Eye, EyeOff, Mail, Lock, ShieldCheck, ArrowRight, AlertCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useGoogleAuth } from '../../services/clerkAuth';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
 
 const validationSchema = yup.object().shape({
-  email: yup.string().trim().required('Email or username is required'),
+  email: yup.string().trim().min(3, 'Enter a valid email or username').required('Email or username is required'),
   password: yup.string().required('Password is required'),
 });
+
+const INITIAL_MODAL: AuthModalConfig = {
+  visible: false,
+  type: 'error',
+  title: '',
+  message: '',
+};
 
 export default function LoginScreen() {
   const { getColors, isDark } = useThemeStore();
@@ -54,6 +60,8 @@ export default function LoginScreen() {
   const styles = getStyles(colors);
   const insets = useSafeAreaInsets();
   const { authMaxWidth, isSmall } = useResponsive();
+  const params = useLocalSearchParams<{ email?: string }>();
+  const initialEmail = typeof params.email === 'string' ? params.email.trim() : '';
 
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -65,6 +73,9 @@ export default function LoginScreen() {
   const [tempToken, setTempToken] = useState('');
   const [emailFor2FA, setEmailFor2FA] = useState('');
   const [otp, setOtp] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [formBannerError, setFormBannerError] = useState('');
+  const [modalConfig, setModalConfig] = useState<AuthModalConfig>(INITIAL_MODAL);
 
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
   const autoSentTokenRef = useRef<string | null>(null);
@@ -72,6 +83,15 @@ export default function LoginScreen() {
   const setPostLoginRoute = useAuthStore((state) => state.setPostLoginRoute);
   const router = useRouter();
   const { signInWithGoogle } = useGoogleAuth();
+
+  const closeModal = useCallback(() => {
+    setModalConfig((prev) => ({ ...prev, visible: false }));
+  }, []);
+
+  // Wake up Render backend silently as soon as login screen opens
+  useEffect(() => {
+    warmUpBackend();
+  }, []);
 
   // Horizontal shake animation on invalid submit / error
   const shakeX = useSharedValue(0);
@@ -103,24 +123,32 @@ export default function LoginScreen() {
   const send2FACode = useCallback(async (email: string, token: string) => {
     if (!email || !token) return;
     setOtpSending(true);
+    setOtpError('');
     try {
       await api.post('/auth/2fa/send', { email, tempToken: token });
       setResendCooldown(30);
     } catch (err: any) {
-      const status = err?.response?.status;
-      const serverError = err?.response?.data?.error;
+      const parsed = extractApiError(err, 'Could not send the verification code. Please tap Resend Code.');
 
-      if (status === 401) {
+      if (parsed.status === 401) {
         setRequires2FA(false);
         setOtp('');
         setTempToken('');
         autoSentTokenRef.current = null;
-        Alert.alert('Session Expired', serverError || 'Please sign in again to continue.');
+        setModalConfig({
+          visible: true,
+          type: 'error',
+          title: 'Session Expired',
+          message: parsed.message || 'Your sign-in session expired. Please log in again.',
+        });
       } else {
-        Alert.alert(
-          'Code Delivery Failed',
-          serverError || 'Could not send the verification code. Please tap Resend Code.'
-        );
+        setOtpError(parsed.message);
+        setModalConfig({
+          visible: true,
+          type: parsed.isNetworkError || parsed.isTimeout ? 'network' : 'error',
+          title: 'Code Delivery Failed',
+          message: parsed.message,
+        });
       }
     } finally {
       setOtpSending(false);
@@ -135,10 +163,13 @@ export default function LoginScreen() {
   }, [requires2FA, emailFor2FA, tempToken, send2FACode]);
 
   const formik = useFormik({
-    initialValues: { email: '', password: '' },
+    initialValues: { email: initialEmail, password: '' },
+    enableReinitialize: true,
     validationSchema,
     onSubmit: async (values) => {
+      if (loading || googleLoading) return;
       setLoading(true);
+      setFormBannerError('');
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const cleanEmail = values.email.trim().toLowerCase();
 
@@ -159,22 +190,101 @@ export default function LoginScreen() {
         }
       } catch (err: any) {
         triggerShake();
-        const isNotFound = err.response?.data?.accountNotFound || err.response?.status === 404;
-        const serverError = err.response?.data?.error || err.response?.data?.message;
+        const parsed = extractApiError(err, 'Login failed. Please check your credentials and try again.');
 
-        if (isNotFound) {
-          Alert.alert(
-            'Account Not Found',
-            'No account found with this email/username. Want to create one?',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Create Account', onPress: () => router.push('/(auth)/register') },
-            ]
-          );
-        } else if (serverError) {
-          Alert.alert('Login Failed', serverError);
+        if (parsed.accountNotFound) {
+          setFormBannerError('No account found with this email or username.');
+          formik.setFieldError('email', 'Account not found');
+          formik.setFieldTouched('email', true, false);
+          const prefill = cleanEmail.includes('@') ? cleanEmail : '';
+          setModalConfig({
+            visible: true,
+            type: 'account_not_found',
+            title: 'Account Not Found',
+            highlightText: cleanEmail,
+            message: 'No EventFlow account exists with this email or username. Want to create a new account?',
+            primaryAction: {
+              label: 'Create Account',
+              onPress: () => {
+                closeModal();
+                router.push({
+                  pathname: '/(auth)/register',
+                  params: prefill ? { email: prefill } : {},
+                } as any);
+              },
+            },
+            secondaryAction: {
+              label: 'Try Different Email',
+              onPress: closeModal,
+            },
+          });
+        } else if (parsed.accountBanned) {
+          setFormBannerError(parsed.message);
+          setModalConfig({
+            visible: true,
+            type: 'suspended',
+            title: 'Account Suspended',
+            highlightText: cleanEmail,
+            message: parsed.message,
+          });
+        } else if (parsed.code === 'INVALID_PASSWORD') {
+          setFormBannerError(parsed.message);
+          formik.setFieldError('password', 'Incorrect password');
+          formik.setFieldTouched('password', true, false);
+          const prefill = cleanEmail.includes('@') ? cleanEmail : '';
+          setModalConfig({
+            visible: true,
+            type: 'error',
+            title: 'Incorrect Password',
+            message: 'The password you entered is incorrect. Double-check it or reset your password via email OTP.',
+            primaryAction: {
+              label: 'Forgot Password?',
+              onPress: () => {
+                closeModal();
+                router.push({
+                  pathname: '/(auth)/forgot-password',
+                  params: prefill ? { email: prefill } : {},
+                } as any);
+              },
+            },
+            secondaryAction: {
+              label: 'Try Again',
+              onPress: () => {
+                closeModal();
+                passwordRef.current?.focus();
+              },
+            },
+          });
+        } else if (parsed.code === 'USE_GOOGLE_OR_RESET') {
+          setFormBannerError(parsed.message);
+          setModalConfig({
+            visible: true,
+            type: 'warning',
+            title: 'Use Google Sign-In',
+            message: parsed.message,
+            primaryAction: {
+              label: 'Reset Password Instead',
+              onPress: () => {
+                closeModal();
+                router.push({
+                  pathname: '/(auth)/forgot-password',
+                  params: cleanEmail.includes('@') ? { email: cleanEmail } : {},
+                } as any);
+              },
+            },
+            secondaryAction: {
+              label: 'Cancel',
+              onPress: closeModal,
+            },
+          });
         } else {
-          Alert.alert('Connection Error', 'Unable to reach the server. Please check your internet connection.');
+          setFormBannerError(parsed.message);
+          setModalConfig({
+            visible: true,
+            type: parsed.isNetworkError || parsed.isTimeout ? 'network' : 'error',
+            title: parsed.title || 'Login Failed',
+            message: parsed.message,
+          });
         }
       } finally {
         setLoading(false);
@@ -183,6 +293,7 @@ export default function LoginScreen() {
   });
 
   const handleSubmitForm = async () => {
+    setFormBannerError('');
     const errors = await formik.validateForm();
     if (Object.keys(errors).length > 0) {
       formik.setTouched({ email: true, password: true });
@@ -195,10 +306,17 @@ export default function LoginScreen() {
   const handleVerify2FA = async () => {
     if (!otp || otp.length !== 6) {
       triggerShake();
-      Alert.alert('Invalid Code', 'Please enter the 6-digit code sent to your email.');
+      setOtpError('Please enter all 6 digits from your verification email.');
+      setModalConfig({
+        visible: true,
+        type: 'warning',
+        title: 'Invalid Code',
+        message: 'Please enter the 6-digit verification code sent to your email.',
+      });
       return;
     }
     setLoading(true);
+    setOtpError('');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const res = await api.post('/auth/2fa/verify', { email: emailFor2FA, otp, tempToken });
@@ -210,19 +328,37 @@ export default function LoginScreen() {
       router.replace((res.data.user?.role === 'admin' ? '/admin' : '/(tabs)') as any);
     } catch (err: any) {
       triggerShake();
-      const serverError = err.response?.data?.error || err.response?.data?.message;
-      Alert.alert('Verification Failed', serverError || 'Invalid 2FA code. Please try again.');
+      const parsed = extractApiError(err, 'Invalid 2FA code. Please try again.');
+      setOtpError(parsed.message);
+      setModalConfig({
+        visible: true,
+        type: parsed.isNetworkError || parsed.isTimeout ? 'network' : 'error',
+        title: parsed.status === 401 ? 'Session Expired' : 'Verification Failed',
+        message: parsed.message,
+      });
+      if (parsed.status === 401) {
+        setRequires2FA(false);
+        setOtp('');
+        setTempToken('');
+        autoSentTokenRef.current = null;
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
+    if (loading || googleLoading) return;
     setGoogleLoading(true);
+    setFormBannerError('');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const result = await signInWithGoogle();
-      if (!result || !result.user?.email) return;
+      if (!result || result.cancelled) return;
+
+      if (!result.sessionId || !result.user?.email) {
+        throw new Error('Google did not return a verified email session. Please try again.');
+      }
 
       const res = await api.post('/auth/google', {
         sessionId: result.sessionId,
@@ -231,19 +367,25 @@ export default function LoginScreen() {
         profilePhoto: result.user.profilePhoto,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await login(res.data.token, res.data.user);
-      router.replace('/(tabs)');
-    } catch (err: any) {
-      const isCancelled =
-        err?.code === 'ERR_REQUEST_CANCELED' ||
-        err?.message?.includes('cancel') ||
-        err?.message?.includes('dismissed');
-      if (!isCancelled) {
-        Alert.alert(
-          'Google Sign-In Failed',
-          err?.response?.data?.error || 'Could not complete Google sign-in. Please try again.'
-        );
+      if (res.data.user?.role === 'admin') {
+        setPostLoginRoute('/admin');
       }
+      await login(res.data.token, res.data.user);
+      router.replace((res.data.user?.role === 'admin' ? '/admin' : '/(tabs)') as any);
+    } catch (err: any) {
+      triggerShake();
+      const parsed = extractApiError(err, 'Could not complete Google sign-in. Please try again.');
+      setFormBannerError(parsed.message);
+      setModalConfig({
+        visible: true,
+        type: parsed.accountBanned
+          ? 'suspended'
+          : parsed.isNetworkError || parsed.isTimeout
+            ? 'network'
+            : 'error',
+        title: parsed.accountBanned ? 'Account Suspended' : 'Google Sign-In Failed',
+        message: parsed.message,
+      });
     } finally {
       setGoogleLoading(false);
     }
@@ -283,6 +425,7 @@ export default function LoginScreen() {
               if (requires2FA) {
                 setRequires2FA(false);
                 setOtp('');
+                setOtpError('');
                 setTempToken('');
                 autoSentTokenRef.current = null;
               } else if (router.canGoBack()) {
@@ -318,6 +461,8 @@ export default function LoginScreen() {
                 colors={colors}
                 isDark={dark}
                 isFocused={focusedField === 'otp'}
+                error={otpError}
+                touched={Boolean(otpError)}
                 leftIcon={
                   <Lock
                     color={focusedField === 'otp' ? colors.secondary : colors.textSecondary}
@@ -327,7 +472,10 @@ export default function LoginScreen() {
                 }
                 placeholder="123456"
                 value={otp}
-                onChangeText={(t) => setOtp(t.replace(/[^0-9]/g, ''))}
+                onChangeText={(t) => {
+                  setOtp(t.replace(/[^0-9]/g, ''));
+                  if (otpError) setOtpError('');
+                }}
                 onFocus={() => setFocusedField('otp')}
                 onBlur={() => setFocusedField(null)}
                 keyboardType="number-pad"
@@ -366,6 +514,21 @@ export default function LoginScreen() {
             </Animated.View>
           ) : (
             <Animated.View style={shakeStyle}>
+              {formBannerError ? (
+                <Animated.View
+                  entering={FadeInDown.duration(220)}
+                  style={[
+                    styles.errorBanner,
+                    { backgroundColor: colors.dangerLight, borderColor: colors.error },
+                  ]}
+                >
+                  <AlertCircle color={colors.error} size={17} strokeWidth={2.2} />
+                  <Text style={[styles.errorBannerText, { color: colors.error }]}>
+                    {formBannerError}
+                  </Text>
+                </Animated.View>
+              ) : null}
+
               {/* Email */}
               <Animated.View entering={FadeInDown.delay(110).duration(420).springify()}>
                 <AuthInput
@@ -385,7 +548,10 @@ export default function LoginScreen() {
                   }
                   placeholder="your.email@example.com"
                   value={formik.values.email}
-                  onChangeText={formik.handleChange('email')}
+                  onChangeText={(text) => {
+                    if (formBannerError) setFormBannerError('');
+                    formik.handleChange('email')(text);
+                  }}
                   onFocus={() => setFocusedField('email')}
                   onBlur={() => {
                     setFocusedField(null);
@@ -436,7 +602,10 @@ export default function LoginScreen() {
                   }
                   placeholder="••••••••"
                   value={formik.values.password}
-                  onChangeText={formik.handleChange('password')}
+                  onChangeText={(text) => {
+                    if (formBannerError) setFormBannerError('');
+                    formik.handleChange('password')(text);
+                  }}
                   onFocus={() => setFocusedField('password')}
                   onBlur={() => {
                     setFocusedField(null);
@@ -454,7 +623,11 @@ export default function LoginScreen() {
                 <Pressable
                   onPress={() => {
                     Haptics.selectionAsync();
-                    router.push('/(auth)/forgot-password');
+                    const clean = formik.values.email.trim().toLowerCase();
+                    router.push({
+                      pathname: '/(auth)/forgot-password',
+                      params: clean.includes('@') ? { email: clean } : {},
+                    } as any);
                   }}
                   hitSlop={8}
                   style={({ pressed }) => [styles.forgotBtn, pressed && { opacity: 0.7 }]}
@@ -469,6 +642,7 @@ export default function LoginScreen() {
                   title="Continue"
                   onPress={handleSubmitForm}
                   loading={loading}
+                  disabled={googleLoading}
                   rightIcon={<ArrowRight color="#FFF" size={18} strokeWidth={2.5} />}
                 />
               </Animated.View>
@@ -503,6 +677,8 @@ export default function LoginScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <AuthStatusModal config={modalConfig} onClose={closeModal} />
     </View>
   );
 }
@@ -516,6 +692,22 @@ const getStyles = (colors: ColorTheme) =>
       flexGrow: 1,
       paddingHorizontal: 24,
       justifyContent: 'center',
+    },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+      paddingHorizontal: 13,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      marginBottom: 14,
+    },
+    errorBannerText: {
+      flex: 1,
+      fontFamily: 'Poppins_500Medium',
+      fontSize: 12.5,
+      lineHeight: 18,
     },
     eyeBtn: {
       padding: 4,
@@ -546,7 +738,6 @@ const getStyles = (colors: ColorTheme) =>
       fontFamily: 'Poppins_700Bold',
       fontSize: 14,
     },
-    // 2FA panel styles
     otpBadgeCard: {
       borderRadius: 18,
       borderWidth: 1,

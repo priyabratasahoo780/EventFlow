@@ -19,6 +19,7 @@ import { Alert, Platform, LogBox } from 'react-native';
 import { useRouter, useSegments } from 'expo-router';
 import { useAuthStore } from '../store/useAuthStore';
 import { useThemeStore } from '../store/useThemeStore';
+import { warmUpBackend } from '../services/api';
 import { ClerkProvider } from '../services/clerkAuth';
 import { tokenCache } from '../services/tokenCache';
 import '../services/geofencingService'; // Initialize Geofencing Background Task
@@ -127,6 +128,7 @@ function RootLayoutNav() {
   const [activeAlarmEvent, setActiveAlarmEvent] = useState<Event | null>(null);
 
   useEffect(() => {
+    warmUpBackend();
     checkAuth();
   }, []);
 

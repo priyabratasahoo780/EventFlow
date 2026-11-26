@@ -87,8 +87,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (pushToken) {
           await api.post('/users/push-token', { token: pushToken });
         }
-      } catch {
-        // Background sync failed — user is already logged in locally
+      } catch (syncErr: any) {
+        const status = syncErr?.response?.status;
+        if (status === 401 || status === 403) {
+          await removeAuthToken();
+          await AsyncStorage.removeItem('user');
+          set({ token: null, user: null });
+        }
       }
     });
   },
@@ -186,8 +191,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (pushToken) {
             await api.post('/users/push-token', { token: pushToken });
           }
-        } catch {
-          // Background auth sync deferred
+        } catch (syncErr: any) {
+          const status = syncErr?.response?.status;
+          if (status === 401 || status === 403) {
+            await removeAuthToken();
+            await AsyncStorage.removeItem('user');
+            set({ token: null, user: null });
+          }
         }
       } catch {
         await removeAuthToken();

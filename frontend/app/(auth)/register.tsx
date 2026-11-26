@@ -1,4 +1,3 @@
-
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useResponsive } from '../../constants/responsive';
@@ -8,7 +7,6 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  Alert,
   Pressable,
   ScrollView,
   KeyboardAvoidingView,
@@ -31,9 +29,10 @@ import {
   AnimatedPrimaryButton,
   AuthDivider,
 } from '../../components/AuthUI';
-import api from '../../services/api';
+import AuthStatusModal, { AuthModalConfig } from '../../components/AuthStatusModal';
+import api, { extractApiError, warmUpBackend } from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   Eye,
   EyeOff,
@@ -46,6 +45,7 @@ import {
   MapPin,
   Lock,
   ArrowRight,
+  AlertCircle,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useFormik } from 'formik';
@@ -53,15 +53,16 @@ import * as yup from 'yup';
 import { useGoogleAuth } from '../../services/clerkAuth';
 
 const validationSchema = yup.object().shape({
-  name: yup.string().trim().min(2, 'Name is too short').required('Full Name is required'),
+  name: yup.string().trim().min(2, 'Name must be at least 2 characters').required('Full Name is required'),
   username: yup
     .string()
     .trim()
     .min(3, 'Min 3 chars')
-    .matches(/^[a-zA-Z0-9_]+$/, 'Letters, numbers & _ only')
+    .max(40, 'Max 40 chars')
+    .matches(/^[a-zA-Z0-9_.-]+$/, 'Letters, numbers, _, ., - only')
     .required('Username required'),
   email: yup.string().email('Invalid email address').trim().required('Email is required'),
-  city: yup.string().trim().required('City required'),
+  city: yup.string().trim().min(2, 'Enter a valid city').required('City required'),
   password: yup
     .string()
     .min(8, 'Password must be at least 8 characters')
@@ -72,6 +73,13 @@ const validationSchema = yup.object().shape({
     .required('Password is required'),
 });
 
+const INITIAL_MODAL: AuthModalConfig = {
+  visible: false,
+  type: 'error',
+  title: '',
+  message: '',
+};
+
 export default function RegisterScreen() {
   const { getColors, isDark } = useThemeStore();
   const colors = getColors();
@@ -79,11 +87,15 @@ export default function RegisterScreen() {
   const styles = getStyles(colors);
   const insets = useSafeAreaInsets();
   const { authMaxWidth, isSmall } = useResponsive();
+  const params = useLocalSearchParams<{ email?: string }>();
+  const initialEmail = typeof params.email === 'string' ? params.email.trim() : '';
 
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [formBannerError, setFormBannerError] = useState('');
+  const [modalConfig, setModalConfig] = useState<AuthModalConfig>(INITIAL_MODAL);
 
   const usernameRef = useRef<ComponentRef<typeof TextInput>>(null);
   const emailRef = useRef<ComponentRef<typeof TextInput>>(null);
@@ -93,6 +105,15 @@ export default function RegisterScreen() {
   const login = useAuthStore((state) => state.login);
   const router = useRouter();
   const { signInWithGoogle } = useGoogleAuth();
+
+  const closeModal = useCallback(() => {
+    setModalConfig((prev) => ({ ...prev, visible: false }));
+  }, []);
+
+  // Wake up Render backend silently while user fills registration details
+  useEffect(() => {
+    warmUpBackend();
+  }, []);
 
   // Horizontal shake animation on validation/server error
   const shakeX = useSharedValue(0);
@@ -113,10 +134,13 @@ export default function RegisterScreen() {
   }, [shakeX]);
 
   const formik = useFormik({
-    initialValues: { name: '', username: '', email: '', city: '', password: '' },
+    initialValues: { name: '', username: '', email: initialEmail, city: '', password: '' },
+    enableReinitialize: true,
     validationSchema,
     onSubmit: async (values) => {
+      if (loading || googleLoading) return;
       setLoading(true);
+      setFormBannerError('');
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const cleanEmail = values.email.trim().toLowerCase();
@@ -136,22 +160,70 @@ export default function RegisterScreen() {
         router.replace('/(tabs)');
       } catch (err: any) {
         triggerShake();
-        const serverError = err.response?.data?.error || err.response?.data?.message;
-        if (serverError) {
-          const errStr = String(serverError).toLowerCase();
-          if (errStr.includes('already') || errStr.includes('exist')) {
-            Alert.alert('Account Exists', 'You already have an account! Please log in instead.', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Go to Login', onPress: () => router.push('/(auth)/login') },
-            ]);
-          } else {
-            Alert.alert('Registration Notice', serverError);
-          }
+        const parsed = extractApiError(err, 'Registration failed. Please check your details and try again.');
+
+        if (parsed.accountExists) {
+          setFormBannerError('An account with this email already exists. Please log in instead.');
+          formik.setFieldError('email', 'Email already registered');
+          formik.setFieldTouched('email', true, false);
+          setModalConfig({
+            visible: true,
+            type: 'account_exists',
+            title: 'Account Already Exists',
+            highlightText: cleanEmail,
+            message: 'You already have an EventFlow account with this email address! Sign in instead to continue.',
+            primaryAction: {
+              label: 'Go to Login',
+              onPress: () => {
+                closeModal();
+                router.push({
+                  pathname: '/(auth)/login',
+                  params: { email: cleanEmail },
+                } as any);
+              },
+            },
+            secondaryAction: {
+              label: 'Use Different Email',
+              onPress: () => {
+                closeModal();
+                emailRef.current?.focus();
+              },
+            },
+          });
+        } else if (parsed.usernameTaken) {
+          setFormBannerError(parsed.message);
+          formik.setFieldError('username', 'Username already taken');
+          formik.setFieldTouched('username', true, false);
+          setModalConfig({
+            visible: true,
+            type: 'username_taken',
+            title: 'Username Not Available',
+            highlightText: `@${cleanUsername}`,
+            message: 'This username is already taken by another user. Please pick a different username.',
+            primaryAction: {
+              label: 'Change Username',
+              onPress: () => {
+                closeModal();
+                usernameRef.current?.focus();
+              },
+            },
+            secondaryAction: {
+              label: 'Close',
+              onPress: closeModal,
+            },
+          });
         } else {
-          Alert.alert(
-            'Connection Error',
-            'Unable to reach the server. Please check your internet connection.'
-          );
+          if (parsed.field && ['name', 'username', 'email', 'city', 'password'].includes(parsed.field)) {
+            formik.setFieldError(parsed.field, parsed.message);
+            formik.setFieldTouched(parsed.field, true, false);
+          }
+          setFormBannerError(parsed.message);
+          setModalConfig({
+            visible: true,
+            type: parsed.isNetworkError || parsed.isTimeout ? 'network' : 'error',
+            title: parsed.title || 'Registration Failed',
+            message: parsed.message,
+          });
         }
       } finally {
         setLoading(false);
@@ -160,6 +232,7 @@ export default function RegisterScreen() {
   });
 
   const handleSubmitForm = async () => {
+    setFormBannerError('');
     const errors = await formik.validateForm();
     if (Object.keys(errors).length > 0) {
       formik.setTouched({
@@ -198,12 +271,18 @@ export default function RegisterScreen() {
   }));
 
   const handleGoogleSignUp = async () => {
+    if (loading || googleLoading) return;
     setGoogleLoading(true);
+    setFormBannerError('');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
       const result = await signInWithGoogle();
-      if (!result || !result.user?.email) return;
+      if (!result || result.cancelled) return;
+
+      if (!result.sessionId || !result.user?.email) {
+        throw new Error('Google did not return a verified email session. Please try again.');
+      }
 
       const res = await api.post('/auth/google', {
         sessionId: result.sessionId,
@@ -216,16 +295,19 @@ export default function RegisterScreen() {
       await login(res.data.token, res.data.user);
       router.replace('/(tabs)');
     } catch (err: any) {
-      const isCancelled =
-        err?.code === 'ERR_REQUEST_CANCELED' ||
-        err?.message?.includes('cancel') ||
-        err?.message?.includes('dismissed');
-      if (!isCancelled) {
-        Alert.alert(
-          'Google Sign-Up Failed',
-          err?.response?.data?.error || 'Could not complete Google sign-up. Please try again.'
-        );
-      }
+      triggerShake();
+      const parsed = extractApiError(err, 'Could not complete Google sign-up. Please try again.');
+      setFormBannerError(parsed.message);
+      setModalConfig({
+        visible: true,
+        type: parsed.accountBanned
+          ? 'suspended'
+          : parsed.isNetworkError || parsed.isTimeout
+            ? 'network'
+            : 'error',
+        title: parsed.accountBanned ? 'Account Suspended' : 'Google Sign-Up Failed',
+        message: parsed.message,
+      });
     } finally {
       setGoogleLoading(false);
     }
@@ -265,6 +347,21 @@ export default function RegisterScreen() {
           />
 
           <Animated.View style={shakeStyle}>
+            {formBannerError ? (
+              <Animated.View
+                entering={FadeInDown.duration(220)}
+                style={[
+                  styles.errorBanner,
+                  { backgroundColor: colors.dangerLight, borderColor: colors.error },
+                ]}
+              >
+                <AlertCircle color={colors.error} size={17} strokeWidth={2.2} />
+                <Text style={[styles.errorBannerText, { color: colors.error }]}>
+                  {formBannerError}
+                </Text>
+              </Animated.View>
+            ) : null}
+
             {/* Full Name */}
             <Animated.View entering={FadeInDown.delay(90).duration(380).springify()}>
               <AuthInput
@@ -285,7 +382,10 @@ export default function RegisterScreen() {
                 }
                 placeholder="John Doe"
                 value={formik.values.name}
-                onChangeText={formik.handleChange('name')}
+                onChangeText={(text) => {
+                  if (formBannerError) setFormBannerError('');
+                  formik.handleChange('name')(text);
+                }}
                 onFocus={() => setFocusedField('name')}
                 onBlur={() => {
                   setFocusedField(null);
@@ -299,7 +399,7 @@ export default function RegisterScreen() {
               />
             </Animated.View>
 
-            {/* Username + City side-by-side for cleaner rhythm & no bottom clipping */}
+            {/* Username + City side-by-side */}
             <Animated.View
               entering={FadeInDown.delay(140).duration(380).springify()}
               style={styles.rowFields}
@@ -324,9 +424,10 @@ export default function RegisterScreen() {
                 }
                 placeholder="johndoe"
                 value={formik.values.username}
-                onChangeText={(val) =>
-                  formik.setFieldValue('username', val.toLowerCase().replace(/[^a-z0-9_]/g, ''))
-                }
+                onChangeText={(val) => {
+                  if (formBannerError) setFormBannerError('');
+                  formik.setFieldValue('username', val.toLowerCase().replace(/[^a-z0-9_.-]/g, ''));
+                }}
                 onFocus={() => setFocusedField('username')}
                 onBlur={() => {
                   setFocusedField(null);
@@ -394,7 +495,10 @@ export default function RegisterScreen() {
                 }
                 placeholder="john@example.com"
                 value={formik.values.email}
-                onChangeText={formik.handleChange('email')}
+                onChangeText={(text) => {
+                  if (formBannerError) setFormBannerError('');
+                  formik.handleChange('email')(text);
+                }}
                 onFocus={() => setFocusedField('email')}
                 onBlur={() => {
                   setFocusedField(null);
@@ -524,6 +628,7 @@ export default function RegisterScreen() {
                 title="Create Account"
                 onPress={handleSubmitForm}
                 loading={loading}
+                disabled={googleLoading}
                 rightIcon={<ArrowRight color="#FFF" size={18} strokeWidth={2.5} />}
               />
             </Animated.View>
@@ -561,6 +666,8 @@ export default function RegisterScreen() {
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <AuthStatusModal config={modalConfig} onClose={closeModal} />
     </View>
   );
 }
@@ -574,6 +681,22 @@ const getStyles = (colors: ColorTheme) =>
       flexGrow: 1,
       paddingHorizontal: 24,
       justifyContent: 'center',
+    },
+    errorBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+      paddingHorizontal: 13,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      marginBottom: 14,
+    },
+    errorBannerText: {
+      flex: 1,
+      fontFamily: 'Poppins_500Medium',
+      fontSize: 12.5,
+      lineHeight: 18,
     },
     rowFields: {
       flexDirection: 'row',
@@ -601,11 +724,11 @@ const getStyles = (colors: ColorTheme) =>
     strengthTitle: {
       fontFamily: 'Poppins_700Bold',
       fontSize: 11,
-      letterSpacing: 0.4,
+      letterSpacing: 0.8,
     },
     strengthCount: {
       fontFamily: 'Poppins_600SemiBold',
-      fontSize: 11,
+      fontSize: 11.5,
     },
     strengthBarBg: {
       height: 5,
@@ -620,20 +743,20 @@ const getStyles = (colors: ColorTheme) =>
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 8,
-      rowGap: 6,
+      rowGap: 4,
     },
     ruleItem: {
-      width: '47%',
       flexDirection: 'row',
       alignItems: 'center',
       gap: 5,
+      width: '47%',
     },
     ruleText: {
       fontFamily: 'Poppins_500Medium',
-      fontSize: 11,
+      fontSize: 11.5,
     },
     loginRow: {
-      marginTop: 18,
+      marginTop: 20,
       alignItems: 'center',
     },
     loginInner: {

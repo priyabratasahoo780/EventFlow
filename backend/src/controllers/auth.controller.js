@@ -178,18 +178,37 @@ exports.register = async (req, res) => {
     const { name, username, email, password, city, profilePhoto } = req.body;
 
     if (!name || !email || !password) {
-      return res.status(400).json({ error: 'Name, email, and password are required.' });
+      return res.status(400).json({
+        error: 'Name, email, and password are required.',
+        code: 'MISSING_FIELDS',
+      });
     }
 
     const cleanName = String(name).trim().slice(0, 80);
+    if (cleanName.length < 2) {
+      return res.status(400).json({
+        error: 'Full name must be at least 2 characters long.',
+        code: 'INVALID_NAME',
+        field: 'name',
+      });
+    }
+
     const cleanEmail = String(email).trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      return res.status(400).json({ error: 'Please enter a valid email address.' });
+      return res.status(400).json({
+        error: 'Please enter a valid email address.',
+        code: 'INVALID_EMAIL',
+        field: 'email',
+      });
     }
 
     const pwdError = validateStrongPassword(password);
     if (pwdError) {
-      return res.status(400).json({ error: pwdError });
+      return res.status(400).json({
+        error: pwdError,
+        code: 'WEAK_PASSWORD',
+        field: 'password',
+      });
     }
 
     const rawUsername = String(username || cleanEmail.split('@')[0])
@@ -199,14 +218,31 @@ exports.register = async (req, res) => {
       .slice(0, 40);
 
     if (rawUsername.length < 3) {
-      return res.status(400).json({ error: 'Username must be at least 3 characters.' });
+      return res.status(400).json({
+        error: 'Username must be at least 3 characters.',
+        code: 'INVALID_USERNAME',
+        field: 'username',
+      });
     }
 
-    const existingUser = await User.findOne({
-      $or: [{ email: cleanEmail }, { username: rawUsername }],
-    });
-    if (existingUser) {
-      return res.status(400).json({ error: 'Username or Email already registered' });
+    const existingEmailUser = await User.findOne({ email: cleanEmail }).select('_id email').lean();
+    if (existingEmailUser) {
+      return res.status(409).json({
+        error: 'An account with this email already exists. Please log in instead.',
+        code: 'EMAIL_EXISTS',
+        accountExists: true,
+        field: 'email',
+      });
+    }
+
+    const existingUsernameUser = await User.findOne({ username: rawUsername }).select('_id username').lean();
+    if (existingUsernameUser) {
+      return res.status(409).json({
+        error: `Username "@${rawUsername}" is already taken. Please choose another username.`,
+        code: 'USERNAME_TAKEN',
+        usernameTaken: true,
+        field: 'username',
+      });
     }
 
     const uniqueId = await generateUniqueId();
@@ -230,14 +266,38 @@ exports.register = async (req, res) => {
 
     await user.save();
 
-    const token = jwt.sign({ _id: user._id, uniqueId: user.uniqueId }, getJwtSecret(), { expiresIn: '30d' });
-    res.json({
+    const token = jwt.sign(
+      { _id: user._id, uniqueId: user.uniqueId, role: user.role || 'user' },
+      getJwtSecret(),
+      { expiresIn: '30d' }
+    );
+    res.status(201).json({
       token,
       user: serializeUser(user),
     });
   } catch (err) {
     console.error('Register error:', err);
-    res.status(500).json({ error: 'Registration failed' });
+    if (err && err.code === 11000) {
+      const keyField = Object.keys(err.keyPattern || {})[0];
+      if (keyField === 'username') {
+        return res.status(409).json({
+          error: 'This username is already taken. Please choose another username.',
+          code: 'USERNAME_TAKEN',
+          usernameTaken: true,
+          field: 'username',
+        });
+      }
+      return res.status(409).json({
+        error: 'An account with this email already exists. Please log in instead.',
+        code: 'EMAIL_EXISTS',
+        accountExists: true,
+        field: 'email',
+      });
+    }
+    if (err && err.name === 'ValidationError') {
+      return res.status(400).json({ error: 'Please check your details and try again.', code: 'VALIDATION_ERROR' });
+    }
+    res.status(500).json({ error: 'Registration failed. Please try again in a moment.' });
   }
 };
 
@@ -246,31 +306,65 @@ exports.login = async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
-      return res.status(400).json({ error: 'Please enter both email and password.' });
+      return res.status(400).json({
+        error: 'Please enter both email/username and password.',
+        code: 'MISSING_CREDENTIALS',
+      });
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      return res.status(400).json({
+        error: 'Please enter your email address or username.',
+        code: 'MISSING_CREDENTIALS',
+        field: 'email',
+      });
+    }
+
     const user = await User.findOne({
       $or: [{ email: cleanEmail }, { username: cleanEmail }],
     });
 
     if (!user) {
       return res.status(404).json({
-        error: 'Account does not exist. Please create an account first.',
+        error: 'No account found with this email or username. Please create an account first.',
+        code: 'ACCOUNT_NOT_FOUND',
         accountNotFound: true,
+        field: 'email',
+      });
+    }
+
+    if (!user.password) {
+      return res.status(400).json({
+        error: 'This account uses Google Sign-In. Please continue with Google or reset your password.',
+        code: 'USE_GOOGLE_OR_RESET',
       });
     }
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      return res.status(400).json({ error: 'Incorrect password. Please check and try again.' });
+      return res.status(400).json({
+        error: 'Incorrect password. Please check your password or tap "Forgot password?" to reset it.',
+        code: 'INVALID_PASSWORD',
+        field: 'password',
+      });
     }
 
     if (user.isBanned) {
-      return res.status(403).json({ error: 'Your account has been suspended by an administrator.' });
+      return res.status(403).json({
+        error: 'Your account has been suspended by an administrator. Please contact support.',
+        code: 'ACCOUNT_BANNED',
+        accountBanned: true,
+      });
     }
 
     if (user.twoFactorEnabled) {
+      if (!emailService.isConfigured()) {
+        return res.status(503).json({
+          error: 'Two-factor email verification service is temporarily unavailable. Please try again shortly.',
+          code: 'EMAIL_SERVICE_UNAVAILABLE',
+        });
+      }
       const tempToken = jwt.sign({ _id: user._id, isTemp: true }, getJwtSecret(), { expiresIn: '10m' });
       return res.json({
         requires2FA: true,
@@ -279,14 +373,18 @@ exports.login = async (req, res) => {
       });
     }
 
-    const token = jwt.sign({ _id: user._id, uniqueId: user.uniqueId }, getJwtSecret(), { expiresIn: '30d' });
+    const token = jwt.sign(
+      { _id: user._id, uniqueId: user.uniqueId, role: user.role || 'user' },
+      getJwtSecret(),
+      { expiresIn: '30d' }
+    );
     res.json({
       token,
       user: serializeUser(user),
     });
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ error: 'Login failed' });
+    res.status(500).json({ error: 'Login failed due to a server error. Please try again.' });
   }
 };
 
@@ -300,7 +398,12 @@ exports.sendForgotPasswordOtp = async (req, res) => {
     const cleanEmail = email.trim().toLowerCase();
     const user = await User.findOne({ email: cleanEmail });
     if (!user) {
-      return res.status(404).json({ error: 'No account found with this email address.' });
+      return res.status(404).json({
+        error: 'No account found with this email address.',
+        code: 'ACCOUNT_NOT_FOUND',
+        accountNotFound: true,
+        field: 'email',
+      });
     }
 
     // Check 2-times-per-day password change limit upfront
@@ -339,10 +442,11 @@ exports.sendForgotPasswordOtp = async (req, res) => {
     console.error('sendForgotPasswordOtp error:', err);
     if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
       return res.status(503).json({
-        error: 'Email delivery is not configured on the server. Set EMAIL_USER and EMAIL_PASS in .env.',
+        error: 'Email delivery service is temporarily unavailable. Please try again later.',
+        code: 'EMAIL_SERVICE_UNAVAILABLE',
       });
     }
-    res.status(500).json({ error: 'Failed to send password reset code.' });
+    res.status(500).json({ error: 'Failed to send password reset code. Please try again.' });
   }
 };
 
@@ -366,7 +470,12 @@ exports.forgotPassword = async (req, res) => {
     const cleanEmail = String(email).trim().toLowerCase();
     const user = await User.findOne({ email: cleanEmail });
     if (!user) {
-      return res.status(404).json({ error: 'No account found with this email address.' });
+      return res.status(404).json({
+        error: 'No account found with this email address.',
+        code: 'ACCOUNT_NOT_FOUND',
+        accountNotFound: true,
+        field: 'email',
+      });
     }
 
     // Enforce 2-times-per-day password change limit
@@ -552,7 +661,11 @@ exports.syncUser = async (req, res) => {
 
     await user.save();
 
-    const token = jwt.sign({ _id: user._id, uniqueId: user.uniqueId }, getJwtSecret(), { expiresIn: '30d' });
+    const token = jwt.sign(
+      { _id: user._id, uniqueId: user.uniqueId, role: user.role || 'user' },
+      getJwtSecret(),
+      { expiresIn: '30d' }
+    );
     res.json({
       token,
       user: serializeUser(user),
@@ -593,7 +706,8 @@ exports.toggle2FA = async (req, res) => {
 
     if (enabled && !emailService.isConfigured()) {
       return res.status(503).json({
-        error: 'Two-factor email delivery is not configured on the server yet. Set EMAIL_USER and EMAIL_PASS in backend .env.',
+        error: 'Two-factor email verification is temporarily unavailable on the server. Please try again later.',
+        code: 'EMAIL_SERVICE_UNAVAILABLE',
       });
     }
 
@@ -672,7 +786,8 @@ exports.send2FA = async (req, res) => {
     console.error('send2FA error:', err);
     if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
       return res.status(503).json({
-        error: 'Email delivery is not configured on the server. Please set EMAIL_USER and EMAIL_PASS in .env.',
+        error: 'Email verification service is temporarily unavailable. Please try again later.',
+        code: 'EMAIL_SERVICE_UNAVAILABLE',
       });
     }
     res.status(500).json({ error: 'Failed to send 2FA verification email. Please try again.' });
@@ -754,7 +869,11 @@ exports.verify2FA = async (req, res) => {
     user.twoFactorLastSentAt = null;
     await user.save();
 
-    const token = jwt.sign({ _id: user._id, uniqueId: user.uniqueId }, getJwtSecret(), { expiresIn: '30d' });
+    const token = jwt.sign(
+      { _id: user._id, uniqueId: user.uniqueId, role: user.role || 'user' },
+      getJwtSecret(),
+      { expiresIn: '30d' }
+    );
     res.json({
       token,
       user: serializeUser(user),
