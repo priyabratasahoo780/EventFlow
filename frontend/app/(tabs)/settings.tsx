@@ -5,7 +5,7 @@ import { VolumeX, Moon, Bell, Download, Upload, Trash2, Info, Users, Volume2, Us
 import { useEventStore } from '../../store/useEventStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import api from '../../services/api';
+import api, { extractApiError } from '../../services/api';
 import { ColorTheme } from '../../constants/theme';
 import { useResponsive } from '../../constants/responsive';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -32,10 +32,15 @@ export default function SettingsScreen() {
   const router = useRouter();
   
   const { user, updateUserProfile, logout } = useAuthStore();
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(user?.twoFactorEnabled || false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(Boolean(user?.twoFactorEnabled));
+  const [toggling2FA, setToggling2FA] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const { events, clearCompletedEvents, addEvent, loadEvents } = useEventStore();
+
+  useEffect(() => {
+    setTwoFactorEnabled(Boolean(user?.twoFactorEnabled));
+  }, [user?.twoFactorEnabled]);
 
   useEffect(() => {
     (async () => {
@@ -113,20 +118,37 @@ export default function SettingsScreen() {
   };
 
   const toggle2FA = async (val: boolean) => {
+    if (toggling2FA) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setTwoFactorEnabled(val); // optimistic update
+    setToggling2FA(true);
     try {
       const res = await api.post('/auth/2fa/toggle', { enabled: val });
-      if (res.data?.user) {
-        updateUserProfile({ twoFactorEnabled: res.data.user.twoFactorEnabled });
-      }
+      const nextEnabled = res.data?.user?.twoFactorEnabled ?? val;
+      setTwoFactorEnabled(Boolean(nextEnabled));
+      await updateUserProfile({ twoFactorEnabled: Boolean(nextEnabled) });
+
       if (Platform.OS === 'android') {
-        ToastAndroid.show(val ? '2FA Enabled 🔒' : '2FA Disabled 🔓', ToastAndroid.SHORT);
+        ToastAndroid.show(
+          nextEnabled
+            ? '2FA Enabled 🔒 OTP will be required on next login'
+            : '2FA Disabled 🔓 Direct login active',
+          ToastAndroid.LONG
+        );
+      } else {
+        Alert.alert(
+          nextEnabled ? 'Two-Factor Auth Enabled 🔒' : 'Two-Factor Auth Disabled 🔓',
+          nextEnabled
+            ? 'Your account is now protected. An email OTP will be required next time you log in after logging out.'
+            : 'Email OTP verification has been turned off for login.'
+        );
       }
-    } catch (err) {
-      console.error('Failed to toggle 2FA', err);
+    } catch (err: any) {
+      const parsed = extractApiError(err, 'Failed to update 2FA settings. Please try again.');
       setTwoFactorEnabled(!val); // revert on failure
-      Alert.alert('Error', 'Failed to update 2FA settings.');
+      Alert.alert(parsed.title || '2FA Update Failed', parsed.message);
+    } finally {
+      setToggling2FA(false);
     }
   };
 
@@ -435,11 +457,19 @@ export default function SettingsScreen() {
                 <View style={[styles.iconBadge, { backgroundColor: colors.warningLight }]}>
                   <Lock color={colors.warning} size={18} strokeWidth={2.5} />
                 </View>
-                <Text style={styles.settingText}>Two-Factor Auth (2FA)</Text>
+                <View style={{ flexShrink: 1 }}>
+                  <Text style={styles.settingText}>Two-Factor Auth (2FA)</Text>
+                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: colors.textSecondary }}>
+                    {twoFactorEnabled
+                      ? 'ON — Email OTP required on next login'
+                      : 'OFF — Direct login without OTP'}
+                  </Text>
+                </View>
               </View>
               <Switch
                 value={twoFactorEnabled}
                 onValueChange={toggle2FA}
+                disabled={toggling2FA}
                 trackColor={{ false: colors.border, true: colors.warning }}
                 thumbColor="#FFFFFF"
               />
@@ -577,11 +607,13 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
     padding: 16,
   },
   settingLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
     gap: 14,
   },
   settingText: {

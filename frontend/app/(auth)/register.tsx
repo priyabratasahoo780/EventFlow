@@ -291,6 +291,17 @@ export default function RegisterScreen() {
         profilePhoto: result.user.profilePhoto || '',
       });
 
+      if (res.data.requires2FA) {
+        router.replace({
+          pathname: '/(auth)/login',
+          params: {
+            twoFactorToken: res.data.tempToken,
+            twoFactorEmail: res.data.email,
+          },
+        } as any);
+        return;
+      }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await login(res.data.token, res.data.user);
       router.replace('/(tabs)');

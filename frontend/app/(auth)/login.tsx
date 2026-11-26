@@ -60,8 +60,10 @@ export default function LoginScreen() {
   const styles = getStyles(colors);
   const insets = useSafeAreaInsets();
   const { authMaxWidth, isSmall } = useResponsive();
-  const params = useLocalSearchParams<{ email?: string }>();
+  const params = useLocalSearchParams<{ email?: string; twoFactorToken?: string; twoFactorEmail?: string }>();
   const initialEmail = typeof params.email === 'string' ? params.email.trim() : '';
+  const initial2FAToken = typeof params.twoFactorToken === 'string' ? params.twoFactorToken : '';
+  const initial2FAEmail = typeof params.twoFactorEmail === 'string' ? params.twoFactorEmail : '';
 
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -69,9 +71,9 @@ export default function LoginScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [requires2FA, setRequires2FA] = useState(false);
-  const [tempToken, setTempToken] = useState('');
-  const [emailFor2FA, setEmailFor2FA] = useState('');
+  const [requires2FA, setRequires2FA] = useState(Boolean(initial2FAToken && initial2FAEmail));
+  const [tempToken, setTempToken] = useState(initial2FAToken);
+  const [emailFor2FA, setEmailFor2FA] = useState(initial2FAEmail);
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
   const [formBannerError, setFormBannerError] = useState('');
@@ -366,6 +368,14 @@ export default function LoginScreen() {
         name: result.user.name,
         profilePhoto: result.user.profilePhoto,
       });
+
+      if (res.data.requires2FA) {
+        setRequires2FA(true);
+        setTempToken(res.data.tempToken);
+        setEmailFor2FA(res.data.email);
+        return;
+      }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (res.data.user?.role === 'admin') {
         setPostLoginRoute('/admin');

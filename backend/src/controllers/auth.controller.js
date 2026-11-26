@@ -611,6 +611,21 @@ exports.googleLogin = async (req, res) => {
       return res.status(403).json({ error: 'Your account has been suspended by an administrator.' });
     }
 
+    if (user.twoFactorEnabled) {
+      if (!emailService.isConfigured()) {
+        return res.status(503).json({
+          error: 'Two-factor email verification service is temporarily unavailable. Please try again shortly.',
+          code: 'EMAIL_SERVICE_UNAVAILABLE',
+        });
+      }
+      const tempToken = jwt.sign({ _id: user._id, isTemp: true }, getJwtSecret(), { expiresIn: '10m' });
+      return res.json({
+        requires2FA: true,
+        email: user.email,
+        tempToken,
+      });
+    }
+
     const token = jwt.sign({ _id: user._id, uniqueId: user.uniqueId, role: user.role || 'user' }, getJwtSecret(), { expiresIn: '30d' });
     res.json({
       token,
@@ -725,9 +740,16 @@ exports.toggle2FA = async (req, res) => {
       userId,
       updateFields,
       { returnDocument: 'after' }
-    ).select('-password');
+    );
 
-    res.json({ message: `2FA has been ${enabled ? 'enabled' : 'disabled'}.`, user: updatedUser });
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    res.json({
+      message: `2FA has been ${enabled ? 'enabled' : 'disabled'}.`,
+      user: serializeUser(updatedUser),
+    });
   } catch (err) {
     console.error('toggle2FA error:', err);
     res.status(500).json({ error: 'Failed to toggle 2FA status.' });
@@ -753,6 +775,10 @@ exports.send2FA = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
+    }
+
+    if (user.isBanned) {
+      return res.status(403).json({ error: 'Your account has been suspended by an administrator.' });
     }
 
     if (!user.twoFactorEnabled) {
@@ -819,6 +845,10 @@ exports.verify2FA = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
+    }
+
+    if (user.isBanned) {
+      return res.status(403).json({ error: 'Your account has been suspended by an administrator.' });
     }
 
     if (!user.twoFactorOtp || !user.twoFactorOtpExpiry) {
