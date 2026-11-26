@@ -80,7 +80,7 @@ export default function LoginScreen() {
   const [formBannerError, setFormBannerError] = useState('');
   const [modalConfig, setModalConfig] = useState<AuthModalConfig>(INITIAL_MODAL);
 
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
   const autoSentTokenRef = useRef<string | null>(null);
   const login = useAuthStore((state) => state.login);
