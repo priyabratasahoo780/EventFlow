@@ -1,7 +1,6 @@
-/**
- * secureStorage.ts
- * Fail-safe token storage with SecureStore support and reliable AsyncStorage fallback.
- */
+  
+  // Fail-safe token storage with SecureStore support and reliable AsyncStorage fallback.
+ 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 

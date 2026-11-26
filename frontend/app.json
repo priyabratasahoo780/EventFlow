@@ -9,19 +9,21 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.priyabrata.eventflow"
-    },
-    "notification": {
-      "icon": "./assets/images/android-icon-monochrome.png",
-      "color": "#6366F1"
+      "bundleIdentifier": "com.priyabrata.eventflow",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow EventFlow to capture photos and videos for your tasks and profile.",
+        "NSPhotoLibraryUsageDescription": "Allow EventFlow to attach photos and videos from your library.",
+        "NSLocationWhenInUseUsageDescription": "Allow EventFlow to calculate travel time and show nearby task locations.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow EventFlow to trigger smart Arrive/Leave task reminders even when the app is in the background.",
+        "NSFaceIDUsageDescription": "Allow EventFlow Admin Portal to authenticate using Face ID."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
-        "foregroundImage": "./assets/images/icon.png"
+        "foregroundImage": "./assets/images/icon_squared.png"
       },
       "predictiveBackGestureEnabled": false,
-      "newArchEnabled": true,
       "versionCode": 6,
       "permissions": [
         "SCHEDULE_EXACT_ALARM",
@@ -44,7 +46,8 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "USE_BIOMETRIC",
-        "USE_FINGERPRINT"
+        "USE_FINGERPRINT",
+        "CAMERA"
       ],
       "package": "com.priyabrata.eventflow"
     },
@@ -75,6 +78,20 @@
       "expo-web-browser",
       "expo-secure-store",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow EventFlow to select photos and videos for your tasks and profile.",
+          "cameraPermission": "Allow EventFlow to take photos for your tasks and profile."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow EventFlow to trigger Arrive/Leave location reminders in the background.",
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
         "expo-local-authentication",
         {
           "faceIDPermission": "Allow EventFlow Admin Portal to authenticate using biometrics."
@@ -100,7 +117,8 @@
       "expo-status-bar",
       "expo-video",
       "expo-audio",
-      "./plugins/withAlarmManager.js"
+      "./plugins/withAlarmManager.js",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

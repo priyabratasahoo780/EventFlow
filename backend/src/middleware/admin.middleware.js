@@ -1,7 +1,5 @@
-/**
- * admin.middleware.js
- * Ensures authenticated user holds active admin privileges.
- */
+  // Ensures authenticated user holds active admin privileges.
+ 
 'use strict';
 
 const User = require('../models/User');

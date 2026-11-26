@@ -1,7 +1,5 @@
-/**
- * review.controller.js
- * Community reviews creation, feed listing, and validated like toggling.
- */
+  // Community reviews creation, feed listing, and validated like toggling.
+ 
 'use strict';
 
 const mongoose = require('mongoose');

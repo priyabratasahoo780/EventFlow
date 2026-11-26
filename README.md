@@ -21,7 +21,8 @@
     </a>
     <img src="https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web-blue?style=flat-square" alt="Platforms" />
     <img src="https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat-square&logo=typescript" alt="TypeScript" />
-    <img src="https://img.shields.io/badge/Expo%20SDK-57-1C1E24?style=flat-square&logo=expo" alt="Expo SDK 57" />
+    <img src="https://img.shields.io/badge/Expo%20SDK-58-1C1E24?style=flat-square&logo=expo" alt="Expo SDK 58" />
+    <img src="https://img.shields.io/badge/Cloud%20Media-Cloudinary-3448C5?style=flat-square&logo=cloudinary" alt="Cloudinary" />
   </p>
 
   <br/>
@@ -311,6 +312,23 @@ Building a reliable alarm and productivity app comes with complex edge cases, es
 - **Dark Deep Space Native Splash**: Native Android and iOS splash background set to `#070714` for cohesive OLED bootup.
 - **Auth & Settings Integration**: Standardized across Welcome, Login, Register, Forgot Password, and Settings views.
 
+### ☁️ 7. Hybrid Device + Cloudinary Media Storage
+- **Privacy-First On-Device Media (`Only Me`)**: Private task photos, videos, and local avatars persist strictly inside the app's sandboxed device storage (`services/localMediaService.ts`) — consuming **0 KB** of cloud storage.
+- **Auto-Optimized Cloud Sharing (`Friends` / `Selected Friends`)**: When a task is shared with friends (or Admin publishes a Festival Banner), media automatically uploads to **Cloudinary** with `quality: auto:good` and `fetch_format: auto` optimization, with automatic cloud cleanup when tasks, banners, or accounts are deleted.
+
+### 🛡️ 8. Biometric Admin Command Center & Strict Task Privacy
+- **Multi-Layer Vault Lock**: Supports Biometric (Fingerprint / Face ID), Device Pattern/PIN fallback, and Admin Password (`services/biometricAuth.ts`).
+- **Scheduled Festival Greeting Cards**: Publish seasonal banners with interactive Date & Time window pickers (`startDate` → `endDate`), auto-showing on users' home screens during the window and auto-hiding upon expiration.
+- **Strict Privacy Block**: Admin endpoints enforce `403 Forbidden` isolation on `/api/admin/tasks` — Admins can moderate community reviews and manage users but can **never** view or modify user tasks.
+
+### 💬 9. Full-Duplex Socket.IO Presence & Live Friend Chat
+- **Resilient Transport**: Dual `websocket` + `polling` transport with infinite auto-reconnect, token refresh handling, and foreground state sync.
+- **Live Presence & Typing**: Real-time online/offline indicators (`check_online`, `user_status`), live `typing...` indicators, persistent chat history (`/api/friends/messages/:friendId`), focus cheers, and instant friend request notifications.
+
+### 📱 10. Full Cross-Device Responsiveness & Production Hardening
+- **Adaptive Layout Engine**: Dynamic scaling (`constants/responsive.ts`, `ResponsiveContainer.tsx`) supporting compact phones, standard phones, tablets, foldables, and web viewports, plus safe-area bottom padding for Android 3-button navigation bars.
+- **80-Task Active Cap**: Caps visible screen tasks at 80 with oldest-task archival confirmation while preserving analytics history forever.
+
 ---
 
 ## <img src="https://api.iconify.design/lucide/swords.svg?color=%233b82f6" width="20" align="top" /> EventFlow vs. The Market
@@ -360,32 +378,33 @@ Building a reliable alarm and productivity app comes with complex edge cases, es
 
 | Technology | Version | Role |
 |:---|:---:|:---|
-| ![React Native](https://img.shields.io/badge/React_Native-20232A?style=flat-square&logo=react&logoColor=61DAFB) | 0.86 | Core mobile framework |
-| ![Expo](https://img.shields.io/badge/Expo_SDK-57-1C1E24?style=flat-square&logo=expo) | 57 | Build, OTA, native modules |
+| ![React Native](https://img.shields.io/badge/React_Native-20232A?style=flat-square&logo=react&logoColor=61DAFB) | 0.88 | Core mobile framework |
+| ![Expo](https://img.shields.io/badge/Expo_SDK-58-1C1E24?style=flat-square&logo=expo) | 58 | Build, OTA, native modules |
 | ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white) | 6.x | Strict type safety |
 | ![Expo Router](https://img.shields.io/badge/Expo_Router-v4-CA4245?style=flat-square) | v4 | File-based navigation |
 | ![Zustand](https://img.shields.io/badge/Zustand-5.x-orange?style=flat-square) | 5.x | Lightweight global state |
 | ![Clerk](https://img.shields.io/badge/Clerk_Expo-Auth-6C47FF?style=flat-square&logo=clerk) | 4.x | Authentication & JWT |
-| ![Socket.io](https://img.shields.io/badge/Socket.io_Client-4.x-010101?style=flat-square&logo=socket.io) | 4.x | Real-time events |
+| ![Socket.io](https://img.shields.io/badge/Socket.io_Client-4.x-010101?style=flat-square&logo=socket.io) | 4.x | Real-time events & chat |
 | Axios | 1.x | HTTP client |
 | React Native Maps | 1.27 | Maps + geofence display |
 | Reanimated | 4.x | Smooth animations |
-| Lottie React Native | 7.3 | Cinematic vector splash & physics animations |
+| Lottie React Native | 7.x | Cinematic vector splash & physics animations |
 
-**Key Expo modules:** `expo-notifications`, `expo-location`, `expo-task-manager`, `expo-video`, `expo-audio`, `expo-haptics`, `expo-image-picker`, `expo-secure-store`, `expo-linear-gradient`
+**Key Expo modules:** `expo-notifications`, `expo-location`, `expo-task-manager`, `expo-video`, `expo-audio`, `expo-asset`, `expo-haptics`, `expo-image-picker`, `expo-local-authentication`, `expo-secure-store`, `expo-file-system`, `expo-linear-gradient`
 
 ### Backend
 
 | Technology | Version | Role |
 |:---|:---:|:---|
-| ![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=node.js&logoColor=white) | 18+ | Runtime |
+| ![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=node.js&logoColor=white) | 20+ | Runtime |
 | ![Express](https://img.shields.io/badge/Express-5.x-404D59?style=flat-square&logo=express) | 5.x | REST framework |
 | ![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=flat-square&logo=mongodb&logoColor=white) | Atlas | Primary database |
 | ![Mongoose](https://img.shields.io/badge/Mongoose-9.x-880000?style=flat-square) | 9.x | ODM / schema validation |
-| ![Socket.io](https://img.shields.io/badge/Socket.io-4.x-010101?style=flat-square&logo=socket.io) | 4.x | WebSocket server |
+| ![Socket.io](https://img.shields.io/badge/Socket.io-4.x-010101?style=flat-square&logo=socket.io) | 4.x | WebSocket + polling server |
+| ![Cloudinary](https://img.shields.io/badge/Cloudinary-3448C5?style=flat-square&logo=cloudinary) | v2 | Cloud image/video CDN + auto-compression |
 | JWT | 9.x | Stateless auth tokens |
 | bcryptjs | 3.x | Password hashing |
-| Multer | 2.x | File upload handling |
+| Multer | 2.x | File upload + magic-byte validation |
 | expo-server-sdk | 7.x | Expo push notifications |
 | express-rate-limit | 8.x | API rate limiting |
 
@@ -477,102 +496,102 @@ flowchart LR
 
 ```
 EventFlow/                              # Mono-repo root
-├── backend/                            # Node.js + Express API
-│   ├── server.js                       # Entry point (HTTP + Socket.io bootstrap)
+├── render.yaml                         # Render production deployment blueprint
+├── backend/                            # Node.js + Express 5 API
+│   ├── server.js                       # Entry point (HTTP + Socket.io + graceful shutdown)
 │   └── src/
 │       ├── config/
+│       │   ├── cloudinary.js           # Cloudinary CDN integration & auto-compression
 │       │   ├── db.js                   # MongoDB connection
 │       │   ├── env.js                  # Env validation (fail-fast)
-│       │   └── socket.js               # Socket.io setup (extracted from server)
-│       ├── constants/
-│       │   └── index.js                # HTTP codes, error messages, status enums
-│       ├── controllers/                # One file per domain, dot.notation naming
+│       │   ├── seedAdmin.js            # Auto-seeds Admin Portal account
+│       │   └── socket.js               # Socket.io setup (presence, typing, JWT rooms)
+│       ├── controllers/
+│       │   ├── admin.controller.js     # Overview, reviews, users, festival cards, privacy lock
+│       │   ├── analytics.controller.js
 │       │   ├── auth.controller.js
 │       │   ├── event.controller.js
 │       │   ├── friend.controller.js
-│       │   ├── task.controller.js
-│       │   ├── analytics.controller.js
 │       │   ├── review.controller.js
-│       │   ├── upload.controller.js
+│       │   ├── task.controller.js
+│       │   ├── upload.controller.js    # Cloudinary upload + safe local fallback
 │       │   └── user.controller.js
 │       ├── middleware/
+│       │   ├── admin.middleware.js     # Admin role verification
 │       │   ├── auth.middleware.js      # JWT verification
 │       │   ├── error.middleware.js     # Global error handler
-│       │   ├── rateLimiter.js          # API + auth rate limits
-│       │   └── upload.middleware.js    # Multer config
-│       ├── models/                     # Mongoose schemas
+│       │   ├── rateLimiter.js          # API, auth, OTP & search rate limits
+│       │   ├── upload.middleware.js    # Multer + magic-byte malware checks
+│       │   └── userOnly.middleware.js  # Prevents Admin access to user task flows
+│       ├── models/
 │       │   ├── Event.js
+│       │   ├── FestivalBanner.js
 │       │   ├── FriendRequest.js
 │       │   ├── Message.js
 │       │   ├── Review.js
 │       │   └── User.js
-│       ├── routes/                     # Consistent *.routes.js naming
+│       ├── routes/
+│       │   ├── admin.routes.js
+│       │   ├── analytics.routes.js
 │       │   ├── auth.routes.js
 │       │   ├── event.routes.js
+│       │   ├── festival.routes.js
 │       │   ├── friend.routes.js
-│       │   ├── task.routes.js
-│       │   ├── analytics.routes.js
 │       │   ├── review.routes.js
+│       │   ├── task.routes.js
 │       │   ├── upload.routes.js
 │       │   └── user.routes.js
 │       ├── services/
 │       │   ├── analytics.service.js
+│       │   ├── email.service.js
 │       │   └── priority.service.js     # Dynamic priority scoring engine
-│       ├── utils/
-│       │   ├── ApiError.js             # Custom error class
-│       │   └── logger.js               # Structured logger (ISO timestamps)
-│       └── validators/
-│           ├── auth.validator.js
-│           └── task.validator.js
+│       └── utils/
+│           └── logger.js               # Structured logger (ISO timestamps)
 │
-└── frontend/                           # React Native + Expo app
+└── frontend/                           # React Native + Expo 58 app
     ├── app/                            # Expo Router file-based routing
-    │   ├── (auth)/                     # Auth group: welcome, login, register
-    │   ├── (tabs)/                     # Tab group: home, calendar, stats, profile, settings
-    │   ├── event/[id].tsx              # Dynamic event detail screen
+    │   ├── (auth)/                     # welcome, login, register, forgot-password
+    │   ├── (tabs)/                     # home, calendar, stats, profile, settings
+    │   ├── admin/index.tsx             # Biometric-protected Admin Command Center
+    │   ├── event/[id].tsx              # Dynamic event detail & zoom preview screen
+    │   ├── add-event.tsx               # Create/edit task with hybrid media & visibility
     │   ├── triage.tsx                  # AI Task triage & smart rescheduling
-    │   ├── friends/                    # Friends: connect, list, requests, groupSchedule
-    │   │   └── groupSchedule.tsx       # Group free-slot availability finder
-    │   ├── community/                  # Community reviews
+    │   ├── friends/                    # connect, list (live chat), requests, groupSchedule
+    │   ├── community/reviews.tsx       # Community reviews feed
     │   ├── map.tsx                     # Full-screen interactive map & route planning
-    │   └── _layout.tsx                 # Root layout (ClerkProvider, fonts, themes)
-    │
-    ├── services/                       # API calls, heuristics & native services
-    │   ├── reschedulingService.ts      # AI Slot finder & missed task impact
-    │   ├── behaviorService.ts          # Category duration prediction & delay analysis
-    │   ├── travelService.ts            # Distance, transit modes & departure estimation
-    │   ├── notificationService.ts      # Exact alarms + leave-by departure alerts
-    │   └── priorityService.ts          # Multi-factor priority score engine
+    │   └── _layout.tsx                 # Root layout (ClerkProvider, fonts, themes, alarms)
     │
     ├── components/                     # Core UI Components
-    │   ├── AiInsightCard.tsx           # Generative AI velocity & focus cards
-    │   ├── AiInsightSection.tsx        # AI Insights hub with live metrics
-    │   ├── AlarmModal.tsx              # Concentric radar rings exact alarm modal
-    │   ├── LocationSelector.tsx        # Modernized dual-action geofence selector
-    │   ├── SplashScreenView.tsx        # Multi-stage Lottie cosmic splash sequence
-    │   ├── MapViewWrapper.tsx          # Cross-platform map & pin drop wrapper
-    │   ├── BrutalButton.tsx            # Design-system primitive buttons
-    │   ├── BrutalCard.tsx              # Glassmorphic brutalist card container
-    │   └── EventCard.tsx               # Event item card with status pills
-    ├── src/                            # Domain-grouped UI & architecture
-    │   ├── components/                 # UI primitives (BrutalCard, etc.)
-    │   ├── hooks/                      # useLocation, useHomeScreen, etc.
-    │   ├── store/                      # Zustand stores (useEventStore, useAuthStore…)
-    │   └── types/                      # Shared TypeScript types
-    ├── assets/                         # Static media assets
-    │   ├── fonts/                      # Poppins font family
-    │   ├── images/                     # 3D glossy emblem, icons, mockups
-    │   └── lottie/                     # 60fps vector Lottie sequences & generator
-    │       ├── eventflow-portal.json   # Cosmic portal animation
-    │       ├── eventflow-particles.json# Ambient particle physics
-    │       ├── eventflow-loader.json   # Kinetic loader animation
-    │       └── generate-lotties.js     # Mathematical Lottie JSON generator
+    │   ├── AiInsightCard.tsx
+    │   ├── AiInsightSection.tsx
+    │   ├── AlarmModal.tsx
+    │   ├── BrutalButton.tsx
+    │   ├── BrutalCard.tsx
+    │   ├── BuddyAlertModal.tsx
+    │   ├── DynamicIslandTaskBar.tsx
+    │   ├── EventCard.tsx
+    │   ├── GeofenceReminderSection.tsx
+    │   ├── LocationSelector.tsx
+    │   ├── MediaPicker.tsx             # Hybrid device/cloud media picker
+    │   ├── ResponsiveContainer.tsx     # Cross-device tablet/web max-width wrapper
+    │   └── SplashScreenView.tsx
+    ├── constants/
+    │   ├── Colors.ts
+    │   ├── responsive.ts               # Breakpoints, rs/ms/hs scaling, useResponsive hook
+    │   └── theme.ts
+    ├── services/                       # API, socket, local/cloud media & native engines
+    │   ├── api.ts                      # Axios client + resolveMediaUrl helper
+    │   ├── biometricAuth.ts            # Biometric / Device PIN / Admin lock config
+    │   ├── localMediaService.ts        # On-device persistence + Cloudinary uploader
+    │   ├── socketService.ts            # Resilient WebSocket + Polling client
+    │   ├── notificationService.ts      # Exact alarms + leave-by departure alerts
+    │   ├── geofencingService.ts        # Background Arrive/Leave geofencing
+    │   └── priorityService.ts          # Multi-factor priority score engine
+    ├── store/                          # Zustand stores (useEventStore, useAuthStore, useThemeStore)
     ├── android_backup/                 # Custom Native Android Modules (Kotlin Alarms)
-    ├── plugins/                        # Expo config plugins (Injects android_backup)
-    ├── babel.config.js                 # @/* path aliases via module-resolver
-    ├── tsconfig.json                   # Strict TS + path aliases
-    ├── metro.config.js                 # Metro bundler config + web shims
-    └── app.json                        # Expo app config (EAS, permissions, 3D icon)
+    ├── plugins/withAlarmManager.js     # Expo config plugin injecting native alarms
+    ├── eas.json                        # EAS Build profiles (preview, apk, production-apk, production)
+    └── app.json                        # Expo app config (permissions, plugins, icons)
 ```
 
 ---
@@ -583,7 +602,7 @@ EventFlow/                              # Mono-repo root
 
 | Tool | Version | Notes |
 |:---|:---|:---|
-| Node.js | **≥ 18.x** | [nodejs.org](https://nodejs.org) |
+| Node.js | **≥ 20.x** | [nodejs.org](https://nodejs.org) |
 | npm | **≥ 9.x** | Bundled with Node.js |
 | MongoDB | Local or Atlas | [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas) |
 | Expo Go App | Latest | Scan QR for quick testing (Android/iOS) |
@@ -645,7 +664,8 @@ npm run ios       # iOS simulator (macOS only)
 npm run web       # Web browser (limited native features)
 
 # Production build (EAS):
-npm run build:apk  # Android APK via EAS Build
+npm run build:apk       # Internal preview APK via EAS Build
+npm run build:apk:prod  # Production APK via EAS Build
 ```
 
 **Available scripts:**
@@ -656,7 +676,8 @@ npm run build:apk  # Android APK via EAS Build
 | `npm run android` | Run on Android |
 | `npm run ios` | Run on iOS |
 | `npm run web` | Run in browser |
-| `npm run build:apk` | EAS build (Android APK) |
+| `npm run build:apk` | EAS preview build (Android APK) |
+| `npm run build:apk:prod` | EAS production build (Android APK) |
 
 > Scan the QR code shown in the terminal with the **Expo Go** app to test instantly on a physical device.
 
@@ -676,6 +697,21 @@ MONGO_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/eventflow
 
 # Authentication
 JWT_SECRET=your_super_secret_jwt_key_min_32_chars
+CLERK_SECRET_KEY=sk_test_your_clerk_secret_key
+
+# Gmail SMTP for OTP & Password Reset (optional)
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_16_char_app_password
+EMAIL_FROM="EventFlow Security <your_email@gmail.com>"
+
+# Admin Portal Account (auto-seeded on startup)
+ADMIN_EMAIL=admin@eventflow.app
+ADMIN_PASSWORD=your_strong_admin_password
+
+# Cloudinary Cloud Storage (Shared media & Festival banners)
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
 
 # Expo Push Notifications (optional)
 EXPO_ACCESS_TOKEN=your_expo_access_token
@@ -686,7 +722,7 @@ EXPO_ACCESS_TOKEN=your_expo_access_token
 #### Frontend — `frontend/.env` (if needed)
 
 ```env
-EXPO_PUBLIC_API_URL=http://localhost:5000
+EXPO_PUBLIC_API_URL=https://eventflow-ks7m.onrender.com/api
 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your_clerk_key
 ```
 
@@ -772,9 +808,23 @@ EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your_clerk_key
 
 | Method | Endpoint | Protected | Description |
 |:---:|:---|:---:|:---|
-| `POST` | `/api/upload/image` | ✓ | Upload image (50MB max) |
-| `POST` | `/api/upload/video` | ✓ | Upload video (50MB max) |
-| `DELETE` | `/api/upload/:id` | ✓ | Delete an uploaded file |
+| `POST` | `/api/upload/image` | ✓ | Upload image (10MB max) to Cloudinary CDN (with local fallback) |
+| `POST` | `/api/upload/video` | ✓ | Upload video (50MB max) to Cloudinary CDN (with local fallback) |
+| `DELETE` | `/api/upload/:id` | ✓ | Delete an uploaded image/video (supports `?target=` for Cloudinary IDs) |
+
+### Admin & Festivals — `/api/admin` & `/api/festival`
+
+| Method | Endpoint | Protected | Description |
+|:---:|:---|:---:|:---|
+| `GET` | `/api/festival/active` | ✓ | Get currently active Festival Greeting Card within scheduled window |
+| `GET` | `/api/admin/overview` | Admin | Dashboard stats & sentiment overview |
+| `GET` | `/api/admin/reviews` | Admin | Moderate community reviews |
+| `DELETE` | `/api/admin/reviews/:id` | Admin | Delete a community review |
+| `GET` | `/api/admin/users` | Admin | List/search registered users |
+| `PATCH` | `/api/admin/users/:id/ban` | Admin | Suspend or restore a user |
+| `DELETE` | `/api/admin/users/:id` | Admin | Delete user and cascade-clean cloud/local assets |
+| `GET/POST/PATCH/DELETE` | `/api/admin/festival` | Admin | Manage scheduled Festival Greeting Cards |
+| `GET` | `/api/admin/tasks` | 403 | Strictly blocked (`403`) to protect user task privacy |
 
 ---
 

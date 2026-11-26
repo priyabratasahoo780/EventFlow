@@ -1,7 +1,5 @@
-/**
- * Structured logger utility.
- * Standardizes log formatting with ISO timestamps and levels.
- */
+  // Structured logger utility.
+ // Standardizes log formatting with ISO timestamps and levels.
 
 'use strict';
 

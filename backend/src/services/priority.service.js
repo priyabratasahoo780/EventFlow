@@ -1,7 +1,4 @@
-/**
- * priority.service.js
- * Dynamic priority score calculation based on urgency, risk, and context.
- */
+  // Dynamic priority score calculation based on urgency, risk, and context.
 
 function calculatePriorityScore(task, userLocation = null) {
   let score = 0;

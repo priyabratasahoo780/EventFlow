@@ -1,7 +1,5 @@
-/**
- * auth.routes.js
- * Express routing definitions for user authentication endpoints.
- */
+  // Express routing definitions for user authentication endpoints.
+ 
 'use strict';
 
 const express = require('express');

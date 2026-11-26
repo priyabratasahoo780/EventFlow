@@ -1,7 +1,5 @@
-/**
- * admin.routes.js
- * Protected Admin Portal API routes requiring authenticated admin privileges.
- */
+  // Protected Admin Portal API routes requiring authenticated admin privileges.
+ 
 'use strict';
 
 const express = require('express');

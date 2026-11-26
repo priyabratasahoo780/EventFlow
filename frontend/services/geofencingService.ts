@@ -1,7 +1,6 @@
-/**
- * geofencingService.ts
- * Background and foreground geofencing engine for Arrive and Leave reminders.
- */
+ 
+  // Background and foreground geofencing engine for Arrive and Leave reminders.
+ 
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import { AppState, DeviceEventEmitter, Platform } from 'react-native';

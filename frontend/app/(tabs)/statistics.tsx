@@ -18,10 +18,10 @@ import { PieChart, BarChart } from 'react-native-gifted-charts';
 import * as Haptics from 'expo-haptics';
 import { behaviorService } from '../../services/behaviorService';
 import AiInsightSection from '../../components/AiInsightSection';
+import { useResponsive } from '../../constants/responsive';
 
 
 type TimeFilter = 'week' | 'month' | 'year' | 'all';
-const { width: SW } = Dimensions.get('window');
 
 const RING = 170;
 const SW2 = 16;
@@ -315,6 +315,7 @@ const shStyles = StyleSheet.create({
 
 export default function StatisticsScreen() {
   const { getColors, isDark } = useThemeStore();
+  const { width: winWidth, contentMaxWidth, isSmall } = useResponsive();
   const isDarkMode = isDark();
   const colors = getColors();
   const styles = getStyles(colors);
@@ -528,7 +529,13 @@ export default function StatisticsScreen() {
         </View>
       </FadeIn>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          { width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center', paddingHorizontal: isSmall ? 12 : 16 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
 
         {/* ── HERO CARD ── */}
         <FadeIn delay={50}>
@@ -662,7 +669,7 @@ export default function StatisticsScreen() {
                   fontSize: 10,
                   color: colors.textSecondary,
                 }}
-                width={SW - 90}
+                width={Math.max(200, Math.min(winWidth, contentMaxWidth) - 96)}
                 initialSpacing={12}
                 endSpacing={12}
               />

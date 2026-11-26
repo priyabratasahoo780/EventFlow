@@ -12,6 +12,7 @@
     "axios": "^1.19.0",
     "date-fns": "^4.4.0",
     "expo": "~58.0.26",
+    "expo-asset": "~58.0.21",
     "expo-audio": "~58.0.12",
     "expo-auth-session": "~58.0.19",
     "expo-build-properties": "~58.0.12",

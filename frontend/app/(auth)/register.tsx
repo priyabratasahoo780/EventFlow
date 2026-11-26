@@ -1,6 +1,7 @@
 
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
+import { useResponsive } from '../../constants/responsive';
 import { useState, useEffect, useRef, useCallback, ComponentRef } from 'react';
 import {
   View,
@@ -77,6 +78,7 @@ export default function RegisterScreen() {
   const dark = isDark();
   const styles = getStyles(colors);
   const insets = useSafeAreaInsets();
+  const { authMaxWidth, isSmall } = useResponsive();
 
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -243,6 +245,10 @@ export default function RegisterScreen() {
           contentContainerStyle={[
             styles.container,
             {
+              width: '100%',
+              maxWidth: authMaxWidth,
+              alignSelf: 'center',
+              paddingHorizontal: isSmall ? 18 : 24,
               paddingTop: Math.max(insets.top + 12, 24),
               paddingBottom: Math.max(insets.bottom + 28, 40),
             },

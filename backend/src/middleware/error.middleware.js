@@ -1,7 +1,5 @@
-/**
- * error.middleware.js
- * Global Express error handler that sanitizes internal details in production.
- */
+  // Global Express error handler that sanitizes internal details in production.
+ 
 'use strict';
 
 const logger = require('../utils/logger');

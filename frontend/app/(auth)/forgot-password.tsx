@@ -1,9 +1,7 @@
-/**
- * forgot-password.tsx
- * Two-step OTP verified password reset screen enforcing strong password rules.
- */
+ 
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
+import { useResponsive } from '../../constants/responsive';
 import { useState, useEffect, useRef, useCallback, ComponentRef } from 'react';
 import {
   View,
@@ -65,6 +63,7 @@ export default function ForgotPasswordScreen() {
   const dark = isDark();
   const styles = getStyles(colors);
   const insets = useSafeAreaInsets();
+  const { authMaxWidth, isSmall } = useResponsive();
 
   const [step, setStep] = useState<'request' | 'verify'>('request');
   const [targetEmail, setTargetEmail] = useState('');
@@ -211,6 +210,10 @@ export default function ForgotPasswordScreen() {
           contentContainerStyle={[
             styles.container,
             {
+              width: '100%',
+              maxWidth: authMaxWidth,
+              alignSelf: 'center',
+              paddingHorizontal: isSmall ? 18 : 24,
               paddingTop: Math.max(insets.top + 14, 28),
               paddingBottom: Math.max(insets.bottom + 24, 34),
             },

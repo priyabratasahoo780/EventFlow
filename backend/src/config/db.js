@@ -1,7 +1,4 @@
-/**
- * db.js
- * MongoDB database connection setup using Mongoose.
- */
+
 const mongoose = require('mongoose');
 const { seedAdminAccount } = require('./seedAdmin');
 const logger = require('../utils/logger');

@@ -6,6 +6,7 @@ import { ChevronLeft, Users, Calendar, Check, Sparkles, Clock } from 'lucide-rea
 import { useThemeStore } from '../../store/useThemeStore';
 import { useEventStore } from '../../store/useEventStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useResponsive } from '../../constants/responsive';
 import * as Haptics from 'expo-haptics';
 import api from '../../services/api';
 import { reschedulingService, FreeSlot } from '../../services/reschedulingService';
@@ -21,6 +22,7 @@ export default function GroupScheduleScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { getColors } = useThemeStore();
+  const { containerStyle } = useResponsive();
   const colors = getColors();
   const { events, addEvent } = useEventStore();
   const { user } = useAuthStore();
@@ -39,7 +41,7 @@ export default function GroupScheduleScreen() {
     let mounted = true;
     Promise.all([
       api.get('/friends').then(r => r.data).catch(() => []),
-      api.get('/tasks/friends').then(r => r.data?.tasks || []).catch(() => []),
+      api.get('/friends/events').then(r => (Array.isArray(r.data) ? r.data : [])).catch(() => []),
     ]).then(([fList, fEvents]) => {
       if (!mounted) return;
       setFriendsList(fList);
@@ -151,7 +153,7 @@ export default function GroupScheduleScreen() {
         <Sparkles color={c.secondary} size={22} strokeWidth={2.5} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: 120 }}>
+      <ScrollView contentContainerStyle={[{ padding: 16, gap: 20, paddingBottom: 120 }, containerStyle]}>
 
         {/* Duration Selector */}
         <View>

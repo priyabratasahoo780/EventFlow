@@ -1,7 +1,3 @@
-/**
- * seedAdmin.js
- * Ensures the configured Admin account exists and holds admin privileges in MongoDB.
- */
 'use strict';
 
 const bcrypt = require('bcryptjs');

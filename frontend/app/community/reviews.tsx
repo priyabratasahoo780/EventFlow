@@ -5,7 +5,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
-import api from '../../services/api';
+import { useResponsive } from '../../constants/responsive';
+import api, { resolveMediaUrl } from '../../services/api';
 import LoadingScreen from '../../components/LoadingScreen';
 import { ArrowLeft, Star, MessageCircle, Send, X, Heart, Quote, CheckCircle2, Sparkles, Trash2 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -15,6 +16,7 @@ import * as Haptics from 'expo-haptics';
 export default function CommunityReviewsScreen() {
   const router = useRouter();
   const { getColors } = useThemeStore();
+  const { containerStyle } = useResponsive();
   const { user: currentUser } = useAuthStore();
   const colors = getColors();
   const s = getStyles(colors);
@@ -135,7 +137,7 @@ export default function CommunityReviewsScreen() {
   const renderReview = ({ item }: { item: any }) => {
     const defaultAvatar = "https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=200&auto=format&fit=crop";
     const avatar = item.user?.profilePhoto && !item.user.profilePhoto.includes('unsplash.com') 
-      ? item.user.profilePhoto 
+      ? resolveMediaUrl(item.user.profilePhoto) 
       : defaultAvatar;
     const name = item.user?.name || 'Anonymous';
     const isLiked = item.likes && currentUser && item.likes.includes(currentUser._id);
@@ -269,7 +271,7 @@ export default function CommunityReviewsScreen() {
           windowSize={5}
           removeClippedSubviews={true}
           keyExtractor={(item) => item._id || item.id}
-          contentContainerStyle={[s.listContent, { paddingBottom: 120 + Math.max(insets.bottom, 16) }]}
+          contentContainerStyle={[s.listContent, containerStyle, { paddingBottom: 120 + Math.max(insets.bottom, 16) }]}
           renderItem={renderReview}
           ListEmptyComponent={
             <View style={s.emptyBox}>

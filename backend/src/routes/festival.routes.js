@@ -1,7 +1,5 @@
-/**
- * festival.routes.js
- * Authenticated endpoint for fetching the active festival greeting card.
- */
+  // Authenticated endpoint for fetching the active festival greeting card.
+ 
 'use strict';
 
 const express = require('express');

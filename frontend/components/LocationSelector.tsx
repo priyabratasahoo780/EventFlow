@@ -1,7 +1,4 @@
-/**
- * LocationSelector.tsx
- * Location input supporting GPS locking, interactive map pin selection, and presets.
- */
+
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
 import { useState, useRef, useEffect } from 'react';

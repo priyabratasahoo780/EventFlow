@@ -7,6 +7,7 @@ import { useThemeStore } from '../../store/useThemeStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import api from '../../services/api';
 import { ColorTheme } from '../../constants/theme';
+import { useResponsive } from '../../constants/responsive';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -20,6 +21,7 @@ import AlarmModal from '../../components/AlarmModal';
 
 export default function SettingsScreen() {
   const { setMode, isDark, getColors } = useThemeStore();
+  const { containerStyle } = useResponsive();
   const isDarkMode = isDark();
   const colors = getColors();
   const styles = getStyles(colors);
@@ -286,7 +288,7 @@ export default function SettingsScreen() {
           <Text style={styles.headerSub}>Manage your preferences</Text>
         </View>
         
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, containerStyle]} showsVerticalScrollIndicator={false}>
           <Text style={styles.sectionTitle}>PREFERENCES</Text>
           
           <View style={styles.premiumCard}>

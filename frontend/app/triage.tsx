@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions, Image, AppState, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, AppState, Modal, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useEventStore, parseDeadline } from '../store/useEventStore';
@@ -11,9 +11,11 @@ import {
 } from 'lucide-react-native';
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
+import { useResponsive } from '../constants/responsive';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { reschedulingService, RescheduleSuggestion } from '../services/reschedulingService';
+import { resolveMediaUrl } from '../services/api';
 
 import Animated, { 
   useSharedValue, 
@@ -28,9 +30,6 @@ import Animated, {
   Easing
 } from 'react-native-reanimated';
 import { PanGestureHandler, GestureHandlerRootView } from 'react-native-gesture-handler';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.28;
 
 const CATEGORY_COVERS: Record<string, string> = {
   work:     "https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=800&auto=format&fit=crop",
@@ -58,6 +57,10 @@ const TriageCard = ({
   colors: ColorTheme;
   isBehind?: boolean;
 }) => {
+  const { width: screenWidth, height: screenHeight } = useResponsive();
+  const swipeThreshold = screenWidth * 0.28;
+  const cardWidth = Math.min(screenWidth * 0.9, 410);
+  const cardHeight = Math.min(screenHeight * 0.65, 560);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
@@ -71,12 +74,12 @@ const TriageCard = ({
   const panGestureEnd = (e: any) => {
     'worklet';
     if (isBehind) return;
-    if (translateX.value > SWIPE_THRESHOLD) {
-      translateX.value = withSpring(SCREEN_WIDTH * 1.5, { velocity: e.nativeEvent.velocityX }, () => {
+    if (translateX.value > swipeThreshold) {
+      translateX.value = withSpring(screenWidth * 1.5, { velocity: e.nativeEvent.velocityX }, () => {
         runOnJS(onSwipeRight)();
       });
-    } else if (translateX.value < -SWIPE_THRESHOLD) {
-      translateX.value = withSpring(-SCREEN_WIDTH * 1.5, { velocity: e.nativeEvent.velocityX }, () => {
+    } else if (translateX.value < -swipeThreshold) {
+      translateX.value = withSpring(-screenWidth * 1.5, { velocity: e.nativeEvent.velocityX }, () => {
         runOnJS(onSwipeLeft)();
       });
     } else {
@@ -95,7 +98,7 @@ const TriageCard = ({
 
     const rotate = interpolate(
       translateX.value,
-      [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
+      [-screenWidth / 2, 0, screenWidth / 2],
       [-12, 0, 12],
       Extrapolation.CLAMP
     );
@@ -110,17 +113,17 @@ const TriageCard = ({
   });
 
   const doNowOpacity = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [20, SWIPE_THRESHOLD], [0, 1], Extrapolation.CLAMP),
-    transform: [{ scale: interpolate(translateX.value, [20, SWIPE_THRESHOLD], [0.8, 1], Extrapolation.CLAMP) }],
+    opacity: interpolate(translateX.value, [20, swipeThreshold], [0, 1], Extrapolation.CLAMP),
+    transform: [{ scale: interpolate(translateX.value, [20, swipeThreshold], [0.8, 1], Extrapolation.CLAMP) }],
   }));
 
   const cancelOpacity = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [-20, -SWIPE_THRESHOLD], [0, 1], Extrapolation.CLAMP),
-    transform: [{ scale: interpolate(translateX.value, [-20, -SWIPE_THRESHOLD], [0.8, 1], Extrapolation.CLAMP) }],
+    opacity: interpolate(translateX.value, [-20, -swipeThreshold], [0, 1], Extrapolation.CLAMP),
+    transform: [{ scale: interpolate(translateX.value, [-20, -swipeThreshold], [0.8, 1], Extrapolation.CLAMP) }],
   }));
 
   const cat = (event.category || '').toLowerCase();
-  const coverUrl = event.image || CATEGORY_COVERS[cat] || CATEGORY_COVERS.default;
+  const coverUrl = resolveMediaUrl(event.image) || CATEGORY_COVERS[cat] || CATEGORY_COVERS.default;
 
   // Edge Case Fix #1: Use UTC-aware parseDeadline + Edge Case Fix #7: isAllDay support
   const overdueText = useMemo(() => {
@@ -143,7 +146,7 @@ const TriageCard = ({
 
   return (
     <PanGestureHandler onGestureEvent={panGestureEvent} onEnded={panGestureEnd}>
-      <Animated.View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }, cardStyle]}>
+      <Animated.View style={[styles.card, { width: cardWidth, height: cardHeight, backgroundColor: colors.card, borderColor: colors.border }, cardStyle]}>
         
         {/* DO NOW STAMP */}
         <Animated.View style={[styles.stamp, styles.stampRight, doNowOpacity]}>
@@ -668,9 +671,6 @@ export default function TriageScreen() {
   );
 }
 
-const CARD_WIDTH = Math.min(SCREEN_WIDTH * 0.9, 390);
-const CARD_HEIGHT = Math.min(SCREEN_HEIGHT * 0.65, 540);
-
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: {
@@ -681,11 +681,11 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 10,
   },
-  backBtn: { 
-    width: 42, 
-    height: 42, 
-    borderRadius: 14, 
-    alignItems: 'center', 
+  backBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
   },
@@ -697,9 +697,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  headerTitle: { 
-    fontFamily: 'Poppins_700Bold', 
-    fontSize: 18 
+  headerTitle: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 18,
   },
   headerSub: {
     fontFamily: 'Poppins_500Medium',
@@ -739,8 +739,10 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
+    width: '100%',
+    maxWidth: 410,
+    height: '100%',
+    maxHeight: 560,
     borderRadius: 28,
     borderWidth: 1,
     shadowColor: '#000',

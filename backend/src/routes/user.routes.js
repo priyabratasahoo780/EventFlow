@@ -1,7 +1,5 @@
-/**
- * user.routes.js
- * User profile endpoints and account deletion route.
- */
+  // User profile endpoints and account deletion route.
+ 
 'use strict';
 
 const express = require('express');

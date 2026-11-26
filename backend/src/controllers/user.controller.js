@@ -9,6 +9,7 @@ const FriendRequest = require('../models/FriendRequest');
 const Message = require('../models/Message');
 const Review = require('../models/Review');
 const { Expo } = require('expo-server-sdk');
+const { deleteFromCloudinary } = require('../config/cloudinary');
 
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
 
@@ -99,16 +100,24 @@ exports.deleteAccount = async (req, res) => {
       return res.status(404).json({ error: 'User account not found' });
     }
 
-    // 1. Delete all tasks/events owned by user and clean up local media
+    // 1. Delete all tasks/events owned by user and clean up local/cloud media
     const userEvents = await Event.find({ ownerId: userId }).select('image video').lean();
     for (const evt of userEvents) {
-      if (evt.image && evt.image.startsWith('/uploads/')) {
-        const filePath = path.join(UPLOAD_DIR, path.basename(evt.image));
-        fs.unlink(filePath, () => {});
+      if (evt.image) {
+        if (evt.image.startsWith('/uploads/')) {
+          const filePath = path.join(UPLOAD_DIR, path.basename(evt.image));
+          fs.unlink(filePath, () => {});
+        } else if (evt.image.includes('res.cloudinary.com')) {
+          deleteFromCloudinary(evt.image, 'image').catch(() => {});
+        }
       }
-      if (evt.video && evt.video.startsWith('/uploads/')) {
-        const filePath = path.join(UPLOAD_DIR, path.basename(evt.video));
-        fs.unlink(filePath, () => {});
+      if (evt.video) {
+        if (evt.video.startsWith('/uploads/')) {
+          const filePath = path.join(UPLOAD_DIR, path.basename(evt.video));
+          fs.unlink(filePath, () => {});
+        } else if (evt.video.includes('res.cloudinary.com')) {
+          deleteFromCloudinary(evt.video, 'video').catch(() => {});
+        }
       }
     }
     await Event.deleteMany({ ownerId: userId });
@@ -133,10 +142,14 @@ exports.deleteAccount = async (req, res) => {
     await Review.deleteMany({ user: userId });
     await Review.updateMany({ likes: userId }, { $pull: { likes: userId } });
 
-    // 7. Delete user's profile photo if stored locally
-    if (user.profilePhoto && user.profilePhoto.includes('/uploads/')) {
-      const photoPath = path.join(UPLOAD_DIR, path.basename(user.profilePhoto));
-      fs.unlink(photoPath, () => {});
+    // 7. Delete user's profile photo if stored locally or in cloud
+    if (user.profilePhoto) {
+      if (user.profilePhoto.includes('/uploads/')) {
+        const photoPath = path.join(UPLOAD_DIR, path.basename(user.profilePhoto));
+        fs.unlink(photoPath, () => {});
+      } else if (user.profilePhoto.includes('res.cloudinary.com')) {
+        deleteFromCloudinary(user.profilePhoto, 'image').catch(() => {});
+      }
     }
 
     // 8. Delete user account record

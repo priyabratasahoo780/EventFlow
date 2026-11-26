@@ -8,14 +8,12 @@ import {
   StyleSheet,
   Platform,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BellOff, Zap, ShieldCheck, X } from 'lucide-react-native';
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import { useResponsive } from '../constants/responsive';
 
 interface ZenModePermissionModalProps {
   visible: boolean;
@@ -31,6 +29,7 @@ export default function ZenModePermissionModal({
   onDeny,
 }: ZenModePermissionModalProps) {
   const { getColors } = useThemeStore();
+  const { modalMaxWidth } = useResponsive();
   const colors = getColors();
   const styles = getStyles(colors);
 
@@ -74,6 +73,7 @@ export default function ZenModePermissionModal({
           style={[
             styles.card,
             {
+              width: modalMaxWidth,
               transform: [{ scale: scaleAnim }],
               opacity: opacityAnim,
             },
@@ -204,7 +204,8 @@ const getStyles = (colors: ColorTheme) =>
       backgroundColor: '#FFFFFF',
       borderRadius: 24,
       padding: 24,
-      width: Math.min(SCREEN_WIDTH - 40, 380),
+      width: '100%',
+      maxWidth: 390,
       alignItems: 'center',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 8 },

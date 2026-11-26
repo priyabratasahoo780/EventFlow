@@ -1,7 +1,6 @@
-/**
- * upload.routes.js
- * Protected upload endpoints with strict MIME filtering and binary signature checks.
- */
+// Protected upload endpoints with strict MIME filtering and binary signature checks.
+// Authenticated users can upload shared task media; Admins upload Festival Cards & Admin avatars.
+
 'use strict';
 
 const express = require('express');
@@ -14,6 +13,7 @@ router.use(authMiddleware);
 
 router.post('/image', uploadImage.single('image'), verifyFileSignature('image'), uploadController.uploadImage);
 router.post('/video', uploadVideo.single('video'), verifyFileSignature('video'), uploadController.uploadVideo);
+router.delete('/', uploadController.deleteFile);
 router.delete('/:id', uploadController.deleteFile);
 
 module.exports = router;

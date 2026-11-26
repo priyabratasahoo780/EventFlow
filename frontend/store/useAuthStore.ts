@@ -1,7 +1,5 @@
-/**
- * useAuthStore.ts
- * Zustand authentication store backed by hardware-encrypted SecureStore tokens and Admin Vault sync.
- */
+  // Zustand authentication store backed by hardware-encrypted SecureStore tokens and Admin Vault sync.
+ 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
@@ -13,6 +11,7 @@ import {
   generateSecureUniqueId,
 } from '../services/secureStorage';
 import { saveAdminVaultSession } from '../services/biometricAuth';
+import { socketService } from '../services/socketService';
 
 export interface UserProfile {
   _id: string;
@@ -50,6 +49,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await setAuthToken(token);
     await AsyncStorage.setItem('user', JSON.stringify(user));
     set({ token, user });
+    socketService.connect().catch(() => {});
 
     if (user.role === 'admin') {
       await saveAdminVaultSession(token, user);
@@ -61,15 +61,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const res = await api.post('/auth/sync', {
           uniqueId: user.uniqueId,
           name: user.name,
-          profilePhoto: user.profilePhoto,
+          profilePhoto: user.profilePhoto?.startsWith('file://') ? undefined : user.profilePhoto,
         });
 
         if (res.data?.user) {
-          const syncedUser = { ...user, ...res.data.user };
+          const localPhotoKey = `local_profile_photo_${user._id || user.email}`;
+          const savedLocalPhoto = await AsyncStorage.getItem(localPhotoKey);
+          const mergedPhoto =
+            savedLocalPhoto ||
+            (user.profilePhoto?.startsWith('file://') ? user.profilePhoto : res.data.user.profilePhoto);
+          const syncedUser = { ...user, ...res.data.user, profilePhoto: mergedPhoto };
           await AsyncStorage.setItem('user', JSON.stringify(syncedUser));
           const finalToken = res.data.token || token;
           if (res.data.token) {
             await setAuthToken(res.data.token);
+            socketService.connect().catch(() => {});
           }
           if (syncedUser.role === 'admin') {
             await saveAdminVaultSession(finalToken, syncedUser);
@@ -88,12 +94,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    socketService.disconnect();
     await removeAuthToken();
     await AsyncStorage.removeItem('user');
     set({ token: null, user: null, postLoginRoute: null });
   },
 
   updateUserProfile: async (updatedFields: Partial<UserProfile>) => {
+    const prevUser = get().user;
     set((state) => {
       if (!state.user) return state;
       const newUser = { ...state.user, ...updatedFields };
@@ -101,13 +109,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { user: newUser };
     });
 
+    const currentUser = get().user || prevUser;
+    if (currentUser && Object.prototype.hasOwnProperty.call(updatedFields, 'profilePhoto')) {
+      const localPhotoKey = `local_profile_photo_${currentUser._id || currentUser.email}`;
+      if (updatedFields.profilePhoto && updatedFields.profilePhoto.startsWith('file://')) {
+        await AsyncStorage.setItem(localPhotoKey, updatedFields.profilePhoto);
+      } else if (updatedFields.profilePhoto === '') {
+        await AsyncStorage.removeItem(localPhotoKey);
+      }
+    }
+
     try {
-      const currentUser = get().user;
       if (currentUser) {
+        const serverPhoto =
+          currentUser.profilePhoto?.startsWith('file://') ? '' : currentUser.profilePhoto;
         await api.post('/auth/sync', {
           uniqueId: currentUser.uniqueId,
           name: currentUser.name,
-          profilePhoto: currentUser.profilePhoto,
+          profilePhoto: serverPhoto,
         });
       }
     } catch {
@@ -140,11 +159,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           const res = await api.post('/auth/sync', {
             uniqueId: parsedUser.uniqueId,
             name: parsedUser.name,
-            profilePhoto: parsedUser.profilePhoto,
+            profilePhoto: parsedUser.profilePhoto?.startsWith('file://') ? '' : parsedUser.profilePhoto,
           });
 
           if (res.data?.user) {
-            const syncedUser = { ...parsedUser, ...res.data.user };
+            const localPhotoKey = `local_profile_photo_${parsedUser._id || parsedUser.email}`;
+            const savedLocalPhoto = await AsyncStorage.getItem(localPhotoKey);
+            const mergedPhoto =
+              savedLocalPhoto ||
+              (parsedUser.profilePhoto?.startsWith('file://')
+                ? parsedUser.profilePhoto
+                : res.data.user.profilePhoto);
+            const syncedUser = { ...parsedUser, ...res.data.user, profilePhoto: mergedPhoto };
             await AsyncStorage.setItem('user', JSON.stringify(syncedUser));
             const finalToken = res.data.token || token;
             if (res.data.token) {

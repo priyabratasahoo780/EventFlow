@@ -1,6 +1,5 @@
-/**
- * FocusFlow Analytics Service
- */
+  // FocusFlow Analytics Service
+ 
 
 function generateAnalytics(tasks) {
   const total = tasks.length;

@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
+import { useResponsive } from '../../constants/responsive';
 import { StyleSheet, View, Text, ScrollView, Pressable, Alert, Image, Share as RNShare, Linking, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEventStore } from '../../store/useEventStore';
+import { useAuthStore } from '../../store/useAuthStore';
+import { resolveMediaUrl } from '../../services/api';
 import { format } from 'date-fns';
 import { Calendar, Clock, MapPin, Tag, Bell, Share, Trash2, Edit2, CheckSquare, ChevronLeft, Check, User, Phone, Video as VideoIcon, Play, CheckCircle2, Navigation, X } from 'lucide-react-native';
 import BrutalCard from '../../components/BrutalCard';
@@ -27,22 +30,35 @@ const warningCol = Colors.light.accent;
 
 export default function EventDetailsScreen() {
   const { getColors } = useThemeStore();
+  const { containerStyle } = useResponsive();
   const colors = getColors();
   const styles = getStyles(colors);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { events, friendsEvents, deleteEvent, updateTaskStatus } = useEventStore();
+  const { user: currentUser } = useAuthStore();
   const [timeLeft, setTimeLeft] = useState('');
   const [showMap, setShowMap] = useState(false);
+  const [previewImage, setPreviewImage] = useState(false);
 
   const event = events.find(e => e.id === id || e._id === id) || friendsEvents.find(e => e.id === id || e._id === id);
   const [previewVideo, setPreviewVideo] = useState(false);
 
+  const rawOwnerId = event?.ownerId
+    ? (typeof event.ownerId === 'object' ? (event.ownerId as any)._id : event.ownerId)
+    : undefined;
+  const isOwner = !rawOwnerId || !currentUser?._id || String(rawOwnerId) === String(currentUser._id);
+  const ownerName = event?.ownerId && typeof event.ownerId === 'object' ? (event.ownerId as any).name : undefined;
+  const resolvedImageUri = resolveMediaUrl(event?.image);
+  const resolvedVideoUri = resolveMediaUrl(event?.video);
+
   useEffect(() => {
-    if (!event) return;
+    if (!event?.date) return;
+    const safeTime = event.time && event.time.trim() ? event.time.trim() : '23:59';
+    const normalizedTime = safeTime.length <= 5 ? `${safeTime}:00` : safeTime;
     const interval = setInterval(() => {
       const now = new Date().getTime();
-      const eventDate = new Date(`${event.date.split('T')[0]}T${event.time.length <= 5 ? event.time + ':00' : event.time}`).getTime();
+      const eventDate = new Date(`${event.date.split('T')[0]}T${normalizedTime}`).getTime();
       const distance = eventDate - now;
 
       if (distance < 0) {
@@ -97,10 +113,14 @@ export default function EventDetailsScreen() {
 
   const handleDelete = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Alert.alert('Delete Task?', `Are you sure you want to delete "${event.title}"?`, [
+    const titleText = isOwner ? 'Delete Task?' : 'Leave Shared Task?';
+    const bodyText = isOwner
+      ? `Are you sure you want to delete "${event.title}"?`
+      : `Remove yourself from "${event.title}"?`;
+    Alert.alert(titleText, bodyText, [
       { text: 'CANCEL', style: 'cancel' },
       { 
-        text: 'DELETE', 
+        text: isOwner ? 'DELETE' : 'REMOVE', 
         style: 'destructive',
         onPress: async () => {
           await deleteEvent(event.id);
@@ -140,7 +160,7 @@ export default function EventDetailsScreen() {
 
       await RNShare.share({
         message: shareMessage.trim(),
-        url: event.image ? event.image : undefined,
+        url: resolvedImageUri ? resolvedImageUri : undefined,
       });
     } catch (error) {
       console.error(error);
@@ -165,7 +185,7 @@ export default function EventDetailsScreen() {
         <View style={{ width: 44 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, containerStyle]} showsVerticalScrollIndicator={false}>
         <BrutalCard shadowOffset={6} color={event.color || Colors.light.accent} style={styles.heroCard}>
           <View style={styles.heroTop}>
             <View style={styles.priorityBadge}>
@@ -179,6 +199,12 @@ export default function EventDetailsScreen() {
           </View>
 
           <Text style={styles.title}>{event.title}</Text>
+          {!isOwner && ownerName ? (
+            <View style={[styles.timeLeftContainer, { marginBottom: 8, backgroundColor: 'rgba(255,255,255,0.95)' }]}>
+              <User color="#4F46E5" size={14} strokeWidth={2.5} />
+              <Text style={[styles.timeLeft, { color: '#4F46E5' }]}>Shared by {ownerName}</Text>
+            </View>
+          ) : null}
           <View style={styles.timeLeftContainer}>
             <Clock color="#000" size={16} strokeWidth={2.2} />
             <Text style={styles.timeLeft}>{timeLeft}</Text>
@@ -330,23 +356,36 @@ export default function EventDetailsScreen() {
           </BrutalCard>
         ) : null}
 
-        {event.image ? (
+        {resolvedImageUri ? (
           <BrutalCard shadowOffset={4} color="#FFF" style={styles.infoCard}>
             <Text style={styles.sectionLabel}>IMAGE ATTACHMENT</Text>
-            <View style={{ height: 200, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: Colors.light.border }}>
-              <Image source={{ uri: event.image }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
-            </View>
+            <Pressable onPress={() => setPreviewImage(true)} style={{ height: 220, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: Colors.light.border }}>
+              <Image source={{ uri: resolvedImageUri }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
+            </Pressable>
           </BrutalCard>
         ) : null}
 
-        {event.video ? (
+        <Modal visible={previewImage} animationType="fade" transparent={false} onRequestClose={() => setPreviewImage(false)}>
+          <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ position: 'absolute', top: Platform.OS === 'ios' ? 50 : 24, right: 20, zIndex: 10 }}>
+              <Pressable onPress={() => setPreviewImage(false)} style={{ padding: 10, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 24 }}>
+                <X color="#FFF" size={24} strokeWidth={3} />
+              </Pressable>
+            </View>
+            {resolvedImageUri ? (
+              <Image source={{ uri: resolvedImageUri }} style={{ width: '100%', height: '80%' }} resizeMode="contain" />
+            ) : null}
+          </View>
+        </Modal>
+
+        {resolvedVideoUri ? (
           <BrutalCard shadowOffset={4} color="#FFF" style={styles.infoCard}>
             <Text style={styles.sectionLabel}>VIDEO ATTACHMENT</Text>
             <Pressable style={styles.videoBox} onPress={() => setPreviewVideo(true)}>
               <VideoIcon color="#000" size={24} strokeWidth={2} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.videoTitle} numberOfLines={1} ellipsizeMode="middle">
-                  {event.video.split('/').pop() || 'Video Instruction Attached'}
+                  {resolvedVideoUri.split('/').pop() || 'Video Instruction Attached'}
                 </Text>
                 <Text style={styles.videoSub}>Tap to preview video</Text>
               </View>
@@ -364,8 +403,8 @@ export default function EventDetailsScreen() {
                 <X color="#FFF" size={24} strokeWidth={3} />
               </Pressable>
             </View>
-            {event?.video ? (
-              <VideoEventPlayer uri={event.video} />
+            {resolvedVideoUri ? (
+              <VideoEventPlayer uri={resolvedVideoUri} />
             ) : null}
           </View>
         </Modal>
@@ -427,12 +466,14 @@ export default function EventDetailsScreen() {
 
           {/* SECONDARY ROW: EDIT | SHARE | DELETE */}
           <View style={styles.actionRow}>
-            <BrutalButton color="#FFF" shadowOffset={4} style={styles.flex1} onPress={handleEdit}>
-              <View style={styles.subBtnContent}>
-                <Edit2 color="#000" size={18} strokeWidth={2.2} />
-                <Text style={styles.subBtnText}>EDIT</Text>
-              </View>
-            </BrutalButton>
+            {isOwner && (
+              <BrutalButton color="#FFF" shadowOffset={4} style={styles.flex1} onPress={handleEdit}>
+                <View style={styles.subBtnContent}>
+                  <Edit2 color="#000" size={18} strokeWidth={2.2} />
+                  <Text style={styles.subBtnText}>EDIT</Text>
+                </View>
+              </BrutalButton>
+            )}
             
             <BrutalButton color="#FFF" shadowOffset={4} style={styles.flex1} onPress={handleShare}>
               <View style={styles.subBtnContent}>
@@ -444,7 +485,7 @@ export default function EventDetailsScreen() {
             <BrutalButton color={dangerCol} shadowOffset={4} style={styles.flex1} onPress={handleDelete}>
               <View style={styles.subBtnContent}>
                 <Trash2 color="#000" size={18} strokeWidth={2.2} />
-                <Text style={styles.subBtnText}>DELETE</Text>
+                <Text style={styles.subBtnText}>{isOwner ? 'DELETE' : 'LEAVE'}</Text>
               </View>
             </BrutalButton>
           </View>

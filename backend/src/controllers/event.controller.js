@@ -1,7 +1,6 @@
-/**
- * event.controller.js
- * Event creation and friend-shared event feed endpoints.
- */
+
+  // Event creation and friend-shared event feed endpoints.
+ 
 'use strict';
 
 const mongoose = require('mongoose');

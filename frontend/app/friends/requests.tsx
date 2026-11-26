@@ -4,10 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
+import { useResponsive } from '../../constants/responsive';
 import { useEventStore } from '../../store/useEventStore';
 import LoadingScreen from '../../components/LoadingScreen';
 import BrutalCard from '../../components/BrutalCard';
-import api from '../../services/api';
+import api, { resolveMediaUrl } from '../../services/api';
+import { socketService } from '../../services/socketService';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Check, X, UserPlus, Inbox, MapPin, RefreshCw } from 'lucide-react-native';
@@ -15,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 export default function FriendRequestsScreen() {
   const { getColors } = useThemeStore();
+  const { containerStyle } = useResponsive();
   const colors = getColors();
   const styles = getStyles(colors);
   const router = useRouter();
@@ -37,6 +40,17 @@ export default function FriendRequestsScreen() {
 
   useEffect(() => {
     fetchRequests();
+    const onNewReq = (reqItem: any) => {
+      if (reqItem && reqItem._id) {
+        setRequests((prev) => (prev.some((r) => r._id === reqItem._id) ? prev : [reqItem, ...prev]));
+      } else {
+        fetchRequests();
+      }
+    };
+    socketService.on('friend_request_received', onNewReq);
+    return () => {
+      socketService.off('friend_request_received', onNewReq);
+    };
   }, []);
 
   const handleAccept = async (id: string) => {
@@ -140,14 +154,14 @@ export default function FriendRequestsScreen() {
           windowSize={5}
           removeClippedSubviews={true}
           keyExtractor={(item, index) => (item._id ? `${item._id}-${index}` : `req-${index}`)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, containerStyle]}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
             <BrutalCard shadowOffset={4} style={styles.card}>
               <View style={styles.userInfo}>
                 <View style={styles.avatar}>
                   {item.senderId?.profilePhoto ? (
-                    <Image source={{ uri: item.senderId.profilePhoto }} style={styles.avatarImg} />
+                    <Image source={{ uri: resolveMediaUrl(item.senderId.profilePhoto) }} style={styles.avatarImg} />
                   ) : (
                     <Text style={styles.avatarText}>
                       {item.senderId?.name?.charAt(0)?.toUpperCase() || 'U'}

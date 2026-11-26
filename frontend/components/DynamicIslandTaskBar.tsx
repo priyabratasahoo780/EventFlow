@@ -4,7 +4,6 @@ import {
   View,
   Text,
   Pressable,
-  Dimensions,
   Platform,
 } from 'react-native';
 import Animated, {
@@ -42,9 +41,8 @@ import {
 } from 'lucide-react-native';
 import { useEventStore } from '../store/useEventStore';
 import { useThemeStore } from '../store/useThemeStore';
+import { useResponsive } from '../constants/responsive';
 import { Event } from '../models/Event';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 function getCategoryIcon(category: string = '', size = 12, color = '#FFFFFF') {
   const sw = 2.2;
@@ -66,6 +64,7 @@ function getCategoryIcon(category: string = '', size = 12, color = '#FFFFFF') {
 export default function DynamicIslandTaskBar() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width: winWidth, isSmall, isTablet } = useResponsive();
   const { getColors } = useThemeStore();
   const colors = getColors();
   const { events, updateTaskStatus } = useEventStore();
@@ -201,11 +200,13 @@ export default function DynamicIslandTaskBar() {
   };
 
   // Animated styles for Dynamic Island container
+  const collapsedW = isSmall ? 198 : 226;
+  const expandedW = Math.min(winWidth - 28, isTablet ? 480 : winWidth - 28);
   const containerStyle = useAnimatedStyle(() => {
     const width = interpolate(
       expandProgress.value,
       [0, 1],
-      [226, SCREEN_WIDTH - 32]
+      [collapsedW, expandedW]
     );
     const height = interpolate(expandProgress.value, [0, 1], [44, 218]);
     const borderRadius = interpolate(expandProgress.value, [0, 1], [22, 26]);

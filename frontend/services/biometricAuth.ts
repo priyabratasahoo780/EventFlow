@@ -1,7 +1,4 @@
-/**
- * biometricAuth.ts
- * Crash-proof biometric (Fingerprint) & device pattern/PIN lock helper with Admin lock config storage.
- */
+  // Crash-proof biometric (Fingerprint) & device pattern/PIN lock helper with Admin lock config storage.
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { requireOptionalNativeModule } from 'expo-modules-core';

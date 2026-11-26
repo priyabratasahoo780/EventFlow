@@ -1,7 +1,5 @@
-/**
- * User.js
- * Mongoose schema and model definition for user profiles.
- */
+  // Mongoose schema and model definition for user profiles.
+ 
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({

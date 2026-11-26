@@ -1,7 +1,6 @@
-/**
- * auth.controller.js
- * Authentication controller handling login, register, 2FA, OTP password reset, and Clerk-verified Google OAuth.
- */
+
+  // Authentication controller handling login, register, 2FA, OTP password reset, and Clerk-verified Google OAuth.
+ 
 'use strict';
 
 const crypto = require('crypto');

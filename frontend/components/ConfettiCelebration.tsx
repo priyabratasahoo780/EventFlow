@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { StyleSheet, View, Text, Dimensions } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
 import Animated, {
   SharedValue,
   useSharedValue,
@@ -15,8 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Sparkles, CheckCircle2 } from 'lucide-react-native';
 import { useCelebrationStore } from '../store/useCelebrationStore';
 import { useThemeStore } from '../store/useThemeStore';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+import { useResponsive } from '../constants/responsive';
 
 const CONFETTI_COLORS = [
   '#FF7A00', 
@@ -95,6 +94,7 @@ const SingleParticle: React.FC<{
 
 export default function ConfettiCelebration() {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight, modalMaxWidth } = useResponsive();
   const { isActive, message, stopCelebration } = useCelebrationStore();
   const { isDark } = useThemeStore();
   const isDarkMode = isDark();
@@ -103,18 +103,18 @@ export default function ConfettiCelebration() {
   const bannerY = useSharedValue(-120);
   const bannerOpacity = useSharedValue(0);
 
-  // Generate varied confetti particle specs once
+  // Generate varied confetti particle specs once per viewport change
   const particles = useMemo<ParticleConfig[]>(() => {
     return Array.from({ length: PARTICLE_COUNT }).map((_, i) => {
       // 3 emission origins: Left-center, Center, Right-center for a wide fireworks burst
       const lane = i % 3;
       const startX =
         lane === 0
-          ? SCREEN_WIDTH * 0.2
+          ? screenWidth * 0.2
           : lane === 1
-          ? SCREEN_WIDTH * 0.5
-          : SCREEN_WIDTH * 0.8;
-      const startY = SCREEN_HEIGHT * 0.45;
+          ? screenWidth * 0.5
+          : screenWidth * 0.8;
+      const startY = screenHeight * 0.45;
 
       const isRibbon = i % 3 === 0;
       const isCircle = i % 3 === 1;
@@ -123,9 +123,9 @@ export default function ConfettiCelebration() {
         id: i,
         startX,
         startY,
-        velocityX: (Math.random() - 0.5) * SCREEN_WIDTH * 1.3,
-        velocityY: -(Math.random() * 420 + 260), 
-        gravity: 850 + Math.random() * 300,     
+        velocityX: (Math.random() - 0.5) * screenWidth * 1.3,
+        velocityY: -(Math.random() * 420 + 260),
+        gravity: 850 + Math.random() * 300,
         flutterFreq: 8 + Math.random() * 12,
         flutterAmp: 18 + Math.random() * 24,
         color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
@@ -135,7 +135,7 @@ export default function ConfettiCelebration() {
         spin: (Math.random() - 0.5) * 1200,
       };
     });
-  }, []);
+  }, [screenWidth, screenHeight]);
 
   useEffect(() => {
     if (isActive) {
@@ -185,6 +185,7 @@ export default function ConfettiCelebration() {
       <Animated.View
         style={[
           styles.bannerWrapper,
+          { maxWidth: modalMaxWidth },
           isDarkMode ? styles.bannerDark : styles.bannerLight,
           bannerAnimStyle,
         ]}
@@ -232,7 +233,6 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 20,
     zIndex: 10000,
-    maxWidth: SCREEN_WIDTH * 0.9,
   },
   bannerLight: {
     backgroundColor: 'rgba(255, 255, 255, 0.96)',

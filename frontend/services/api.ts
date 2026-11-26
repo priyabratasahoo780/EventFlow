@@ -1,16 +1,20 @@
-/**
- * api.ts
- * Axios API client with encrypted JWT injection and standardized 401 session cleanup.
- */
+  // Axios API client with encrypted JWT injection and standardized 401 session cleanup.
+ 
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { getAuthToken, removeAuthToken } from './secureStorage';
 
+const PRODUCTION_API_URL = 'https://eventflow-ks7m.onrender.com/api';
+
 const getApiUrl = (): string => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
+  }
+
+  if (!__DEV__) {
+    return PRODUCTION_API_URL;
   }
 
   const debuggerHost =
@@ -80,5 +84,21 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export function resolveMediaUrl(url?: string | null): string {
+  if (!url) return '';
+  if (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('file://') ||
+    url.startsWith('content://') ||
+    url.startsWith('blob:') ||
+    url.startsWith('data:')
+  ) {
+    return url;
+  }
+  const base = api.defaults.baseURL?.replace(/\/api\/?$/, '') || '';
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+}
 
 export default api;

@@ -1,7 +1,5 @@
-/**
- * FestivalBanner.js
- * Mongoose model for Admin-published festival greeting cards displayed to users during festival dates.
- */
+  // Mongoose model for Admin-published festival greeting cards displayed to users during festival dates.
+ 
 'use strict';
 
 const mongoose = require('mongoose');
@@ -9,7 +7,7 @@ const mongoose = require('mongoose');
 const festivalBannerSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true, maxlength: 100 },
-    imageUrl: { type: String, required: true, trim: true, maxlength: 500 },
+    imageUrl: { type: String, required: true, trim: true, maxlength: 1000 },
     greeting: { type: String, required: true, trim: true, maxlength: 500 },
     startDate: { type: Date, default: null },
     endDate: { type: Date, default: null },

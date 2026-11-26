@@ -1,27 +1,32 @@
 import { Stack, useRouter } from 'expo-router';
-import { StyleSheet, View, Text, Image, Pressable, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, Image, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Home } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
-
-const { width } = Dimensions.get('window');
+import { useResponsive } from '../constants/responsive';
 
 export default function NotFoundScreen() {
   const router = useRouter();
+  const { width, authMaxWidth } = useResponsive();
+  const imgSize = Math.min(width * 0.65, 270);
+  const glowSize = Math.min(width * 0.55, 230);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ headerShown: false }} />
       
-      <View style={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.container, { width: '100%', maxWidth: authMaxWidth, alignSelf: 'center' }]}
+      >
         {/* Animated Illustration */}
         <Animated.View entering={ZoomIn.duration(800).springify()} style={styles.imageContainer}>
-          <View style={styles.imageGlow} />
+          <View style={[styles.imageGlow, { width: glowSize, height: glowSize, borderRadius: glowSize / 2 }]} />
           <Image 
             source={require('../assets/images/404-illustration.jpg')} 
-            style={styles.illustration}
+            style={[styles.illustration, { width: imgSize, height: imgSize }]}
             resizeMode="cover"
           />
         </Animated.View>
@@ -72,7 +77,7 @@ export default function NotFoundScreen() {
             <Text style={styles.secondaryBtnText}>Go Back</Text>
           </Pressable>
         </Animated.View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -83,10 +88,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF5EA',
   },
   container: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingVertical: 24,
   },
   imageContainer: {
     alignItems: 'center',
@@ -96,17 +102,11 @@ const styles = StyleSheet.create({
   },
   imageGlow: {
     position: 'absolute',
-    width: width * 0.6,
-    height: width * 0.6,
     backgroundColor: '#FF7A00',
-    borderRadius: width * 0.3,
     opacity: 0.15,
     transform: [{ scale: 1.2 }],
-    filter: [{ blur: 40 }], // pseudo blur for glow effect
   },
   illustration: {
-    width: width * 0.75,
-    height: width * 0.75,
     borderRadius: 40,
   },
   textContainer: {

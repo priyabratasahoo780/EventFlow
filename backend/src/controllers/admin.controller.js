@@ -1,7 +1,3 @@
-/**
- * admin.controller.js
- * Admin portal endpoints for platform overview, community moderation, user management, and task moderation.
- */
 'use strict';
 
 const fs = require('fs');
@@ -14,6 +10,7 @@ const Review = require('../models/Review');
 const FriendRequest = require('../models/FriendRequest');
 const Message = require('../models/Message');
 const FestivalBanner = require('../models/FestivalBanner');
+const { deleteFromCloudinary } = require('../config/cloudinary');
 
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
 const escapeRegex = (str) => String(str || '').replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -259,11 +256,19 @@ exports.deleteUser = async (req, res) => {
 
     const userEvents = await Event.find({ ownerId: id }).select('image video').lean();
     for (const evt of userEvents) {
-      if (evt.image && evt.image.startsWith('/uploads/')) {
-        fs.unlink(path.join(UPLOAD_DIR, path.basename(evt.image)), () => {});
+      if (evt.image) {
+        if (evt.image.startsWith('/uploads/')) {
+          fs.unlink(path.join(UPLOAD_DIR, path.basename(evt.image)), () => {});
+        } else if (evt.image.includes('res.cloudinary.com')) {
+          deleteFromCloudinary(evt.image, 'image').catch(() => {});
+        }
       }
-      if (evt.video && evt.video.startsWith('/uploads/')) {
-        fs.unlink(path.join(UPLOAD_DIR, path.basename(evt.video)), () => {});
+      if (evt.video) {
+        if (evt.video.startsWith('/uploads/')) {
+          fs.unlink(path.join(UPLOAD_DIR, path.basename(evt.video)), () => {});
+        } else if (evt.video.includes('res.cloudinary.com')) {
+          deleteFromCloudinary(evt.video, 'video').catch(() => {});
+        }
       }
     }
 
@@ -277,8 +282,12 @@ exports.deleteUser = async (req, res) => {
       Review.updateMany({ likes: id }, { $pull: { likes: id } }),
     ]);
 
-    if (target.profilePhoto && target.profilePhoto.includes('/uploads/')) {
-      fs.unlink(path.join(UPLOAD_DIR, path.basename(target.profilePhoto)), () => {});
+    if (target.profilePhoto) {
+      if (target.profilePhoto.includes('/uploads/')) {
+        fs.unlink(path.join(UPLOAD_DIR, path.basename(target.profilePhoto)), () => {});
+      } else if (target.profilePhoto.includes('res.cloudinary.com')) {
+        deleteFromCloudinary(target.profilePhoto, 'image').catch(() => {});
+      }
     }
 
     await User.findByIdAndDelete(id);
@@ -336,7 +345,7 @@ exports.createFestivalBanner = async (req, res) => {
       return res.status(400).json({ error: 'Festival greeting message is required.' });
     }
 
-    const cleanImage = imageUrl.trim().slice(0, 500);
+    const cleanImage = imageUrl.trim().slice(0, 1000);
     if (cleanImage.toLowerCase().startsWith('javascript:')) {
       return res.status(400).json({ error: 'Invalid image URL.' });
     }
@@ -411,8 +420,12 @@ exports.deleteFestivalBanner = async (req, res) => {
       return res.status(404).json({ error: 'Festival card not found' });
     }
 
-    if (deleted.imageUrl && deleted.imageUrl.includes('/uploads/')) {
-      fs.unlink(path.join(UPLOAD_DIR, path.basename(deleted.imageUrl)), () => {});
+    if (deleted.imageUrl) {
+      if (deleted.imageUrl.includes('/uploads/')) {
+        fs.unlink(path.join(UPLOAD_DIR, path.basename(deleted.imageUrl)), () => {});
+      } else if (deleted.imageUrl.includes('res.cloudinary.com')) {
+        deleteFromCloudinary(deleted.imageUrl, 'image').catch(() => {});
+      }
     }
 
     req.app.get('io')?.emit('festival_updated', { active: false });

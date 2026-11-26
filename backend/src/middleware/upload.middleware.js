@@ -1,7 +1,5 @@
-/**
- * upload.middleware.js
- * Hardened file upload pipeline with extension/MIME allowlists, random filenames, and magic-byte malware checks.
- */
+  // Hardened file upload pipeline with extension/MIME allowlists, random filenames, and magic-byte malware checks.
+ 
 'use strict';
 
 const multer = require('multer');
@@ -72,9 +70,9 @@ exports.uploadVideo = multer({
   fileFilter: createFileFilter(VIDEO_EXTENSIONS, VIDEO_MIMES, 'video'),
 });
 
-/**
- * Inspect actual binary magic bytes of an uploaded file so disguised malware (e.g. virus.exe -> virus.jpg) is blocked.
- */
+
+  // Inspect actual binary magic bytes of an uploaded file so disguised malware (e.g. virus.exe -> virus.jpg) is blocked.
+ 
 function hasValidMagicBytes(filePath, kind) {
   const fd = fs.openSync(filePath, 'r');
   try {

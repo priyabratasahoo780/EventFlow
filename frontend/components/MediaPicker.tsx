@@ -5,17 +5,23 @@ import * as ImagePicker from 'expo-image-picker';
 import { Camera, Image as ImageIcon, Video, Trash2, Play, X } from 'lucide-react-native';
 import { Colors } from '../constants/Colors';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { saveMediaToDevice, deleteLocalMediaIfOwned } from '../services/localMediaService';
+import { resolveMediaUrl } from '../services/api';
 
 interface Props {
   imageUri?: string;
   videoUri?: string;
+  visibility?: 'onlyMe' | 'friends' | 'selectedFriends';
   onSelectImage: (uri?: string) => void;
   onSelectVideo: (uri?: string) => void;
 }
 
-export default function MediaPicker({ imageUri, videoUri, onSelectImage, onSelectVideo }: Props) {
+export default function MediaPicker({ imageUri, videoUri, visibility = 'onlyMe', onSelectImage, onSelectVideo }: Props) {
   const [loading, setLoading] = useState(false);
   const [previewVideo, setPreviewVideo] = useState(false);
+  const isShared = visibility === 'friends' || visibility === 'selectedFriends';
+  const resolvedImageUri = resolveMediaUrl(imageUri);
+  const resolvedVideoUri = resolveMediaUrl(videoUri);
 
   const takePhoto = async () => {
     setLoading(true);
@@ -34,7 +40,11 @@ export default function MediaPicker({ imageUri, videoUri, onSelectImage, onSelec
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        onSelectImage(result.assets[0].uri);
+        const localUri = await saveMediaToDevice(result.assets[0].uri, 'task_img');
+        if (imageUri && imageUri !== localUri) {
+          await deleteLocalMediaIfOwned(imageUri);
+        }
+        onSelectImage(localUri);
       }
     } catch (e) {
       console.warn('Camera error:', e);
@@ -60,7 +70,11 @@ export default function MediaPicker({ imageUri, videoUri, onSelectImage, onSelec
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        onSelectImage(result.assets[0].uri);
+        const localUri = await saveMediaToDevice(result.assets[0].uri, 'task_img');
+        if (imageUri && imageUri !== localUri) {
+          await deleteLocalMediaIfOwned(imageUri);
+        }
+        onSelectImage(localUri);
       }
     } catch (e) {
       console.warn('Gallery pick error:', e);
@@ -84,7 +98,11 @@ export default function MediaPicker({ imageUri, videoUri, onSelectImage, onSelec
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        onSelectVideo(result.assets[0].uri);
+        const localUri = await saveMediaToDevice(result.assets[0].uri, 'task_vid');
+        if (videoUri && videoUri !== localUri) {
+          await deleteLocalMediaIfOwned(videoUri);
+        }
+        onSelectVideo(localUri);
       }
     } catch (e) {
       console.warn('Video pick error:', e);
@@ -95,7 +113,11 @@ export default function MediaPicker({ imageUri, videoUri, onSelectImage, onSelec
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>IMAGE & MEDIA ATTACHMENTS</Text>
+      <Text style={styles.label}>
+        {isShared
+          ? 'IMAGE & MEDIA ATTACHMENTS (SHARED VIA CLOUD WITH FRIENDS ☁️)'
+          : 'IMAGE & MEDIA ATTACHMENTS (SAVED ON YOUR DEVICE ONLY 🔒)'}
+      </Text>
 
       <View style={styles.btnRow}>
         <Pressable style={styles.actionBtn} onPress={takePhoto} disabled={loading}>
@@ -120,11 +142,17 @@ export default function MediaPicker({ imageUri, videoUri, onSelectImage, onSelec
         </Pressable>
       </View>
 
-      {imageUri ? (
+      {resolvedImageUri ? (
         <View style={styles.previewCard}>
           <View style={styles.previewContainer}>
-            <Image source={{ uri: imageUri }} style={styles.previewImage} />
-            <Pressable style={styles.removeBtn} onPress={() => onSelectImage(undefined)}>
+            <Image source={{ uri: resolvedImageUri }} style={styles.previewImage} />
+            <Pressable
+              style={styles.removeBtn}
+              onPress={() => {
+                deleteLocalMediaIfOwned(imageUri).catch(() => {});
+                onSelectImage(undefined);
+              }}
+            >
               <Trash2 color="#FFF" size={14} />
             </Pressable>
           </View>
@@ -138,7 +166,7 @@ export default function MediaPicker({ imageUri, videoUri, onSelectImage, onSelec
         </View>
       ) : null}
 
-      {videoUri ? (
+      {resolvedVideoUri ? (
         <>
           <Pressable style={styles.videoCard} onPress={() => setPreviewVideo(true)}>
             <View style={styles.videoIconBox}>
@@ -146,11 +174,17 @@ export default function MediaPicker({ imageUri, videoUri, onSelectImage, onSelec
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.videoTitle} numberOfLines={1}>
-                {videoUri.split('/').pop() || 'presentation-instructions.mp4'}
+                {resolvedVideoUri.split('/').pop() || 'presentation-instructions.mp4'}
               </Text>
               <Text style={styles.videoSub}>Tap to preview video</Text>
             </View>
-            <Pressable style={styles.videoRemoveBtn} onPress={() => onSelectVideo(undefined)}>
+            <Pressable
+              style={styles.videoRemoveBtn}
+              onPress={() => {
+                deleteLocalMediaIfOwned(videoUri).catch(() => {});
+                onSelectVideo(undefined);
+              }}
+            >
               <Trash2 color={Colors.light.danger} size={18} />
             </Pressable>
           </Pressable>
@@ -162,7 +196,7 @@ export default function MediaPicker({ imageUri, videoUri, onSelectImage, onSelec
                   <X color="#FFF" size={24} />
                 </Pressable>
               </View>
-              <VideoPreview uri={videoUri} />
+              <VideoPreview uri={resolvedVideoUri} />
             </SafeAreaView>
           </Modal>
         </>

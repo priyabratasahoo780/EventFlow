@@ -4,9 +4,9 @@ import React, {
 import {
   StyleSheet, View, FlatList, TextInput, ScrollView,
   RefreshControl, Text, Pressable, AppState, Image, Modal,
-  Animated, Dimensions, Easing, Platform,
+  Animated, Easing, Platform,
 } from 'react-native';
-import { rs, ms, hs, SCREEN } from '../../constants/responsive';
+import { rs, ms, hs, SCREEN, useResponsive } from '../../constants/responsive';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -76,6 +76,7 @@ const getPriorityConfig = (colors: ColorTheme): Record<string, { strip: string; 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width: winWidth, contentMaxWidth, containerStyle } = useResponsive();
   const { getColors } = useThemeStore();
   const colors = getColors();
   const s = useMemo(() => getStyles(colors), [colors]);
@@ -150,7 +151,7 @@ export default function HomeScreen() {
   const [zenModalVisible, setZenModalVisible] = useState(false);
   const [zenPendingTask, setZenPendingTask] = useState<Event | null>(null);
 
-  const slideAnim = useRef(new Animated.Value(-Dimensions.get('window').width)).current;
+  const slideAnim = useRef(new Animated.Value(-winWidth)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const emptyFloatAnim = useRef(new Animated.Value(0)).current;
 
@@ -183,7 +184,7 @@ export default function HomeScreen() {
   const closeMenu = useCallback((callback?: () => void) => {
     Animated.parallel([
       Animated.timing(slideAnim, {
-        toValue: -Dimensions.get('window').width,
+        toValue: -winWidth,
         duration: 250,
         easing: Easing.in(Easing.poly(4)),
         useNativeDriver: true,
@@ -197,7 +198,7 @@ export default function HomeScreen() {
       setIsMenuOpen(false);
       if (callback) callback();
     });
-  }, [slideAnim, fadeAnim]);
+  }, [slideAnim, fadeAnim, winWidth]);
 
   const fetchFriendsEvents = useCallback(async () => {
     try {
@@ -231,6 +232,7 @@ export default function HomeScreen() {
 
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (appState.current?.match(/inactive|background/) && nextAppState === 'active') {
+        socketService.connect();
         fetchFriendsEvents();
         loadEvents();
         fetchActiveFestival();
@@ -1339,7 +1341,7 @@ export default function HomeScreen() {
         <>
           {festivalBannerStrip}
           <View style={{ paddingHorizontal: rs(16), paddingBottom: rs(20), paddingTop: rs(10), alignItems: 'center' }}>
-            {buildHeroCard(heroTasks[0], SCREEN.width - rs(32))}
+            {buildHeroCard(heroTasks[0], Math.min(winWidth, contentMaxWidth) - rs(32))}
           </View>
         </>
       );
@@ -1571,7 +1573,7 @@ export default function HomeScreen() {
             </Pressable>
           </View>
         }
-        contentContainerStyle={s.listContent}
+        contentContainerStyle={[s.listContent, containerStyle]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

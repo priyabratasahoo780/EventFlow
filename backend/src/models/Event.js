@@ -1,7 +1,5 @@
-/**
- * Event.js
- * Mongoose schema and model definition for events and tasks.
- */
+  // Mongoose schema and model definition for events and tasks.
+ 
 const mongoose = require('mongoose');
 
 const eventSchema = new mongoose.Schema({
@@ -81,6 +79,5 @@ eventSchema.index({ ownerId: 1, date: 1, status: 1 });
 eventSchema.index({ ownerId: 1, isArchived: 1, createdAt: 1 });
 eventSchema.index({ id: 1 });
 eventSchema.index({ sharedWith: 1 });
-eventSchema.index({ ownerId: 1, isArchived: 1, createdAt: 1 });
 
 module.exports = mongoose.model('Event', eventSchema);

@@ -57,3 +57,7 @@ Thumbs.db
 build/
 dist/
 out/
+
+# ── Runtime uploads ───────────────────────────────────────
+uploads/
+backend/uploads/

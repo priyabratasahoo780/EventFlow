@@ -1,7 +1,5 @@
-/**
- * friend.controller.js
- * Hardened friend discovery, request workflows, and friend-verified messaging.
- */
+  // Hardened friend discovery, request workflows, and friend-verified messaging.
+
 'use strict';
 
 const mongoose = require('mongoose');
@@ -123,6 +121,22 @@ exports.sendRequest = async (req, res) => {
     const request = new FriendRequest({ senderId, receiverId, status: 'pending' });
     await request.save();
 
+    const io = req.app.get('io');
+    if (io && currentUser) {
+      io.to(receiverId.toString()).emit('friend_request_received', {
+        _id: request._id,
+        senderId: {
+          _id: currentUser._id,
+          name: currentUser.name,
+          username: currentUser.username,
+          profilePhoto: currentUser.profilePhoto,
+          uniqueId: currentUser.uniqueId,
+          city: currentUser.city,
+        },
+        createdAt: request.createdAt,
+      });
+    }
+
     if (receiver.expoPushToken && Expo.isExpoPushToken(receiver.expoPushToken)) {
       try {
         const expo = new Expo();
@@ -179,6 +193,17 @@ exports.acceptRequest = async (req, res) => {
 
     await User.findByIdAndUpdate(request.senderId, { $addToSet: { friends: request.receiverId } });
     await User.findByIdAndUpdate(request.receiverId, { $addToSet: { friends: request.senderId } });
+
+    const io = req.app.get('io');
+    if (io) {
+      const accepter = await User.findById(request.receiverId)
+        .select('name username profilePhoto uniqueId city')
+        .lean();
+      io.to(request.senderId.toString()).emit('friend_request_accepted', {
+        friend: accepter,
+      });
+      io.to(request.receiverId.toString()).emit('friend_list_updated');
+    }
 
     res.json({ message: 'Request accepted' });
   } catch (_err) {
@@ -332,6 +357,11 @@ exports.removeFriend = async (req, res) => {
         { senderId: friendId, receiverId: req.user._id },
       ],
     });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(friendId.toString()).emit('friend_removed', { friendId: req.user._id.toString() });
+    }
 
     res.json({ message: 'Friend removed' });
   } catch (_err) {

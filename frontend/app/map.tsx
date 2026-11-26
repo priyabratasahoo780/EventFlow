@@ -1,7 +1,8 @@
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
+import { useResponsive } from '../constants/responsive';
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, TextInput, Dimensions, ActivityIndicator, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, TextInput, ActivityIndicator, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, MapPin, Search, Compass, ChevronRight, LocateFixed } from 'lucide-react-native';
@@ -12,15 +13,15 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker, Circle, MapViewRef } from '../components/maps';
 
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.85;
 const CARD_MARGIN = 12;
 
 export default function MapScreen() {
+  const { width } = useResponsive();
+  const cardWidth = Math.min(width * 0.85, 410);
   const { getColors, isDark } = useThemeStore();
   const colors = getColors();
   const isDarkMode = isDark();
-  const styles = getStyles(colors, isDarkMode);
+  const styles = getStyles(colors, isDarkMode, cardWidth, width);
   const router = useRouter();
   const { events } = useEventStore();
   const { location, geocodeAddress, searchPlaces } = useLocation(events, { enableMonitoring: false });
@@ -340,7 +341,7 @@ export default function MapScreen() {
           removeClippedSubviews={true}
           keyExtractor={(item) => item.id}
           showsHorizontalScrollIndicator={false}
-          snapToInterval={CARD_WIDTH + CARD_MARGIN}
+          snapToInterval={cardWidth + CARD_MARGIN}
           snapToAlignment="center"
           decelerationRate="fast"
           contentContainerStyle={styles.carouselContent}
@@ -405,7 +406,7 @@ export default function MapScreen() {
   );
 }
 
-const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create({
+const getStyles = (colors: ColorTheme, isDarkMode: boolean, cardWidth: number, screenWidth: number) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.background,
@@ -547,12 +548,12 @@ const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create
     zIndex: 10,
   },
   carouselContent: {
-    paddingHorizontal: (width - CARD_WIDTH) / 2,
+    paddingHorizontal: Math.max(12, (screenWidth - cardWidth) / 2),
     gap: CARD_MARGIN,
     alignItems: 'flex-end',
   },
   taskCard: {
-    width: CARD_WIDTH,
+    width: cardWidth,
     backgroundColor: isDarkMode ? 'rgba(35,35,35,0.95)' : '#FFFFFF',
     borderRadius: 28,
     padding: 20,
@@ -629,7 +630,7 @@ const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create
     letterSpacing: 0.2,
   },
   emptyCard: {
-    width: CARD_WIDTH,
+    width: cardWidth,
     backgroundColor: isDarkMode ? 'rgba(35,35,35,0.95)' : 'rgba(255,255,255,0.98)',
     borderRadius: 24,
     padding: 24,

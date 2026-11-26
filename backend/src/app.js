@@ -1,7 +1,4 @@
-/**
- * app.js
- * Express application setup with security headers, CORS, sanitization, rate limiting, and routes.
- */
+ 
 'use strict';
 
 require('dotenv').config();
@@ -54,7 +51,6 @@ app.use(
   })
 );
 
-// Configurable CORS (native mobile apps have no Origin header; browser origins checked against CORS_ORIGIN)
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((o) => o.trim())
@@ -97,7 +93,7 @@ app.use(compression());
 // Static media serving locked down against script/HTML execution & sniffing
 app.use(
   '/uploads',
-  express.static(path.join(__dirname, '../uploads'), {
+  express.static(path.join(__dirname, '../../uploads'), {
     dotfiles: 'deny',
     index: false,
     maxAge: '7d',

@@ -1,7 +1,4 @@
-/**
- * useLocation.ts
- * Foreground location hook providing geocoding, place search, and Arrive/Leave monitoring.
- */
+ 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AppState, DeviceEventEmitter } from 'react-native';
 import * as Location from 'expo-location';

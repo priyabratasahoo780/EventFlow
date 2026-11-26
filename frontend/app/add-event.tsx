@@ -1,9 +1,10 @@
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
+import { useResponsive } from '../constants/responsive';
 import { useState } from 'react';
 import { 
   StyleSheet, ScrollView, View, Text, Pressable, Platform, 
-  TextInput, KeyboardAvoidingView, ToastAndroid, Modal, Switch, Alert
+  TextInput, KeyboardAvoidingView, ToastAndroid, Modal, Switch, Alert, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -72,6 +73,7 @@ const generateId = () => Math.random().toString(36).substring(2, 9);
 
 export default function AddEventScreen() {
   const { getColors } = useThemeStore();
+  const { containerStyle } = useResponsive();
   const colors = getColors();
   const styles = getStyles(colors);
   const router = useRouter();
@@ -80,8 +82,11 @@ export default function AddEventScreen() {
   
   const existingEvent = id ? events.find(e => e.id === id) : null;
   
-  const [date, setDate] = useState(existingEvent ? new Date(existingEvent.date) : new Date());
-  const [time, setTime] = useState(existingEvent ? new Date(`1970-01-01T${existingEvent.time}:00`) : new Date());
+  const [date, setDate] = useState(existingEvent?.date ? new Date(existingEvent.date) : new Date());
+  const [time, setTime] = useState(
+    existingEvent?.time ? new Date(`1970-01-01T${existingEvent.time.length <= 5 ? existingEvent.time + ':00' : existingEvent.time}`) : new Date()
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
@@ -190,6 +195,8 @@ export default function AddEventScreen() {
       notes: ''
     },
     onSubmit: async (data: EventFormData) => {
+      if (isSubmitting) return;
+      setIsSubmitting(true);
       try {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         let durationNum = parseInt(data.estimatedDuration || '30', 10) || 30;
@@ -273,6 +280,8 @@ export default function AddEventScreen() {
       } catch (err: any) {
         console.error('Submit Error:', err);
         Alert.alert('Error Saving Event', err?.message || 'An unexpected error occurred. Check console logs.');
+      } finally {
+        setIsSubmitting(false);
       }
     }
   });
@@ -527,7 +536,7 @@ export default function AddEventScreen() {
         </View>
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, containerStyle]} showsVerticalScrollIndicator={false}>
             
             <View style={styles.mainCard}>
               <View>
@@ -883,21 +892,34 @@ export default function AddEventScreen() {
               <MediaPicker
                 imageUri={imageUri}
                 videoUri={videoUri}
+                visibility={visibility}
                 onSelectImage={(uri) => setImageUri(uri)}
                 onSelectVideo={(uri) => setVideoUri(uri)}
               />
             </View>
 
-            <Pressable style={styles.createEventBtnWrapper} onPress={() => {
-              if (Object.keys(formik.errors).length > 0) {
-                const errorFields = Object.keys(formik.errors).join(', ');
-                Alert.alert('Validation Error', `Please check the following fields: ${errorFields}`);
-              }
-              formik.handleSubmit();
-            }}>
+            <Pressable
+              style={[styles.createEventBtnWrapper, isSubmitting && { opacity: 0.7 }]}
+              disabled={isSubmitting}
+              onPress={() => {
+                if (Object.keys(formik.errors).length > 0) {
+                  const errorFields = Object.keys(formik.errors).join(', ');
+                  Alert.alert('Validation Error', `Please check the following fields: ${errorFields}`);
+                }
+                formik.handleSubmit();
+              }}
+            >
               <LinearGradient colors={[colors.secondary, colors.secondary]} style={styles.createEventBtn}>
-                <CalendarIcon color="#FFF" size={20} strokeWidth={2.5} />
-                <Text style={styles.createEventBtnText}>SAVE EVENT</Text>
+                {isSubmitting ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <CalendarIcon color="#FFF" size={20} strokeWidth={2.5} />
+                )}
+                <Text style={styles.createEventBtnText}>
+                  {isSubmitting
+                    ? (visibility !== 'onlyMe' && (imageUri || videoUri) ? 'UPLOADING & SAVING...' : 'SAVING...')
+                    : 'SAVE EVENT'}
+                </Text>
               </LinearGradient>
             </Pressable>
 

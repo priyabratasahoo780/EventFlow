@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useEventStore } from '../../store/useEventStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
+import { useResponsive } from '../../constants/responsive';
 import EventCard from '../../components/EventCard';
 import { 
   Calendar as CalendarIcon, 
@@ -21,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 export default function CalendarScreen() {
   const router = useRouter();
   const { getColors, isDark } = useThemeStore();
+  const { containerStyle } = useResponsive();
   const colors = getColors();
   const isDarkMode = isDark();
   const styles = getStyles(colors, isDarkMode);
@@ -309,7 +311,7 @@ export default function CalendarScreen() {
             </Pressable>
           </View>
         }
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, containerStyle]}
       />
       </SafeAreaView>
     </View>

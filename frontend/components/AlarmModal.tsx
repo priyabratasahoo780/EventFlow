@@ -40,9 +40,8 @@ import { Event } from '../models/Event';
 import { alarmSoundService } from '../services/alarmSoundService';
 import { alarmService } from '../services/alarmService';
 import { useThemeStore } from '../store/useThemeStore';
+import { useResponsive } from '../constants/responsive';
 import * as Haptics from 'expo-haptics';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface Props {
   visible: boolean;
@@ -60,7 +59,8 @@ export default function AlarmModal({
   onSnooze,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const isShortScreen = SCREEN_HEIGHT < 720;
+  const { width: screenWidth, height: screenHeight } = useResponsive();
+  const isShortScreen = screenHeight < 720;
   const topPadding = Math.max(
     insets.top + (Platform.OS === 'ios' ? 12 : 16),
     Platform.OS === 'ios' ? 56 : 48
@@ -487,21 +487,21 @@ const styles = StyleSheet.create({
   // Ambient Glow Orbs
   glowOrbTop: {
     position: 'absolute',
-    top: -SCREEN_WIDTH * 0.2,
-    right: -SCREEN_WIDTH * 0.1,
-    width: SCREEN_WIDTH * 0.8,
-    height: SCREEN_WIDTH * 0.8,
-    borderRadius: (SCREEN_WIDTH * 0.8) / 2,
+    top: -80,
+    right: -40,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
     backgroundColor: '#FF3B30',
     opacity: 0.18,
   },
   glowOrbBottom: {
     position: 'absolute',
-    bottom: -SCREEN_WIDTH * 0.25,
-    left: -SCREEN_WIDTH * 0.15,
-    width: SCREEN_WIDTH * 0.9,
-    height: SCREEN_WIDTH * 0.9,
-    borderRadius: (SCREEN_WIDTH * 0.9) / 2,
+    bottom: -90,
+    left: -50,
+    width: 340,
+    height: 340,
+    borderRadius: 170,
     backgroundColor: '#FF7A00',
     opacity: 0.14,
   },
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
   },
   clockNumbers: {
     fontFamily: 'Poppins_800ExtraBold',
-    fontSize: SCREEN_HEIGHT < 720 ? 46 : 52,
+    fontSize: 48,
     color: '#FFFFFF',
     letterSpacing: -1,
   },
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
   bellArena: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: SCREEN_HEIGHT < 720 ? 4 : 8,
+    marginVertical: 6,
   },
   shockwaveRing: {
     position: 'absolute',
@@ -598,8 +598,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 122, 0, 0.28)',
-    padding: SCREEN_HEIGHT < 720 ? 14 : 18,
-    gap: SCREEN_HEIGHT < 720 ? 8 : 10,
+    padding: 16,
+    gap: 9,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.4,
@@ -707,7 +707,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    paddingVertical: SCREEN_HEIGHT < 720 ? 14 : 16,
+    paddingVertical: 15,
   },
   startBtnText: {
     fontFamily: 'Poppins_800ExtraBold',
@@ -729,7 +729,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.16)',
-    paddingVertical: SCREEN_HEIGHT < 720 ? 12 : 13,
+    paddingVertical: 12,
     borderRadius: 16,
   },
   snoozeBtnText: {
@@ -747,7 +747,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 68, 68, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(255, 68, 68, 0.3)',
-    paddingVertical: SCREEN_HEIGHT < 720 ? 12 : 13,
+    paddingVertical: 12,
     borderRadius: 16,
   },
   dismissBtnText: {

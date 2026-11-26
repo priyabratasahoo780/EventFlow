@@ -1,7 +1,5 @@
-/**
- * auth.middleware.js
- * Verifies Bearer JWT access tokens, rejects temporary 2FA tokens, and blocks banned users.
- */
+  // Verifies Bearer JWT access tokens, rejects temporary 2FA tokens, and blocks banned users.
+ 
 'use strict';
 
 const jwt = require('jsonwebtoken');

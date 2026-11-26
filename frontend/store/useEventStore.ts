@@ -1,8 +1,5 @@
 
-/**
- * useEventStore.ts
- * Core state store managing events, alarms, filtering, and cloud synchronization.
- */
+  // * Core state store managing events, alarms, filtering, and cloud synchronization.*/
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Event, EventFilters, TaskStatus, ReminderConfig } from '../models/Event';
@@ -18,6 +15,7 @@ import { geofencingService } from '../services/geofencingService';
 import { zenModeService } from '../services/zenModeService';
 import { behaviorService } from '../services/behaviorService';
 import { alarmService } from '../services/alarmService';
+import { deleteLocalMediaIfOwned, isLocalMediaUri, uploadMediaToCloud } from '../services/localMediaService';
 import { useCelebrationStore } from './useCelebrationStore';
 
 export function parseDeadline(event: { date?: string; time?: string; isAllDay?: boolean }): Date | null {
@@ -151,14 +149,23 @@ export const useEventStore = create<EventState>((set, get) => ({
   },
 
   initSocket: () => {
-    if (get().isSocketInitialized) return;
     socketService.connect();
+    if (get().isSocketInitialized) return;
+
+    socketService.on('socket_reconnected', () => {
+      get().syncFriendSharedEvents().catch(() => {});
+      get().loadEvents().catch(() => {});
+    });
 
     socketService.on('task_updated', async (updatedEvent: Event) => {
       const { events, statsEvents, friendsEvents } = get();
-      const newEvents = events.map(e => e.id === updatedEvent.id ? updatedEvent : e);
-      const newStatsEvents = (statsEvents.length ? statsEvents : events).map(e => e.id === updatedEvent.id ? updatedEvent : e);
-      const newFriendsEvents = friendsEvents.map(e => (e.id || e._id) === (updatedEvent.id || updatedEvent._id) ? updatedEvent : e);
+      const targetId = updatedEvent.id || updatedEvent._id || '';
+      const newEvents = events.map(e => (e.id || e._id) === targetId ? { ...e, ...updatedEvent, id: e.id || targetId } : e);
+      const newStatsEvents = (statsEvents.length ? statsEvents : events).map(e => (e.id || e._id) === targetId ? { ...e, ...updatedEvent, id: e.id || targetId } : e);
+      const existsInFriends = friendsEvents.some(e => (e.id || e._id) === targetId);
+      const newFriendsEvents = existsInFriends
+        ? friendsEvents.map(e => (e.id || e._id) === targetId ? { ...e, ...updatedEvent } : e)
+        : [...friendsEvents, updatedEvent];
       set({ events: newEvents, statsEvents: newStatsEvents, friendsEvents: newFriendsEvents });
 
       try {
@@ -183,18 +190,15 @@ export const useEventStore = create<EventState>((set, get) => ({
     socketService.on('task_created', async (rawNewEvent: Event) => {
       const { events, statsEvents, friendsEvents } = get();
       const newEvent: Event = { ...rawNewEvent, id: rawNewEvent.id || rawNewEvent._id || '' };
-      const alreadyExists = events.find(e => {
-        const eId = e.id || e._id;
-        const newId = newEvent.id || newEvent._id;
-        return eId === newId;
+      const newId = newEvent.id || newEvent._id;
+      const alreadyInEvents = events.some(e => (e.id || e._id) === newId);
+      const alreadyInFriends = friendsEvents.some(e => (e.id || e._id) === newId);
+
+      set({
+        events: alreadyInEvents ? events : [...events, newEvent],
+        statsEvents: alreadyInEvents ? statsEvents : [...(statsEvents.length ? statsEvents : events), newEvent],
+        friendsEvents: alreadyInFriends ? friendsEvents : [...friendsEvents, newEvent],
       });
-      if (!alreadyExists) {
-        set({
-          events: [...events, newEvent],
-          statsEvents: [...(statsEvents.length ? statsEvents : events), newEvent],
-          friendsEvents: [...friendsEvents, newEvent],
-        });
-      }
 
       try {
         const reminders: ReminderConfig[] = (newEvent.reminders && newEvent.reminders.length > 0)
@@ -211,11 +215,43 @@ export const useEventStore = create<EventState>((set, get) => ({
     });
 
     socketService.on('task_deleted', (deletedId: string) => {
-      const { events, statsEvents } = get();
+      const { events, statsEvents, friendsEvents } = get();
       set({
         events: events.filter(e => e.id !== deletedId && e._id !== deletedId),
         statsEvents: (statsEvents.length ? statsEvents : events).filter(e => e.id !== deletedId && e._id !== deletedId),
+        friendsEvents: friendsEvents.filter(e => e.id !== deletedId && e._id !== deletedId),
       });
+    });
+
+    socketService.on('friend_request_received', async (data: { senderId?: { name?: string } }) => {
+      try {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'New Friend Request! 👋',
+            body: `${data?.senderId?.name || 'Someone'} wants to connect with you on EventFlow.`,
+            sound: 'default',
+            data: { type: 'friend_request' },
+          },
+          trigger: null,
+        });
+      } catch {}
+    });
+
+    socketService.on('friend_request_accepted', async (data: { friend?: { name?: string } }) => {
+      try {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        get().syncFriendSharedEvents().catch(() => {});
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Friend Request Accepted! 🎉',
+            body: `${data?.friend?.name || 'Your friend'} accepted your request. You can now collaborate!`,
+            sound: 'default',
+            data: { type: 'friend_request' },
+          },
+          trigger: null,
+        });
+      } catch {}
     });
 
     socketService.on('cheer_received', async (data: { message: string; senderName?: string; senderUsername?: string }) => {
@@ -303,9 +339,12 @@ export const useEventStore = create<EventState>((set, get) => ({
           const rid = remote.id || remote._id;
           const local = rid ? localMap.get(rid) : undefined;
           if (!local) return remote;
-          // Preserve local geofence settings when older server records omit them
+          const isShared = remote.visibility && remote.visibility !== 'onlyMe';
+          // For private (onlyMe) tasks prefer on-device media; for shared tasks prefer cloud CDN URL
           return {
             ...remote,
+            image: isShared ? (remote.image || local.image) : (local.image || remote.image),
+            video: isShared ? (remote.video || local.video) : (local.video || remote.video),
             locationReminderEnabled: remote.locationReminderEnabled ?? local.locationReminderEnabled,
             geofenceRadius: remote.geofenceRadius ?? local.geofenceRadius,
             triggerType: remote.triggerType ?? local.triggerType,
@@ -403,7 +442,46 @@ export const useEventStore = create<EventState>((set, get) => ({
     await storageService.saveEvents(newAll);
     set({ events: newVisible, statsEvents: newAll });
 
-    api.post('/tasks', { ...finalEvent, confirmArchiveOldest, archiveTaskId }).catch(e => {
+    const isSharedWithFriends = finalEvent.visibility === 'friends' || finalEvent.visibility === 'selectedFriends';
+
+    // Hybrid storage: Private (onlyMe) media stays 100% on user's device;
+    // Shared tasks upload attached media to Cloudinary so connected friends can view it.
+    let remoteImage = isLocalMediaUri(finalEvent.image) ? undefined : finalEvent.image;
+    let remoteVideo = isLocalMediaUri(finalEvent.video) ? undefined : finalEvent.video;
+
+    if (isSharedWithFriends) {
+      try {
+        if (finalEvent.image && isLocalMediaUri(finalEvent.image)) {
+          remoteImage = await uploadMediaToCloud(finalEvent.image, 'image');
+        }
+        if (finalEvent.video && isLocalMediaUri(finalEvent.video)) {
+          remoteVideo = await uploadMediaToCloud(finalEvent.video, 'video');
+        }
+      } catch (uploadErr) {
+        console.warn('Cloud media upload deferred/failed:', uploadErr);
+      }
+    }
+
+    const syncedEvent: Event = {
+      ...finalEvent,
+      image: remoteImage || finalEvent.image,
+      video: remoteVideo || finalEvent.video,
+    };
+
+    if (syncedEvent.image !== finalEvent.image || syncedEvent.video !== finalEvent.video) {
+      const updatedVisible = newVisible.map((e) => (e.id === syncedEvent.id ? syncedEvent : e));
+      const updatedAll = newAll.map((e) => (e.id === syncedEvent.id ? syncedEvent : e));
+      await storageService.saveEvents(updatedAll);
+      set({ events: updatedVisible, statsEvents: updatedAll });
+    }
+
+    api.post('/tasks', {
+      ...syncedEvent,
+      image: remoteImage,
+      video: remoteVideo,
+      confirmArchiveOldest,
+      archiveTaskId,
+    }).catch(e => {
       console.log('Backend sync failed, saved locally', e);
     });
 
@@ -443,7 +521,41 @@ export const useEventStore = create<EventState>((set, get) => ({
     await storageService.saveEvents(newStatsEvents);
     set({ events: newEvents, statsEvents: newStatsEvents });
 
-    api.put(`/tasks/${finalEvent.id}`, finalEvent).catch(e => {
+    const isSharedWithFriends = finalEvent.visibility === 'friends' || finalEvent.visibility === 'selectedFriends';
+    let remoteImage = isLocalMediaUri(finalEvent.image) ? undefined : finalEvent.image;
+    let remoteVideo = isLocalMediaUri(finalEvent.video) ? undefined : finalEvent.video;
+
+    if (isSharedWithFriends) {
+      try {
+        if (finalEvent.image && isLocalMediaUri(finalEvent.image)) {
+          remoteImage = await uploadMediaToCloud(finalEvent.image, 'image');
+        }
+        if (finalEvent.video && isLocalMediaUri(finalEvent.video)) {
+          remoteVideo = await uploadMediaToCloud(finalEvent.video, 'video');
+        }
+      } catch (uploadErr) {
+        console.warn('Cloud media upload deferred/failed on update:', uploadErr);
+      }
+    }
+
+    const syncedEvent: Event = {
+      ...finalEvent,
+      image: remoteImage || finalEvent.image,
+      video: remoteVideo || finalEvent.video,
+    };
+
+    if (syncedEvent.image !== finalEvent.image || syncedEvent.video !== finalEvent.video) {
+      const updatedEvents = newEvents.map((e) => (e.id === syncedEvent.id ? syncedEvent : e));
+      const updatedStats = newStatsEvents.map((e) => (e.id === syncedEvent.id ? syncedEvent : e));
+      await storageService.saveEvents(updatedStats);
+      set({ events: updatedEvents, statsEvents: updatedStats });
+    }
+
+    api.put(`/tasks/${syncedEvent.id}`, {
+      ...syncedEvent,
+      image: remoteImage,
+      video: remoteVideo,
+    }).catch(e => {
       console.log('Backend update sync failed, updated locally', e);
     });
     
@@ -527,6 +639,8 @@ export const useEventStore = create<EventState>((set, get) => ({
     if (oldEvent) {
       const idsToCancel = oldEvent.reminders ? oldEvent.reminders.flatMap(r => r.notificationIds || []) : [];
       await notificationService.cancelEventNotifications(id, idsToCancel);
+      await deleteLocalMediaIfOwned(oldEvent.image);
+      await deleteLocalMediaIfOwned(oldEvent.video);
     }
 
     const newEvents = events.filter(e => e.id !== id);

@@ -1,7 +1,3 @@
-/**
- * analytics.controller.js
- * User productivity dashboard, weekly trends, and category breakdown endpoints.
- */
 'use strict';
 
 const Event = require('../models/Event');

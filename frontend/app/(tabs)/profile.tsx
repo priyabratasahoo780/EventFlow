@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { generateSecureUniqueId } from '../../services/secureStorage';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
+import { useResponsive } from '../../constants/responsive';
 import { 
   Copy, Share2, LogOut, Camera, Image as ImageIcon, 
   Edit3, Check, Trash2, X, RefreshCw 
@@ -17,11 +18,13 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import api from '../../services/api';
+import { saveMediaToDevice, deleteLocalMediaIfOwned } from '../../services/localMediaService';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function ProfileScreen() {
   const { user, logout, updateUserProfile } = useAuthStore();
   const { getColors } = useThemeStore();
+  const { containerStyle } = useResponsive();
   const colors = getColors();
   const styles = getStyles(colors);
   const router = useRouter();
@@ -58,42 +61,20 @@ export default function ProfileScreen() {
     setShowPhotoModal(false);
 
     try {
-      // Optimistically show the local URI
-      await updateUserProfile({ profilePhoto: asset.uri });
-        
-      // Upload to backend to get a permanent URL and avoid SQLITE_FULL
-      try {
-        const formData = new FormData();
-        const filename = asset.uri.split('/').pop() || 'profile.jpg';
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : `image`;
-        
-        formData.append('image', {
-          uri: asset.uri,
-          name: filename,
-          type,
-        } as any);
+      const previousPhoto = user?.profilePhoto;
+      const localUri = await saveMediaToDevice(asset.uri, 'profile');
 
-        const uploadRes = await api.post('/upload/image', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        
-        if (uploadRes.data && uploadRes.data.url) {
-          // Get the base url (e.g. http://192.168.x.x:5000)
-          const baseUrl = api.defaults.baseURL?.replace('/api', '') || '';
-          const finalUrl = baseUrl + uploadRes.data.url;
-          
-          await updateUserProfile({ profilePhoto: finalUrl });
-          await api.put('/users/profile', { profilePhoto: finalUrl });
-        }
-      } catch (backendErr) {
-        console.log('Backend upload error:', backendErr);
+      if (previousPhoto && previousPhoto !== localUri) {
+        await deleteLocalMediaIfOwned(previousPhoto);
       }
 
+      // Store user photo strictly on user device only (never upload to backend/app server)
+      await updateUserProfile({ profilePhoto: localUri });
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Success', 'Profile photo updated successfully!');
-    } catch (err: any) {
-      Alert.alert('Upload Error', 'Could not update profile photo.');
+      Alert.alert('Saved on Device', 'Profile photo saved on your device only!');
+    } catch (_err: any) {
+      Alert.alert('Save Error', 'Could not save profile photo on this device.');
     } finally {
       setUploading(false);
     }
@@ -157,10 +138,11 @@ export default function ProfileScreen() {
     setUploading(true);
 
     try {
+      await deleteLocalMediaIfOwned(user?.profilePhoto);
       await updateUserProfile({ profilePhoto: '' });
       try {
         await api.put('/users/profile', { profilePhoto: '' });
-      } catch (e) {}
+      } catch (_e) {}
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } finally {
       setUploading(false);
@@ -211,7 +193,7 @@ export default function ProfileScreen() {
           <Text style={styles.header}>PROFILE</Text>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, containerStyle]}>
           
           <View style={styles.content}>
             <View style={styles.premiumCard}>

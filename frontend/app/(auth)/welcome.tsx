@@ -1,7 +1,8 @@
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
+import { useResponsive } from '../../constants/responsive';
 import { useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -9,12 +10,12 @@ import { CalendarCheck, Target, TrendingUp, ArrowRight, Sparkles } from 'lucide-
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown, FadeIn, ZoomIn, useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing, withSequence, withDelay } from 'react-native-reanimated';
 
-const { width } = Dimensions.get('window');
-
 export default function WelcomeScreen() {
   const { getColors } = useThemeStore();
+  const { width, height, isTablet, isSmall, authMaxWidth } = useResponsive();
+  const ringBase = Math.min(width, isTablet ? 430 : 390, height * 0.42);
   const colors = getColors();
-  const styles = getStyles(colors);
+  const styles = getStyles(colors, ringBase);
   const router = useRouter();
   
   const pulseOuter = useSharedValue(1);
@@ -63,6 +64,18 @@ export default function WelcomeScreen() {
       </Animated.View>
 
       <SafeAreaView style={styles.container}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollInner,
+            {
+              width: '100%',
+              maxWidth: authMaxWidth,
+              alignSelf: 'center',
+              paddingHorizontal: isSmall ? 16 : 24,
+            },
+          ]}
+        >
         <View style={styles.content}>
           {/* Logo Area */}
           <Animated.View entering={ZoomIn.duration(800).springify()} style={styles.logoContainer}>
@@ -168,12 +181,13 @@ export default function WelcomeScreen() {
             </View>
           </Animated.View>
         </Animated.View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
 }
 
-const getStyles = (colors: ColorTheme) => StyleSheet.create({
+const getStyles = (colors: ColorTheme, ringBase: number) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.background,
@@ -203,8 +217,11 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 24,
+  },
+  scrollInner: {
+    flexGrow: 1,
     justifyContent: 'space-between',
+    paddingVertical: 12,
   },
   content: {
     flex: 1,
@@ -214,32 +231,32 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 40,
-    marginTop: 20,
+    marginBottom: 28,
+    marginTop: 12,
   },
   circle: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   circleOuter: {
-    width: width * 0.65,
-    height: width * 0.65,
-    borderRadius: width * 0.325,
+    width: ringBase * 0.65,
+    height: ringBase * 0.65,
+    borderRadius: ringBase * 0.325,
     borderWidth: 1,
     borderColor: 'rgba(255, 122, 0, 0.1)',
   },
   circleMiddle: {
-    width: width * 0.5,
-    height: width * 0.5,
-    borderRadius: width * 0.25,
+    width: ringBase * 0.5,
+    height: ringBase * 0.5,
+    borderRadius: ringBase * 0.25,
     borderWidth: 1,
     borderColor: 'rgba(255, 122, 0, 0.2)',
     backgroundColor: 'rgba(255, 122, 0, 0.03)',
   },
   circleInner: {
-    width: width * 0.3,
-    height: width * 0.3,
-    borderRadius: width * 0.15,
+    width: ringBase * 0.3,
+    height: ringBase * 0.3,
+    borderRadius: ringBase * 0.15,
     shadowColor: colors.secondary,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.3,
@@ -251,7 +268,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: width * 0.15,
+    borderRadius: ringBase * 0.15,
   },
   brandContainer: {
     alignItems: 'center',

@@ -1,7 +1,5 @@
-/**
- * userOnly.middleware.js
- * Strictly isolates portals by preventing administrator accounts from accessing user-portal routes.
- */
+  // Strictly isolates portals by preventing administrator accounts from accessing user-portal routes.
+ 
 'use strict';
 
 module.exports = (req, res, next) => {

@@ -8,9 +8,10 @@ import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
+import { useResponsive } from '../../constants/responsive';
 import BrutalButton from '../../components/BrutalButton';
 import BrutalCard from '../../components/BrutalCard';
-import api from '../../services/api';
+import api, { resolveMediaUrl } from '../../services/api';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
@@ -34,6 +35,7 @@ const QUICK_NUDGES = [
 export default function ConnectFriendScreen() {
   const { user } = useAuthStore();
   const { getColors } = useThemeStore();
+  const { containerStyle } = useResponsive();
   const colors = getColors();
   const styles = getStyles(colors);
   const router = useRouter();
@@ -216,7 +218,7 @@ export default function ConnectFriendScreen() {
 
       <ScrollView 
         style={styles.scroll} 
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, containerStyle]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -230,7 +232,7 @@ export default function ConnectFriendScreen() {
               <View style={styles.myIdHeader}>
                 <View style={styles.myAvatar}>
                   {user.profilePhoto ? (
-                    <Image source={{ uri: user.profilePhoto }} style={styles.myAvatarImg} />
+                    <Image source={{ uri: resolveMediaUrl(user.profilePhoto) }} style={styles.myAvatarImg} />
                   ) : (
                     <Text style={styles.myAvatarText}>
                       {user.name?.charAt(0)?.toUpperCase() || 'U'}

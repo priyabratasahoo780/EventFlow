@@ -1,7 +1,4 @@
-/**
- * task.controller.js
- * Controller for task lifecycle, dynamic priority scoring, and recommendations.
- */
+  // Controller for task lifecycle, dynamic priority scoring, and recommendations.
 'use strict';
 
 const fs = require('fs');
@@ -11,6 +8,7 @@ const Event = require('../models/Event');
 const User = require('../models/User');
 const { Expo } = require('expo-server-sdk');
 const { calculatePriorityScore, getPriorityLevel } = require('../services/priority.service');
+const { deleteFromCloudinary } = require('../config/cloudinary');
 
 const MAX_VISIBLE_TASKS = 80;
 const CLEANUP_CYCLE_MS = 90 * 24 * 60 * 60 * 1000; // Every 3 months (90 days)
@@ -324,6 +322,7 @@ exports.updateTask = async (req, res) => {
     if (!existingTask) return res.status(404).json({ error: 'Task not found' });
 
     const isOwner = existingTask.ownerId.toString() === req.userId.toString();
+    const prevSharedIds = new Set((existingTask.sharedWith || []).map((id) => id.toString()));
     const updates = pickTaskFields(req.body);
     delete updates.id; // Prevent changing task ID
 
@@ -331,10 +330,17 @@ exports.updateTask = async (req, res) => {
     if (!isOwner) {
       delete updates.visibility;
       delete updates.sharedWith;
-    } else if (Object.prototype.hasOwnProperty.call(updates, 'sharedWith')) {
-      const currentUser = await User.findById(req.userId).select('friends').lean();
-      const allowedFriends = new Set((currentUser?.friends || []).map((f) => f.toString()));
-      updates.sharedWith = sanitizeSharedWith(updates.sharedWith, allowedFriends);
+    } else {
+      const currentOwner = await User.findById(req.userId).select('friends').lean();
+      const allowedFriends = new Set((currentOwner?.friends || []).map((f) => f.toString()));
+
+      if (updates.visibility === 'friends') {
+        updates.sharedWith = Array.from(allowedFriends);
+      } else if (updates.visibility === 'onlyMe') {
+        updates.sharedWith = [];
+      } else if (Object.prototype.hasOwnProperty.call(updates, 'sharedWith')) {
+        updates.sharedWith = sanitizeSharedWith(updates.sharedWith, allowedFriends);
+      }
     }
 
     const updated = await Event.findOneAndUpdate(
@@ -344,19 +350,29 @@ exports.updateTask = async (req, res) => {
     );
 
     const currentUser = await User.findById(req.userId);
+    const nextSharedIds = new Set((updated.sharedWith || []).map((id) => id.toString()));
     const emitIds = new Set([
       updated.ownerId.toString(),
-      ...(updated.sharedWith || []).map((id) => id.toString()),
+      ...Array.from(nextSharedIds),
     ]);
 
     const io = req.app.get('io');
     if (io) {
+      // Notify friends who remain or were newly added
       emitIds.forEach((id) => {
         if (id !== req.userId.toString()) {
-          io.to(id).emit('task_updated', {
+          const eventName = prevSharedIds.has(id) ? 'task_updated' : 'task_created';
+          io.to(id).emit(eventName, {
             ...updated.toObject(),
             lastModifiedBy: currentUser ? currentUser.name : 'A team member',
           });
+        }
+      });
+
+      // Notify friends who were removed when visibility narrowed
+      prevSharedIds.forEach((oldId) => {
+        if (oldId !== req.userId.toString() && !nextSharedIds.has(oldId)) {
+          io.to(oldId).emit('task_deleted', updated.id);
         }
       });
     }
@@ -478,27 +494,44 @@ exports.updateStatus = async (req, res) => {
   }
 };
 
-// Delete task
+// Delete task (owner deletes permanently + cleans cloud/disk media; shared friend only leaves the task)
 exports.deleteTask = async (req, res) => {
   try {
-    const deleted = await Event.findOneAndDelete({
+    const task = await Event.findOne({
       id: req.params.id,
       $or: [{ ownerId: req.userId }, { sharedWith: req.userId }],
     });
-    if (!deleted) return res.status(404).json({ error: 'Task not found' });
+    if (!task) return res.status(404).json({ error: 'Task not found' });
 
-    if (deleted.image && deleted.image.startsWith('/uploads/')) {
-      const imagePath = path.join(__dirname, '../../uploads', path.basename(deleted.image));
-      fs.unlink(imagePath, (err) => {
-        if (err && err.code !== 'ENOENT') console.error('Error deleting image file:', err);
-      });
+    const isOwner = task.ownerId.toString() === req.userId.toString();
+    if (!isOwner) {
+      await Event.updateOne({ _id: task._id }, { $pull: { sharedWith: req.userId } });
+      return res.json({ message: 'Removed from shared task successfully' });
     }
 
-    if (deleted.video && deleted.video.startsWith('/uploads/')) {
-      const videoPath = path.join(__dirname, '../../uploads', path.basename(deleted.video));
-      fs.unlink(videoPath, (err) => {
-        if (err && err.code !== 'ENOENT') console.error('Error deleting video file:', err);
-      });
+    const deleted = await Event.findOneAndDelete({ _id: task._id, ownerId: req.userId });
+    if (!deleted) return res.status(404).json({ error: 'Task not found' });
+
+    if (deleted.image) {
+      if (deleted.image.startsWith('/uploads/')) {
+        const imagePath = path.join(__dirname, '../../uploads', path.basename(deleted.image));
+        fs.unlink(imagePath, (err) => {
+          if (err && err.code !== 'ENOENT') console.error('Error deleting image file:', err);
+        });
+      } else if (deleted.image.includes('res.cloudinary.com')) {
+        deleteFromCloudinary(deleted.image, 'image').catch(() => {});
+      }
+    }
+
+    if (deleted.video) {
+      if (deleted.video.startsWith('/uploads/')) {
+        const videoPath = path.join(__dirname, '../../uploads', path.basename(deleted.video));
+        fs.unlink(videoPath, (err) => {
+          if (err && err.code !== 'ENOENT') console.error('Error deleting video file:', err);
+        });
+      } else if (deleted.video.includes('res.cloudinary.com')) {
+        deleteFromCloudinary(deleted.video, 'video').catch(() => {});
+      }
     }
 
     const io = req.app.get('io');

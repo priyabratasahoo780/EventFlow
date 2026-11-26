@@ -1,13 +1,16 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { 
   View, Text, StyleSheet, Pressable, Alert, FlatList, 
-  TextInput, Image, Modal, KeyboardAvoidingView, Platform, ScrollView 
+  TextInput, Image, Modal, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useThemeStore } from '../../store/useThemeStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { ColorTheme } from '../../constants/theme';
-import api from '../../services/api';
+import { useResponsive } from '../../constants/responsive';
+import api, { resolveMediaUrl } from '../../services/api';
+import { socketService } from '../../services/socketService';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { 
@@ -28,6 +31,7 @@ const QUICK_NUDGES = [
 
 export default function FriendListScreen() {
   const { getColors, isDark } = useThemeStore();
+  const { containerStyle } = useResponsive();
   const colors = getColors();
   const isDarkMode = isDark();
   const styles = getStyles(colors, isDarkMode);
@@ -40,11 +44,28 @@ export default function FriendListScreen() {
   const [messageText, setMessageText] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [onlineMap, setOnlineMap] = useState<Record<string, boolean>>({});
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [loadingChat, setLoadingChat] = useState(false);
+  const [friendTyping, setFriendTyping] = useState(false);
+  const chatScrollRef = useRef<any>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { user: currentUser } = useAuthStore();
 
   const fetchFriends = async () => {
     try {
       const res = await api.get('/friends');
-      setFriends(res.data || []);
+      const list = res.data || [];
+      setFriends(list);
+      if (list.length > 0) {
+        socketService.emit(
+          'check_online',
+          list.map((f: any) => f._id),
+          (statusMap: Record<string, boolean>) => {
+            if (statusMap) setOnlineMap(statusMap);
+          }
+        );
+      }
     } catch (err) {
       console.log('[FriendList Notice]: Network sync deferred or offline');
     } finally {
@@ -53,8 +74,78 @@ export default function FriendListScreen() {
   };
 
   useEffect(() => {
+    socketService.connect();
     fetchFriends();
-  }, []);
+
+    const onUserStatus = ({ userId, online }: { userId: string; online: boolean }) => {
+      setOnlineMap((prev) => ({ ...prev, [userId]: online }));
+    };
+    const onFriendAddedOrUpdated = () => {
+      fetchFriends();
+    };
+    const onFriendRemoved = ({ friendId }: { friendId: string }) => {
+      setFriends((prev) => prev.filter((f) => f._id !== friendId));
+    };
+    const onNewMessage = (msg: any) => {
+      if (!msg) return;
+      const activeFriendId = selectedFriend?._id;
+      const senderId = String(msg.senderId?._id || msg.senderId || '');
+      const receiverId = String(msg.receiverId?._id || msg.receiverId || '');
+      if (activeFriendId && (senderId === activeFriendId || receiverId === activeFriendId)) {
+        setFriendTyping(false);
+        setChatMessages((prev) => {
+          if (msg._id && prev.some((m) => m._id === msg._id)) return prev;
+          return [...prev, msg];
+        });
+        setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 80);
+      }
+    };
+    const onFriendTyping = ({ from }: { from: string }) => {
+      if (selectedFriend?._id && from === selectedFriend._id) {
+        setFriendTyping(true);
+      }
+    };
+    const onFriendStopTyping = ({ from }: { from: string }) => {
+      if (selectedFriend?._id && from === selectedFriend._id) {
+        setFriendTyping(false);
+      }
+    };
+
+    socketService.on('user_status', onUserStatus);
+    socketService.on('friend_request_accepted', onFriendAddedOrUpdated);
+    socketService.on('friend_list_updated', onFriendAddedOrUpdated);
+    socketService.on('friend_removed', onFriendRemoved);
+    socketService.on('new_message', onNewMessage);
+    socketService.on('friend_typing', onFriendTyping);
+    socketService.on('friend_stop_typing', onFriendStopTyping);
+
+    return () => {
+      socketService.off('user_status', onUserStatus);
+      socketService.off('friend_request_accepted', onFriendAddedOrUpdated);
+      socketService.off('friend_list_updated', onFriendAddedOrUpdated);
+      socketService.off('friend_removed', onFriendRemoved);
+      socketService.off('new_message', onNewMessage);
+      socketService.off('friend_typing', onFriendTyping);
+      socketService.off('friend_stop_typing', onFriendStopTyping);
+    };
+  }, [selectedFriend?._id]);
+
+  const openChatModal = async (friend: any) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedFriend(friend);
+    setFriendTyping(false);
+    setShowMessageModal(true);
+    setLoadingChat(true);
+    try {
+      const res = await api.get(`/friends/messages/${friend._id}`);
+      setChatMessages(Array.isArray(res.data) ? res.data : []);
+      setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: false }), 80);
+    } catch {
+      setChatMessages([]);
+    } finally {
+      setLoadingChat(false);
+    }
+  };
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -90,23 +181,36 @@ export default function FriendListScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSendingMessage(true);
+    socketService.emit('stop_typing', { to: selectedFriend._id });
 
     try {
-      await api.post('/friends/message', {
+      const res = await api.post('/friends/message', {
         receiverId: selectedFriend._id,
         text: messageText.trim(),
         type: 'message'
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Delivered! ✨', `Your cheer was sent to ${selectedFriend.name}!`);
+      if (res.data?.data) {
+        setChatMessages((prev) => [...prev, res.data.data]);
+        setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 80);
+      }
       setMessageText('');
-      setShowMessageModal(false);
     } catch (err: any) {
-      Alert.alert('Notice', err.response?.data?.error || 'Could not send cheer.');
+      Alert.alert('Notice', err.response?.data?.error || 'Could not send message.');
     } finally {
       setSendingMessage(false);
     }
+  };
+
+  const handleTypingChange = (text: string) => {
+    setMessageText(text);
+    if (!selectedFriend?._id) return;
+    socketService.emit('typing', { to: selectedFriend._id });
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      socketService.emit('stop_typing', { to: selectedFriend._id });
+    }, 1500);
   };
 
   const filteredFriends = useMemo(() => {
@@ -242,7 +346,7 @@ export default function FriendListScreen() {
             refreshing={refreshing}
             onRefresh={handleRefresh}
             keyExtractor={(item, index) => (item._id ? `${item._id}-${index}` : `friend-${index}`)}
-            contentContainerStyle={styles.list}
+            contentContainerStyle={[styles.list, containerStyle]}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
               <View style={styles.friendCard}>
@@ -251,7 +355,7 @@ export default function FriendListScreen() {
                   {/* Avatar */}
                   <View style={styles.avatarWrapper}>
                     {item.profilePhoto ? (
-                      <Image source={{ uri: item.profilePhoto }} style={styles.avatarImg} />
+                      <Image source={{ uri: resolveMediaUrl(item.profilePhoto) }} style={styles.avatarImg} />
                     ) : (
                       <LinearGradient
                         colors={[colors.secondary, '#FF9500']}
@@ -260,7 +364,7 @@ export default function FriendListScreen() {
                         <Text style={styles.avatarText}>{item.name?.charAt(0)?.toUpperCase() || 'U'}</Text>
                       </LinearGradient>
                     )}
-                    <View style={styles.onlineDot} />
+                    <View style={[styles.onlineDot, { backgroundColor: onlineMap[item._id] ? '#10B981' : '#94A3B8' }]} />
                   </View>
 
                   {/* Name & Identity */}
@@ -298,17 +402,13 @@ export default function FriendListScreen() {
 
                 {/* ── CARD BOTTOM SECTION: DEDICATED ACTION BUTTONS ── */}
                 <View style={styles.cardActionsRow}>
-                  {/* Cheer Button */}
+                  {/* Cheer & Chat Button */}
                   <Pressable 
                     style={({ pressed }) => [styles.actionButton, styles.cheerActionBtn, pressed && { opacity: 0.85 }]} 
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      setSelectedFriend(item);
-                      setShowMessageModal(true);
-                    }}
+                    onPress={() => openChatModal(item)}
                   >
                     <MessageSquare color={colors.secondary} size={15} strokeWidth={2.4} />
-                    <Text style={[styles.actionBtnText, { color: colors.secondary }]}>CHEER</Text>
+                    <Text style={[styles.actionBtnText, { color: colors.secondary }]}>CHAT / CHEER</Text>
                   </Pressable>
 
                   {/* Schedule Button */}
@@ -341,15 +441,60 @@ export default function FriendListScreen() {
           >
             <Pressable style={styles.modalBackdrop} onPress={() => setShowMessageModal(false)} />
             
-            <View style={styles.modalCard}>
+            <View style={[styles.modalCard, { maxHeight: '85%' }]}>
               <View style={styles.modalHeader}>
                 <View style={styles.modalTitleRow}>
                   <Sparkles color={colors.secondary} size={20} strokeWidth={2.5} />
-                  <Text style={styles.modalTitle}>CHEER {selectedFriend?.name?.toUpperCase()}</Text>
+                  <View>
+                    <Text style={styles.modalTitle}>CHAT • {selectedFriend?.name?.toUpperCase()}</Text>
+                    <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: onlineMap[selectedFriend?._id] ? '#10B981' : colors.textSecondary }}>
+                      {friendTyping ? 'typing...' : onlineMap[selectedFriend?._id] ? 'Online now' : 'Offline'}
+                    </Text>
+                  </View>
                 </View>
                 <Pressable onPress={() => setShowMessageModal(false)} style={styles.closeBtn}>
                   <X color={colors.text} size={20} strokeWidth={2.5} />
                 </Pressable>
+              </View>
+
+              {/* Real-Time Chat Thread */}
+              <View style={{ height: 210, marginBottom: 12, backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 10 }}>
+                {loadingChat ? (
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <ActivityIndicator color={colors.secondary} />
+                  </View>
+                ) : chatMessages.length === 0 ? (
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 12, color: colors.textSecondary, textAlign: 'center' }}>
+                      No messages yet. Send a focus cheer or say hi! 👋
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView ref={chatScrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                    {chatMessages.map((msg, idx) => {
+                      const isMe = String(msg.senderId?._id || msg.senderId) === String(currentUser?._id);
+                      return (
+                        <View
+                          key={msg._id || idx}
+                          style={{
+                            alignSelf: isMe ? 'flex-end' : 'flex-start',
+                            maxWidth: '82%',
+                            backgroundColor: isMe ? colors.secondary : colors.card,
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            borderRadius: 14,
+                            borderWidth: isMe ? 0 : 1,
+                            borderColor: colors.border,
+                          }}
+                        >
+                          <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 13, color: isMe ? '#FFF' : colors.text }}>
+                            {msg.text}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                )}
               </View>
 
               <Text style={styles.quickLabel}>QUICK MOTIVATIONAL NUDGES</Text>
@@ -369,13 +514,13 @@ export default function FriendListScreen() {
               </ScrollView>
 
               <TextInput
-                style={styles.messageInput}
-                placeholder="Write an encouraging cheer note..."
+                style={[styles.messageInput, { minHeight: 54 }]}
+                placeholder="Write a message or focus cheer..."
                 placeholderTextColor={colors.textSecondary}
                 value={messageText}
-                onChangeText={setMessageText}
+                onChangeText={handleTypingChange}
                 multiline
-                numberOfLines={3}
+                numberOfLines={2}
               />
 
               <Pressable
@@ -395,7 +540,7 @@ export default function FriendListScreen() {
                 >
                   <Send color="#FFF" size={17} strokeWidth={2.5} />
                   <Text style={styles.sendBtnText}>
-                    {sendingMessage ? 'SENDING CHEER...' : 'SEND FOCUS CHEER'}
+                    {sendingMessage ? 'SENDING...' : 'SEND MESSAGE'}
                   </Text>
                 </LinearGradient>
               </Pressable>

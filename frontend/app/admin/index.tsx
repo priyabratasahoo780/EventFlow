@@ -1,8 +1,4 @@
-/**
- * admin/index.tsx
- * Polished, animated, strictly isolated Admin Portal with Overview, Festival Card Studio,
- * Community Sentiment Moderation, User Management, Tasks Monitor, and Profile + 3-Mode Security Lock.
- */
+ 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
@@ -74,7 +70,9 @@ import {
 import { useThemeStore } from '../../store/useThemeStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { ColorTheme } from '../../constants/theme';
-import api from '../../services/api';
+import { useResponsive } from '../../constants/responsive';
+import api, { resolveMediaUrl } from '../../services/api';
+import { uploadMediaToCloud } from '../../services/localMediaService';
 import {
   AdminLockConfig,
   DEFAULT_ADMIN_LOCK_CONFIG,
@@ -90,13 +88,6 @@ import { useRouter } from 'expo-router';
 type AdminTab = 'overview' | 'festival' | 'community' | 'users' | 'profile';
 type SentimentFilter = 'all' | 'positive' | 'neutral' | 'negative';
 type FestivalPickerTarget = 'start-date' | 'start-time' | 'end-date' | 'end-time' | null;
-
-function resolveMediaUrl(url?: string) {
-  if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('file://')) return url;
-  const base = api.defaults.baseURL?.replace(/\/api\/?$/, '') || '';
-  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
-}
 
 function formatFestDateLabel(d: Date | null): string {
   if (!d) return 'Select Date';
@@ -266,6 +257,7 @@ function AnimatedStarBar({ percent, color, trackColor }: { percent: number; colo
 export default function AdminPortalScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isTablet, isLandscape, isSmall, contentMaxWidth, authMaxWidth } = useResponsive();
   const { getColors, isDark } = useThemeStore();
   const colors = getColors();
   const dark = isDark();
@@ -585,27 +577,15 @@ export default function AdminPortalScreen() {
     const asset = result.assets[0];
     setUploadingAdminPhoto(true);
     try {
-      const formData = new FormData();
-      const filename = asset.uri.split('/').pop() || 'admin_avatar.jpg';
-      const match = /\.(\w+)$/.exec(filename);
-      const ext = match ? match[1].toLowerCase() : 'jpg';
-      const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-
-      formData.append('image', { uri: asset.uri, name: filename, type: mime } as any);
-      const uploadRes = await api.post('/upload/image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      if (uploadRes.data?.url) {
-        const res = await api.patch('/admin/profile', { profilePhoto: uploadRes.data.url });
-        setAdminPhotoInput(uploadRes.data.url);
-        if (res.data?.user) {
-          await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
-          useAuthStore.setState({ user: res.data.user });
-        }
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showToast('Admin photo updated');
+      const uploadedUrl = await uploadMediaToCloud(asset.uri, 'image');
+      const res = await api.patch('/admin/profile', { profilePhoto: uploadedUrl });
+      setAdminPhotoInput(uploadedUrl);
+      if (res.data?.user) {
+        await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
+        useAuthStore.setState({ user: res.data.user });
       }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showToast('Admin photo updated');
     } catch (err: any) {
       Alert.alert('Upload Failed', err?.response?.data?.error || 'Could not update photo.');
     } finally {
@@ -769,23 +749,10 @@ export default function AdminPortalScreen() {
     const asset = result.assets[0];
     setUploadingFestPhoto(true);
     try {
-      const formData = new FormData();
-      const filename = asset.uri.split('/').pop() || 'festival.jpg';
-      const match = /\.(\w+)$/.exec(filename);
-      const ext = match ? match[1].toLowerCase() : 'jpg';
-      const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-
-      formData.append('image', { uri: asset.uri, name: filename, type: mime } as any);
-
-      const uploadRes = await api.post('/upload/image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      if (uploadRes.data?.url) {
-        setFestImageUrl(uploadRes.data.url);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showToast('Festival photo uploaded!');
-      }
+      const uploadedUrl = await uploadMediaToCloud(asset.uri, 'image');
+      setFestImageUrl(uploadedUrl);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showToast('Festival photo uploaded!');
     } catch (err: any) {
       Alert.alert('Upload Failed', err?.response?.data?.error || 'Could not upload festival photo.');
     } finally {
@@ -972,7 +939,7 @@ export default function AdminPortalScreen() {
           </Text>
         </Pressable>
 
-        <Animated.View entering={ZoomIn.duration(400).springify()} style={[s.gateCard, gateShakeStyle]}>
+        <Animated.View entering={ZoomIn.duration(400).springify()} style={[s.gateCard, { width: '100%', maxWidth: authMaxWidth, alignSelf: 'center' }, gateShakeStyle]}>
           <Animated.View style={[s.gateBadge, { backgroundColor: colors.secondaryLight }, shieldPulseStyle]}>
             {checkingGate || unlocking ? (
               <ActivityIndicator color={colors.secondary} size="large" />
@@ -1265,7 +1232,13 @@ export default function AdminPortalScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={[
           s.scrollContent,
-          { paddingBottom: Math.max(insets.bottom, 24) + 56 },
+          {
+            paddingHorizontal: isTablet ? 24 : isSmall ? 10 : 14,
+            paddingBottom: Math.max(insets.bottom, 34) + 120,
+            width: '100%',
+            maxWidth: contentMaxWidth,
+            alignSelf: 'center',
+          },
         ]}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
@@ -1314,7 +1287,7 @@ export default function AdminPortalScreen() {
 
                 {/* Interactive KPI Grid */}
                 <View style={s.statsGrid}>
-                  <Animated.View entering={FadeInDown.delay(60).duration(350).springify()} style={s.statGridCell}>
+                  <Animated.View entering={FadeInDown.delay(60).duration(350).springify()} style={[s.statGridCell, (isTablet || isLandscape) && { flexBasis: '23.5%' }]}>
                     <SpringPressable onPress={() => setActiveTab('users')}>
                       <View style={s.statCard}>
                         <View style={[s.statIconDot, { backgroundColor: colors.primaryLight }]}>
@@ -1326,7 +1299,7 @@ export default function AdminPortalScreen() {
                     </SpringPressable>
                   </Animated.View>
 
-                  <Animated.View entering={FadeInDown.delay(110).duration(350).springify()} style={s.statGridCell}>
+                  <Animated.View entering={FadeInDown.delay(110).duration(350).springify()} style={[s.statGridCell, (isTablet || isLandscape) && { flexBasis: '23.5%' }]}>
                     <SpringPressable onPress={() => setActiveTab('community')}>
                       <View style={s.statCard}>
                         <View style={[s.statIconDot, { backgroundColor: colors.secondaryLight }]}>
@@ -1338,7 +1311,7 @@ export default function AdminPortalScreen() {
                     </SpringPressable>
                   </Animated.View>
 
-                  <Animated.View entering={FadeInDown.delay(160).duration(350).springify()} style={s.statGridCell}>
+                  <Animated.View entering={FadeInDown.delay(160).duration(350).springify()} style={[s.statGridCell, (isTablet || isLandscape) && { flexBasis: '23.5%' }]}>
                     <SpringPressable onPress={() => setActiveTab('users')}>
                       <View style={s.statCard}>
                         <View style={[s.statIconDot, { backgroundColor: colors.success + '20' }]}>
@@ -1350,7 +1323,7 @@ export default function AdminPortalScreen() {
                     </SpringPressable>
                   </Animated.View>
 
-                  <Animated.View entering={FadeInDown.delay(210).duration(350).springify()} style={s.statGridCell}>
+                  <Animated.View entering={FadeInDown.delay(210).duration(350).springify()} style={[s.statGridCell, (isTablet || isLandscape) && { flexBasis: '23.5%' }]}>
                     <SpringPressable onPress={() => setActiveTab('users')}>
                       <View style={s.statCard}>
                         <View style={[s.statIconDot, { backgroundColor: colors.dangerLight }]}>
@@ -2237,7 +2210,7 @@ export default function AdminPortalScreen() {
                   </View>
                 </View>
 
-                <SpringPressable onPress={() => handleAdminLogout(true)}>
+                <SpringPressable style={{ marginTop: 8, marginBottom: 36 }} onPress={() => handleAdminLogout(true)}>
                   <View style={[s.quickActionRow, { borderColor: colors.error + '50', justifyContent: 'center' }]}>
                     <LogOut color={colors.error} size={18} />
                     <Text style={[s.quickActionText, { color: colors.error, flex: 0 }]}>Logout Admin</Text>
@@ -2530,7 +2503,8 @@ const getStyles = (colors: ColorTheme, isDark: boolean) =>
       gap: 10,
     },
     statGridCell: {
-      width: '48.3%',
+      flexBasis: '47.5%',
+      flexGrow: 1,
     },
     statCard: {
       backgroundColor: colors.card,
