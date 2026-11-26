@@ -1,8 +1,8 @@
-  // Zustand authentication store backed by hardware-encrypted SecureStore tokens and Admin Vault sync.
- 
+// Zustand authentication store backed by hardware-encrypted SecureStore tokens and Admin Vault sync.
+
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '../services/api';
+import api, { markAuthenticatedNow, registerSessionInvalidationHandler } from '../services/api';
 import { notificationService } from '../services/notificationService';
 import {
   getAuthToken,
@@ -46,63 +46,44 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setPostLoginRoute: (route) => set({ postLoginRoute: route }),
 
   login: async (token: string, user: UserProfile) => {
-    await setAuthToken(token);
-    await AsyncStorage.setItem('user', JSON.stringify(user));
-    set({ token, user });
-    socketService.connect().catch(() => {});
-
-    if (user.role === 'admin') {
-      await saveAdminVaultSession(token, user);
+    if (!token || typeof token !== 'string' || !user || !user._id) {
+      throw new Error('Invalid login session returned by server. Please try again.');
     }
 
-    // Background sync to MongoDB backend without blocking navigation
-    Promise.resolve().then(async () => {
-      try {
-        const res = await api.post('/auth/sync', {
-          uniqueId: user.uniqueId,
-          name: user.name,
-          profilePhoto: user.profilePhoto?.startsWith('file://') ? undefined : user.profilePhoto,
-        });
+    // Mark fresh authentication window before writing state or firing network calls
+    markAuthenticatedNow();
 
-        if (res.data?.user) {
-          const localPhotoKey = `local_profile_photo_${user._id || user.email}`;
-          const savedLocalPhoto = await AsyncStorage.getItem(localPhotoKey);
-          const mergedPhoto =
-            savedLocalPhoto ||
-            (user.profilePhoto?.startsWith('file://') ? user.profilePhoto : res.data.user.profilePhoto);
-          const syncedUser = { ...user, ...res.data.user, profilePhoto: mergedPhoto };
-          await AsyncStorage.setItem('user', JSON.stringify(syncedUser));
-          const finalToken = res.data.token || token;
-          if (res.data.token) {
-            await setAuthToken(res.data.token);
-            socketService.connect().catch(() => {});
-          }
-          if (syncedUser.role === 'admin') {
-            await saveAdminVaultSession(finalToken, syncedUser);
-          }
-          set({ user: syncedUser, token: finalToken });
-        }
+    await setAuthToken(token);
+    await AsyncStorage.setItem('user', JSON.stringify(user)).catch(() => {});
 
-        const pushToken = await notificationService.registerForPushNotificationsAsync();
-        if (pushToken) {
-          await api.post('/users/push-token', { token: pushToken });
+    if (user.role === 'admin') {
+      await saveAdminVaultSession(token, user).catch(() => {});
+    }
+
+    set({ token, user, isLoading: false });
+    socketService.connect().catch(() => {});
+
+    // Non-blocking push token registration ONLY for regular users (admins don't use /users/push-token).
+    // Never invalidate or clear the active session if push registration is unavailable.
+    if (user.role !== 'admin') {
+      Promise.resolve().then(async () => {
+        try {
+          const pushToken = await notificationService.registerForPushNotificationsAsync();
+          if (pushToken) {
+            await api.post('/users/push-token', { token: pushToken });
+          }
+        } catch {
+          // Push registration is best-effort and must never log the user out
         }
-      } catch (syncErr: any) {
-        const status = syncErr?.response?.status;
-        if (status === 401 || status === 403) {
-          await removeAuthToken();
-          await AsyncStorage.removeItem('user');
-          set({ token: null, user: null });
-        }
-      }
-    });
+      });
+    }
   },
 
   logout: async () => {
     socketService.disconnect();
     await removeAuthToken();
-    await AsyncStorage.removeItem('user');
-    set({ token: null, user: null, postLoginRoute: null });
+    await AsyncStorage.removeItem('user').catch(() => {});
+    set({ token: null, user: null, postLoginRoute: null, isLoading: false });
   },
 
   updateUserProfile: async (updatedFields: Partial<UserProfile>) => {
@@ -110,7 +91,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set((state) => {
       if (!state.user) return state;
       const newUser = { ...state.user, ...updatedFields };
-      AsyncStorage.setItem('user', JSON.stringify(newUser));
+      AsyncStorage.setItem('user', JSON.stringify(newUser)).catch(() => {});
       return { user: newUser };
     });
 
@@ -118,9 +99,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (currentUser && Object.prototype.hasOwnProperty.call(updatedFields, 'profilePhoto')) {
       const localPhotoKey = `local_profile_photo_${currentUser._id || currentUser.email}`;
       if (updatedFields.profilePhoto && updatedFields.profilePhoto.startsWith('file://')) {
-        await AsyncStorage.setItem(localPhotoKey, updatedFields.profilePhoto);
+        await AsyncStorage.setItem(localPhotoKey, updatedFields.profilePhoto).catch(() => {});
       } else if (updatedFields.profilePhoto === '') {
-        await AsyncStorage.removeItem(localPhotoKey);
+        await AsyncStorage.removeItem(localPhotoKey).catch(() => {});
       }
     }
 
@@ -142,11 +123,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   checkAuth: async () => {
     set({ isLoading: true });
     const token = await getAuthToken();
-    const userStr = await AsyncStorage.getItem('user');
+    const userStr = await AsyncStorage.getItem('user').catch(() => null);
 
     if (token && userStr) {
       try {
         const parsedUser: UserProfile = JSON.parse(userStr);
+        if (!parsedUser || !parsedUser._id) {
+          throw new Error('Corrupt stored user profile');
+        }
 
         if (
           !parsedUser.uniqueId ||
@@ -155,7 +139,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           parsedUser.uniqueId.startsWith('EVENT')
         ) {
           parsedUser.uniqueId = generateSecureUniqueId();
-          await AsyncStorage.setItem('user', JSON.stringify(parsedUser));
+          await AsyncStorage.setItem('user', JSON.stringify(parsedUser)).catch(() => {});
         }
 
         set({ token, user: parsedUser, isLoading: false });
@@ -169,39 +153,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
           if (res.data?.user) {
             const localPhotoKey = `local_profile_photo_${parsedUser._id || parsedUser.email}`;
-            const savedLocalPhoto = await AsyncStorage.getItem(localPhotoKey);
+            const savedLocalPhoto = await AsyncStorage.getItem(localPhotoKey).catch(() => null);
             const mergedPhoto =
               savedLocalPhoto ||
               (parsedUser.profilePhoto?.startsWith('file://')
                 ? parsedUser.profilePhoto
                 : res.data.user.profilePhoto);
             const syncedUser = { ...parsedUser, ...res.data.user, profilePhoto: mergedPhoto };
-            await AsyncStorage.setItem('user', JSON.stringify(syncedUser));
+            await AsyncStorage.setItem('user', JSON.stringify(syncedUser)).catch(() => {});
             const finalToken = res.data.token || token;
             if (res.data.token) {
               await setAuthToken(res.data.token);
             }
             if (syncedUser.role === 'admin') {
-              await saveAdminVaultSession(finalToken, syncedUser);
+              await saveAdminVaultSession(finalToken, syncedUser).catch(() => {});
             }
             set({ user: syncedUser, token: finalToken });
           }
 
-          const pushToken = await notificationService.registerForPushNotificationsAsync();
-          if (pushToken) {
-            await api.post('/users/push-token', { token: pushToken });
+          if (parsedUser.role !== 'admin') {
+            const pushToken = await notificationService.registerForPushNotificationsAsync();
+            if (pushToken) {
+              await api.post('/users/push-token', { token: pushToken }).catch(() => {});
+            }
           }
         } catch (syncErr: any) {
           const status = syncErr?.response?.status;
           if (status === 401 || status === 403) {
             await removeAuthToken();
-            await AsyncStorage.removeItem('user');
+            await AsyncStorage.removeItem('user').catch(() => {});
             set({ token: null, user: null });
           }
         }
       } catch {
         await removeAuthToken();
-        await AsyncStorage.removeItem('user');
+        await AsyncStorage.removeItem('user').catch(() => {});
         set({ token: null, user: null, isLoading: false });
       }
     } else {
@@ -209,3 +195,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 }));
+
+registerSessionInvalidationHandler(() => {
+  const { token } = useAuthStore.getState();
+  if (token) {
+    socketService.disconnect();
+    useAuthStore.setState({ token: null, user: null, postLoginRoute: null });
+  }
+});

@@ -47,6 +47,16 @@ const api = axios.create({
 });
 
 let lastWarmupAt = 0;
+let lastAuthenticatedAt = 0;
+let sessionInvalidationHandler: (() => void) | null = null;
+
+export const markAuthenticatedNow = (): void => {
+  lastAuthenticatedAt = Date.now();
+};
+
+export const registerSessionInvalidationHandler = (handler: (() => void) | null): void => {
+  sessionInvalidationHandler = handler;
+};
 
 /**
  * Silent background health ping to wake up Render server while the user enters credentials.
@@ -81,10 +91,17 @@ api.interceptors.response.use(
       requestUrl.includes('/auth/2fa/') ||
       requestUrl.includes('/auth/forgot-password');
 
-    if (error.response?.status === 401 && !isAuthAttempt) {
+    // Never invalidate an active session within 5 seconds of a fresh login/register,
+    // or for non-critical background endpoints.
+    const inFreshLoginGrace = Date.now() - lastAuthenticatedAt < 5000;
+
+    if (error.response?.status === 401 && !isAuthAttempt && !inFreshLoginGrace) {
       try {
         await removeAuthToken();
         await AsyncStorage.removeItem('user');
+        if (sessionInvalidationHandler) {
+          sessionInvalidationHandler();
+        }
       } catch {
         // Ignore storage cleanup errors
       }

@@ -16,7 +16,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Notifications from '../mock-expo-notifications';
 
 import { Alert, Platform, LogBox } from 'react-native';
-import { useRouter, useSegments } from 'expo-router';
+import { useRouter, useSegments, useRootNavigationState } from 'expo-router';
 import { useAuthStore } from '../store/useAuthStore';
 import { useThemeStore } from '../store/useThemeStore';
 import { warmUpBackend } from '../services/api';
@@ -123,6 +123,7 @@ function RootLayoutNav() {
   const { token, user, isLoading: authLoading, checkAuth, postLoginRoute, setPostLoginRoute } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
   // Keep a ref to the last notification response so we only navigate once
   const lastNotificationId = useRef<string | null>(null);
   const [activeAlarmEvent, setActiveAlarmEvent] = useState<Event | null>(null);
@@ -271,10 +272,12 @@ function RootLayoutNav() {
   }, [activeAlarmEvent]);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || !rootNavigationState?.key) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
-    const inAdminPortal = segments[0] === 'admin';
+    const seg0 = (segments as string[])[0];
+    const inAuthGroup = seg0 === '(auth)';
+    const inAdminPortal = seg0 === 'admin';
+    const atRootIndex = !seg0;
 
     if (!token && !inAuthGroup) {
       router.replace('/(auth)/welcome');
@@ -285,12 +288,12 @@ function RootLayoutNav() {
         router.replace('/admin' as any);
       }
     } else if (token) {
-      if (inAdminPortal || inAuthGroup) {
+      if (inAdminPortal || inAuthGroup || atRootIndex) {
         if (postLoginRoute) setPostLoginRoute(null);
         router.replace('/(tabs)');
       }
     }
-  }, [token, user?.role, authLoading, segments, postLoginRoute]);
+  }, [token, user?.role, authLoading, segments, postLoginRoute, rootNavigationState?.key]);
 
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(

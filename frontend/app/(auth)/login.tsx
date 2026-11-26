@@ -178,17 +178,19 @@ export default function LoginScreen() {
       try {
         const res = await api.post('/auth/login', { email: cleanEmail, password: values.password });
 
-        if (res.data.requires2FA) {
+        if (res.data?.requires2FA) {
           setRequires2FA(true);
           setTempToken(res.data.tempToken);
           setEmailFor2FA(res.data.email);
         } else {
+          if (!res.data?.token || !res.data?.user) {
+            throw new Error('Server returned an incomplete login response. Please try again.');
+          }
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           if (res.data.user?.role === 'admin') {
             setPostLoginRoute('/admin');
           }
           await login(res.data.token, res.data.user);
-          router.replace((res.data.user?.role === 'admin' ? '/admin' : '/(tabs)') as any);
         }
       } catch (err: any) {
         triggerShake();
@@ -322,12 +324,14 @@ export default function LoginScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const res = await api.post('/auth/2fa/verify', { email: emailFor2FA, otp, tempToken });
+      if (!res.data?.token || !res.data?.user) {
+        throw new Error('Server returned an incomplete verification response. Please try again.');
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (res.data.user?.role === 'admin') {
         setPostLoginRoute('/admin');
       }
       await login(res.data.token, res.data.user);
-      router.replace((res.data.user?.role === 'admin' ? '/admin' : '/(tabs)') as any);
     } catch (err: any) {
       triggerShake();
       const parsed = extractApiError(err, 'Invalid 2FA code. Please try again.');
@@ -369,11 +373,15 @@ export default function LoginScreen() {
         profilePhoto: result.user.profilePhoto,
       });
 
-      if (res.data.requires2FA) {
+      if (res.data?.requires2FA) {
         setRequires2FA(true);
         setTempToken(res.data.tempToken);
         setEmailFor2FA(res.data.email);
         return;
+      }
+
+      if (!res.data?.token || !res.data?.user) {
+        throw new Error('Server returned an incomplete Google sign-in response. Please try again.');
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -381,7 +389,6 @@ export default function LoginScreen() {
         setPostLoginRoute('/admin');
       }
       await login(res.data.token, res.data.user);
-      router.replace((res.data.user?.role === 'admin' ? '/admin' : '/(tabs)') as any);
     } catch (err: any) {
       triggerShake();
       const parsed = extractApiError(err, 'Could not complete Google sign-in. Please try again.');

@@ -155,9 +155,11 @@ export default function RegisterScreen() {
           city: values.city.trim(),
           password: values.password,
         });
+        if (!res.data?.token || !res.data?.user) {
+          throw new Error('Server returned an incomplete registration response. Please try again.');
+        }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await login(res.data.token, res.data.user);
-        router.replace('/(tabs)');
       } catch (err: any) {
         triggerShake();
         const parsed = extractApiError(err, 'Registration failed. Please check your details and try again.');
@@ -291,7 +293,7 @@ export default function RegisterScreen() {
         profilePhoto: result.user.profilePhoto || '',
       });
 
-      if (res.data.requires2FA) {
+      if (res.data?.requires2FA) {
         router.replace({
           pathname: '/(auth)/login',
           params: {
@@ -302,9 +304,12 @@ export default function RegisterScreen() {
         return;
       }
 
+      if (!res.data?.token || !res.data?.user) {
+        throw new Error('Server returned an incomplete Google sign-up response. Please try again.');
+      }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await login(res.data.token, res.data.user);
-      router.replace('/(tabs)');
     } catch (err: any) {
       triggerShake();
       const parsed = extractApiError(err, 'Could not complete Google sign-up. Please try again.');

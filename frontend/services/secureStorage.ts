@@ -1,6 +1,5 @@
-  
-  // Fail-safe token storage with SecureStore support and reliable AsyncStorage fallback.
- 
+// Fail-safe token storage with in-memory session cache, SecureStore encryption, and AsyncStorage fallback.
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
@@ -14,58 +13,94 @@ try {
 const TOKEN_KEY = 'eventflow_auth_token';
 const LEGACY_TOKEN_KEY = 'token';
 
+// Fast in-memory token cache guarantees Authorization headers work immediately after login/signup
+// even if native SecureStore I/O is slow or temporarily unavailable on Android.
+let memoryToken: string | null = null;
+
 export async function getAuthToken(): Promise<string | null> {
+  if (memoryToken) {
+    return memoryToken;
+  }
+
   try {
     if (Platform.OS === 'web') {
-      return localStorage.getItem(TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY);
+      const webToken = localStorage.getItem(TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY);
+      if (webToken) memoryToken = webToken;
+      return webToken;
     }
 
     if (SecureStore?.getItemAsync) {
       try {
         const secureToken = await SecureStore.getItemAsync(TOKEN_KEY);
-        if (secureToken) return secureToken;
-
-        const legacyToken = await AsyncStorage.getItem(LEGACY_TOKEN_KEY);
-        if (legacyToken) {
-          try {
-            await SecureStore.setItemAsync(TOKEN_KEY, legacyToken);
-            await AsyncStorage.removeItem(LEGACY_TOKEN_KEY);
-          } catch {}
-          return legacyToken;
+        if (secureToken) {
+          memoryToken = secureToken;
+          return secureToken;
         }
       } catch {
-        // Fall back to AsyncStorage if SecureStore native call fails
+        // Fall through to AsyncStorage fallback
       }
     }
 
-    return await AsyncStorage.getItem(LEGACY_TOKEN_KEY);
+    const fallbackToken = await AsyncStorage.getItem(LEGACY_TOKEN_KEY);
+    if (fallbackToken) {
+      memoryToken = fallbackToken;
+      return fallbackToken;
+    }
+
+    return null;
   } catch {
-    return await AsyncStorage.getItem(LEGACY_TOKEN_KEY);
+    try {
+      const legacy = await AsyncStorage.getItem(LEGACY_TOKEN_KEY);
+      if (legacy) memoryToken = legacy;
+      return legacy;
+    } catch {
+      return null;
+    }
   }
 }
 
 export async function setAuthToken(token: string): Promise<void> {
+  if (!token || typeof token !== 'string') {
+    throw new Error('Invalid authentication token.');
+  }
+
+  memoryToken = token;
+
   if (Platform.OS === 'web') {
     localStorage.setItem(TOKEN_KEY, token);
     return;
   }
 
+  let savedToSecureStore = false;
   try {
     if (SecureStore?.setItemAsync) {
       await SecureStore.setItemAsync(TOKEN_KEY, token);
-      await AsyncStorage.removeItem(LEGACY_TOKEN_KEY);
-      return;
+      const verify = await SecureStore.getItemAsync(TOKEN_KEY).catch(() => null);
+      if (verify === token) {
+        savedToSecureStore = true;
+      }
     }
   } catch {
-    // Fall back to AsyncStorage
+    savedToSecureStore = false;
   }
-  await AsyncStorage.setItem(LEGACY_TOKEN_KEY, token);
+
+  if (savedToSecureStore) {
+    try {
+      await AsyncStorage.removeItem(LEGACY_TOKEN_KEY);
+    } catch {}
+  } else {
+    await AsyncStorage.setItem(LEGACY_TOKEN_KEY, token);
+  }
 }
 
 export async function removeAuthToken(): Promise<void> {
+  memoryToken = null;
+
   if (Platform.OS === 'web') {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(LEGACY_TOKEN_KEY);
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+    } catch {}
     return;
   }
 
@@ -76,7 +111,12 @@ export async function removeAuthToken(): Promise<void> {
   } catch {
     // Ignore SecureStore delete errors
   }
-  await AsyncStorage.removeItem(LEGACY_TOKEN_KEY);
+
+  try {
+    await AsyncStorage.removeItem(LEGACY_TOKEN_KEY);
+  } catch {
+    // Ignore AsyncStorage delete errors
+  }
 }
 
 /**
