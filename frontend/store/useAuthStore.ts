@@ -29,8 +29,10 @@ interface AuthState {
   user: UserProfile | null;
   isLoading: boolean;
   postLoginRoute: string | null;
+  inSsoCallback: boolean;
 
   setPostLoginRoute: (route: string | null) => void;
+  setInSsoCallback: (val: boolean) => void;
   login: (token: string, user: UserProfile) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
@@ -42,8 +44,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: true,
   postLoginRoute: null,
+  inSsoCallback: false,
 
   setPostLoginRoute: (route) => set({ postLoginRoute: route }),
+  setInSsoCallback: (val) => set({ inSsoCallback: val }),
 
   login: async (token: string, user: UserProfile) => {
     if (!token || typeof token !== 'string' || !user || !user._id) {

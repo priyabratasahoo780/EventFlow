@@ -15,14 +15,23 @@ WebBrowser.maybeCompleteAuthSession();
  * exchanges the OAuth session and updates `useAuthStore`.
  */
 export default function SSOCallbackScreen() {
-  const { token, user } = useAuthStore();
+  const { token, user, setInSsoCallback } = useAuthStore();
   const router = useRouter();
+
+  useEffect(() => {
+    setInSsoCallback(true);
+    return () => setInSsoCallback(false);
+  }, [setInSsoCallback]);
 
   useEffect(() => {
     if (token) return;
     const timeout = setTimeout(() => {
       if (!useAuthStore.getState().token) {
-        router.replace('/(auth)/login');
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/(auth)/login');
+        }
       }
     }, 20000);
     return () => clearTimeout(timeout);

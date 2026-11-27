@@ -391,7 +391,12 @@ export default function LoginScreen() {
     try {
       const result = await signInWithGoogle();
       clearTimeout(safetyTimer);
-      if (!result || result.cancelled) return;
+      if (!result || result.cancelled) {
+        if (useAuthStore.getState().inSsoCallback && router.canGoBack()) {
+          router.back();
+        }
+        return;
+      }
 
       if (!result.sessionId) {
         throw new Error('Google did not return an active session. Please try again.');
@@ -422,6 +427,9 @@ export default function LoginScreen() {
       await login(res.data.token, res.data.user);
     } catch (err: any) {
       clearTimeout(safetyTimer);
+      if (useAuthStore.getState().inSsoCallback && router.canGoBack()) {
+        router.back();
+      }
       triggerShake();
       const parsed = extractApiError(err, 'Could not complete Google sign-in. Please try again.');
       setFormBannerError(parsed.message);
