@@ -77,10 +77,17 @@ export const useGoogleAuth = () => {
         path: 'sso-callback',
       });
 
-      const result = await startSSOFlow({
-        strategy: 'oauth_google',
-        redirectUrl,
-      });
+      // Wrap startSSOFlow with a 60s timeout — without this, if the deep-link
+      // back from the browser never fires, the spinner hangs indefinitely.
+      const result = await Promise.race([
+        startSSOFlow({ strategy: 'oauth_google', redirectUrl }),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error('Google Sign-In timed out. Please try again.')),
+            60000
+          )
+        ),
+      ]);
 
       const sessionType = (result as any)?.authSessionResult?.type;
       if (sessionType === 'cancel' || sessionType === 'dismiss') {
@@ -122,31 +129,39 @@ export const useGoogleAuth = () => {
       }
 
       if (result?.setActive) {
-        await result.setActive({ session: result.createdSessionId });
+        try {
+          await result.setActive({ session: result.createdSessionId });
+        } catch (setActiveErr) {
+          console.warn('[Google OAuth] setActive warning:', setActiveErr);
+          // Non-fatal: session may already be active
+        }
       }
 
-      const clerkUser = (() => {
-        try {
-          return getClerkInstance()?.user;
-        } catch {
-          return null;
-        }
-      })();
-
+      // Prefer signUp/signIn data (immediately available) over Clerk instance (may not be hydrated yet)
       const email =
-        clerkUser?.primaryEmailAddress?.emailAddress ||
-        clerkUser?.emailAddresses?.[0]?.emailAddress ||
         su?.emailAddress ||
         si?.identifier ||
         (su as any)?.emailAddresses?.[0]?.emailAddress ||
+        (() => {
+          try { return getClerkInstance()?.user?.primaryEmailAddress?.emailAddress; } catch { return ''; }
+        })() ||
         '';
-      const fName = clerkUser?.firstName || su?.firstName || (si as any)?.userData?.firstName || '';
-      const lName = clerkUser?.lastName || su?.lastName || (si as any)?.userData?.lastName || '';
+      const fNameRaw = su?.firstName || (si as any)?.userData?.firstName || '';
+      const lNameRaw = su?.lastName || (si as any)?.userData?.lastName || '';
+      const clerkFullName = (() => {
+        try { return getClerkInstance()?.user?.fullName || ''; } catch { return ''; }
+      })();
       const name =
-        clerkUser?.fullName ||
-        [fName, lName].filter(Boolean).join(' ') ||
+        clerkFullName ||
+        [fNameRaw, lNameRaw].filter(Boolean).join(' ') ||
         (email ? email.split('@')[0] : 'Google User');
-      const profilePhoto = clerkUser?.imageUrl || (su as any)?.imageUrl || (si as any)?.imageUrl || '';
+      const profilePhoto =
+        (su as any)?.imageUrl ||
+        (si as any)?.imageUrl ||
+        (() => {
+          try { return getClerkInstance()?.user?.imageUrl || ''; } catch { return ''; }
+        })() ||
+        '';
 
       return {
         success: true,

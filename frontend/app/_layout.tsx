@@ -14,6 +14,10 @@ import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import * as Notifications from '../mock-expo-notifications';
+import * as WebBrowser from 'expo-web-browser';
+
+// Complete any pending auth session when the app is foregrounded via OAuth redirect
+WebBrowser.maybeCompleteAuthSession();
 
 import { Alert, Platform, LogBox } from 'react-native';
 import { useRouter, useSegments, useRootNavigationState } from 'expo-router';

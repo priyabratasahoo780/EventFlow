@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema({
   expoPushToken: { type: String, default: '' },
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
   isBanned: { type: Boolean, default: false },
+  isGoogleAccount: { type: Boolean, default: false },
   friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   // Two-Factor Authentication (2FA) fields
   twoFactorEnabled: { type: Boolean, default: false },

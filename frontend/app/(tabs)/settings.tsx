@@ -32,15 +32,9 @@ export default function SettingsScreen() {
   const router = useRouter();
   
   const { user, updateUserProfile, logout } = useAuthStore();
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(Boolean(user?.twoFactorEnabled));
-  const [toggling2FA, setToggling2FA] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const { events, clearCompletedEvents, addEvent, loadEvents } = useEventStore();
-
-  useEffect(() => {
-    setTwoFactorEnabled(Boolean(user?.twoFactorEnabled));
-  }, [user?.twoFactorEnabled]);
 
   useEffect(() => {
     (async () => {
@@ -117,40 +111,6 @@ export default function SettingsScreen() {
     setShowTestAlarmModal(true);
   };
 
-  const toggle2FA = async (val: boolean) => {
-    if (toggling2FA) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setTwoFactorEnabled(val); // optimistic update
-    setToggling2FA(true);
-    try {
-      const res = await api.post('/auth/2fa/toggle', { enabled: val });
-      const nextEnabled = res.data?.user?.twoFactorEnabled ?? val;
-      setTwoFactorEnabled(Boolean(nextEnabled));
-      await updateUserProfile({ twoFactorEnabled: Boolean(nextEnabled) });
-
-      if (Platform.OS === 'android') {
-        ToastAndroid.show(
-          nextEnabled
-            ? '2FA Enabled 🔒 OTP will be required on next login'
-            : '2FA Disabled 🔓 Direct login active',
-          ToastAndroid.LONG
-        );
-      } else {
-        Alert.alert(
-          nextEnabled ? 'Two-Factor Auth Enabled 🔒' : 'Two-Factor Auth Disabled 🔓',
-          nextEnabled
-            ? 'Your account is now protected. An email OTP will be required next time you log in after logging out.'
-            : 'Email OTP verification has been turned off for login.'
-        );
-      }
-    } catch (err: any) {
-      const parsed = extractApiError(err, 'Failed to update 2FA settings. Please try again.');
-      setTwoFactorEnabled(!val); // revert on failure
-      Alert.alert(parsed.title || '2FA Update Failed', parsed.message);
-    } finally {
-      setToggling2FA(false);
-    }
-  };
 
   const handleClearCompleted = () => {
     const completedCount = events.filter(e => e.completed || e.status === 'completed').length;
@@ -449,32 +409,6 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
 
-          <Text style={styles.sectionTitle}>SECURITY</Text>
-          
-          <View style={styles.premiumCard}>
-            <View style={styles.settingRow}>
-              <View style={styles.settingLeft}>
-                <View style={[styles.iconBadge, { backgroundColor: colors.warningLight }]}>
-                  <Lock color={colors.warning} size={18} strokeWidth={2.5} />
-                </View>
-                <View style={{ flexShrink: 1 }}>
-                  <Text style={styles.settingText}>Two-Factor Auth (2FA)</Text>
-                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: colors.textSecondary }}>
-                    {twoFactorEnabled
-                      ? 'ON — Email OTP required on next login'
-                      : 'OFF — Direct login without OTP'}
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={twoFactorEnabled}
-                onValueChange={toggle2FA}
-                disabled={toggling2FA}
-                trackColor={{ false: colors.border, true: colors.warning }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
-          </View>
 
           <Text style={styles.sectionTitle}>ABOUT</Text>
           

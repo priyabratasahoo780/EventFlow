@@ -1,7 +1,13 @@
 import { useEffect } from 'react';
 import { Redirect, useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useAuthStore } from '../store/useAuthStore';
 import LoadingScreen from '../components/LoadingScreen';
+
+// ⚠️ CRITICAL: This MUST be called at module level (not inside a component/effect).
+// Without this, expo-web-browser never signals the OAuth popup to close,
+// and startSSOFlow hangs indefinitely — causing the "5-minute loading" bug.
+WebBrowser.maybeCompleteAuthSession();
 
 /**
  * Deep-link landing screen for Clerk OAuth callbacks (`eventflow://sso-callback`).
@@ -18,7 +24,7 @@ export default function SSOCallbackScreen() {
       if (!useAuthStore.getState().token) {
         router.replace('/(auth)/login');
       }
-    }, 12000);
+    }, 20000);
     return () => clearTimeout(timeout);
   }, [token, router]);
 

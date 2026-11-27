@@ -171,8 +171,7 @@ export function extractApiError(err: any, fallbackMessage = 'Something went wron
 
   const accountNotFound =
     code === 'ACCOUNT_NOT_FOUND' ||
-    Boolean(data.accountNotFound) ||
-    status === 404;
+    Boolean(data.accountNotFound);
 
   const accountBanned =
     code === 'ACCOUNT_BANNED' ||

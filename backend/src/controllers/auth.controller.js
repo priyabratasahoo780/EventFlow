@@ -382,9 +382,17 @@ exports.login = async (req, res) => {
       });
     }
 
-    if (!user.password) {
+    if (user.isBanned) {
+      return res.status(403).json({
+        error: 'Your account has been suspended by an administrator. Please contact support.',
+        code: 'ACCOUNT_BANNED',
+        accountBanned: true,
+      });
+    }
+
+    if (user.isGoogleAccount) {
       return res.status(400).json({
-        error: 'This account uses Google Sign-In. Please continue with Google or reset your password.',
+        error: 'This account was created with Google Sign-In. Please use "Continue with Google" to sign in, or reset your password via email to set a new one.',
         code: 'USE_GOOGLE_OR_RESET',
       });
     }
@@ -395,29 +403,6 @@ exports.login = async (req, res) => {
         error: 'Incorrect password. Please check your password or tap "Forgot password?" to reset it.',
         code: 'INVALID_PASSWORD',
         field: 'password',
-      });
-    }
-
-    if (user.isBanned) {
-      return res.status(403).json({
-        error: 'Your account has been suspended by an administrator. Please contact support.',
-        code: 'ACCOUNT_BANNED',
-        accountBanned: true,
-      });
-    }
-
-    if (user.twoFactorEnabled) {
-      if (!emailService.isConfigured()) {
-        return res.status(503).json({
-          error: 'Two-factor email verification service is temporarily unavailable. Please try again shortly.',
-          code: 'EMAIL_SERVICE_UNAVAILABLE',
-        });
-      }
-      const tempToken = jwt.sign({ _id: user._id, isTemp: true }, getJwtSecret(), { expiresIn: '10m' });
-      return res.json({
-        requires2FA: true,
-        email: user.email,
-        tempToken,
       });
     }
 
@@ -656,31 +641,25 @@ exports.googleLogin = async (req, res) => {
         username: cleanUsername,
         email: cleanEmail,
         password: randomPassword,
+        isGoogleAccount: true,
         profilePhoto: verifiedProfile.profilePhoto || (typeof profilePhoto === 'string' ? profilePhoto : ''),
         city: '',
       });
 
       await user.save();
-    } else if (user.isBanned) {
+    } else {
+      // Sync profile photo from Google if user has none
+      if (!user.profilePhoto && verifiedProfile.profilePhoto) {
+        user.profilePhoto = verifiedProfile.profilePhoto;
+        await user.save();
+      }
+    }
+
+    if (user.isBanned) {
       return res.status(403).json({
         error: 'Your account has been suspended by an administrator. Please contact support.',
         code: 'ACCOUNT_BANNED',
         accountBanned: true,
-      });
-    }
-
-    if (user.twoFactorEnabled) {
-      if (!emailService.isConfigured()) {
-        return res.status(503).json({
-          error: 'Two-factor email verification service is temporarily unavailable. Please try again shortly.',
-          code: 'EMAIL_SERVICE_UNAVAILABLE',
-        });
-      }
-      const tempToken = jwt.sign({ _id: user._id, isTemp: true }, getJwtSecret(), { expiresIn: '10m' });
-      return res.json({
-        requires2FA: true,
-        email: user.email,
-        tempToken,
       });
     }
 

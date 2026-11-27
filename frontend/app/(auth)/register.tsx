@@ -291,8 +291,16 @@ export default function RegisterScreen() {
     setFormBannerError('');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+    // Safety net: if signInWithGoogle never resolves (deep-link failure, browser stuck),
+    // auto-reset the loading state after 65s so the button is usable again.
+    const safetyTimer = setTimeout(() => {
+      setGoogleLoading(false);
+      setFormBannerError('Google Sign-Up timed out. Please tap the button again.');
+    }, 65000);
+
     try {
       const result = await signInWithGoogle();
+      clearTimeout(safetyTimer);
       if (!result || result.cancelled) return;
 
       if (!result.sessionId) {
@@ -324,6 +332,7 @@ export default function RegisterScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await login(res.data.token, res.data.user);
     } catch (err: any) {
+      clearTimeout(safetyTimer);
       triggerShake();
       const parsed = extractApiError(err, 'Could not complete Google sign-up. Please try again.');
       setFormBannerError(parsed.message);
@@ -338,6 +347,7 @@ export default function RegisterScreen() {
         message: parsed.message,
       });
     } finally {
+      clearTimeout(safetyTimer);
       setGoogleLoading(false);
     }
   };

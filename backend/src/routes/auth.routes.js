@@ -11,7 +11,8 @@ const { authLimiter, otpLimiter } = require('../middleware/rateLimiter');
 router.post('/register', authLimiter, authController.register);
 router.post('/login', authLimiter, authController.login);
 router.post('/google', authLimiter, authController.googleLogin);
-router.post('/sync', auth, authController.syncUser);router.post('/forgot-password/send-otp', otpLimiter, authController.sendForgotPasswordOtp);
+router.post('/sync', auth, authController.syncUser);
+router.post('/forgot-password/send-otp', otpLimiter, authController.sendForgotPasswordOtp);
 router.post('/forgot-password', otpLimiter, authController.forgotPassword);
 router.get('/profile', auth, authController.getProfile);
 

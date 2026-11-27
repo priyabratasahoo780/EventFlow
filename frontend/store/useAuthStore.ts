@@ -183,8 +183,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if ((status === 401 || status === 403) && get().token === token) {
             await removeAuthToken();
             await AsyncStorage.removeItem('user').catch(() => {});
-            set({ token: null, user: null });
+            set({ token: null, user: null, isLoading: false });
           }
+          // For other errors (network, etc), still finish loading
+          set((s) => s.isLoading ? { isLoading: false } : s);
         }
       } catch {
         await removeAuthToken();
