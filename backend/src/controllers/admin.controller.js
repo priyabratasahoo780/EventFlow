@@ -11,6 +11,7 @@ const FriendRequest = require('../models/FriendRequest');
 const Message = require('../models/Message');
 const FestivalBanner = require('../models/FestivalBanner');
 const { deleteFromCloudinary } = require('../config/cloudinary');
+const monitoringService = require('../services/monitoring.service');
 
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
 const escapeRegex = (str) => String(str || '').replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -568,5 +569,50 @@ exports.verifyAdminPassword = async (req, res) => {
   } catch (err) {
     console.error('verifyAdminPassword error:', err);
     res.status(500).json({ error: 'Failed to verify password.' });
+  }
+};
+
+// ── App Monitoring Center ──────────────────────────────────────────────────
+
+exports.getMonitoring = async (_req, res) => {
+  try {
+    const snapshot = await monitoringService.getMonitoringSnapshot();
+    res.json(snapshot);
+  } catch (err) {
+    console.error('getMonitoring error:', err);
+    res.status(500).json({ error: 'Failed to load app monitoring metrics.' });
+  }
+};
+
+exports.runMonitoringProbe = async (_req, res) => {
+  try {
+    await monitoringService.runHealthProbe('manual');
+    const snapshot = await monitoringService.getMonitoringSnapshot();
+    res.json(snapshot);
+  } catch (err) {
+    console.error('runMonitoringProbe error:', err);
+    res.status(500).json({ error: 'Failed to execute health probe.' });
+  }
+};
+
+exports.updateMonitoringInterval = async (req, res) => {
+  try {
+    const { intervalMinutes } = req.body || {};
+    const updated = monitoringService.setProbeInterval(intervalMinutes);
+    const snapshot = await monitoringService.getMonitoringSnapshot();
+    res.json({ ...snapshot, intervalMinutes: updated });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Invalid monitoring interval.' });
+  }
+};
+
+exports.clearMonitoringGlitches = async (_req, res) => {
+  try {
+    monitoringService.clearGlitches();
+    const snapshot = await monitoringService.getMonitoringSnapshot();
+    res.json(snapshot);
+  } catch (err) {
+    console.error('clearMonitoringGlitches error:', err);
+    res.status(500).json({ error: 'Failed to clear glitch logs.' });
   }
 };

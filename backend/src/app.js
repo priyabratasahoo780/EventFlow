@@ -26,6 +26,7 @@ const adminRoutes = require('./routes/admin.routes');
 const festivalRoutes = require('./routes/festival.routes');
 
 const { apiLimiter } = require('./middleware/rateLimiter');
+const monitoringService = require('./services/monitoring.service');
 
 const app = express();
 
@@ -105,6 +106,7 @@ app.use(
 );
 
 app.use('/api', apiLimiter);
+app.use('/api', monitoringService.trackRequestMetrics);
 
 // Health check
 app.get(['/', '/api', '/api/health'], (_req, res) => {

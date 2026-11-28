@@ -38,6 +38,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import {
   Shield,
+  Activity,
   Fingerprint,
   Users,
   MessageSquare,
@@ -72,6 +73,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { ColorTheme } from '../../constants/theme';
 import { useResponsive } from '../../constants/responsive';
 import api, { resolveMediaUrl } from '../../services/api';
+import AdminMonitoringSection from '../../components/AdminMonitoringSection';
 import { uploadMediaToCloud } from '../../services/localMediaService';
 import {
   AdminLockConfig,
@@ -85,7 +87,7 @@ import {
 } from '../../services/biometricAuth';
 import { useRouter } from 'expo-router';
 
-type AdminTab = 'overview' | 'festival' | 'community' | 'users' | 'profile';
+type AdminTab = 'overview' | 'monitoring' | 'festival' | 'community' | 'users' | 'profile';
 type SentimentFilter = 'all' | 'positive' | 'neutral' | 'negative';
 type FestivalPickerTarget = 'start-date' | 'start-time' | 'end-date' | 'end-time' | null;
 
@@ -1128,6 +1130,7 @@ export default function AdminPortalScreen() {
         {(
           [
             { key: 'overview', label: 'Overview', Icon: LayoutDashboard },
+            { key: 'monitoring', label: 'Monitoring', Icon: Activity },
             { key: 'festival', label: 'Festival Card', Icon: Sparkles },
             { key: 'community', label: `Reviews (${reviews.length})`, Icon: MessageSquare },
             { key: 'users', label: `Users (${usersList.length})`, Icon: Users },
@@ -2013,6 +2016,20 @@ export default function AdminPortalScreen() {
                     </Animated.View>
                   ))
                 )}
+              </Animated.View>
+            )}
+
+            {/* ── APP MONITORING CENTER TAB ── */}
+            {activeTab === 'monitoring' && (
+              <Animated.View key="tab-monitoring" entering={FadeInDown.duration(340)}>
+                <AdminMonitoringSection
+                  colors={colors}
+                  isDark={dark}
+                  onAuthError={() => {
+                    setAccessDenied(true);
+                    setUnlocked(false);
+                  }}
+                />
               </Animated.View>
             )}
 

@@ -30,4 +30,10 @@ router.post('/festival', adminController.createFestivalBanner);
 router.patch('/festival/:id/toggle', adminController.toggleFestivalBanner);
 router.delete('/festival/:id', adminController.deleteFestivalBanner);
 
+// App Monitoring Center (5/10 min synthetic probes, status codes, glitch locator, stats)
+router.get('/monitoring', adminController.getMonitoring);
+router.post('/monitoring/probe', adminController.runMonitoringProbe);
+router.patch('/monitoring/interval', adminController.updateMonitoringInterval);
+router.delete('/monitoring/glitches', adminController.clearMonitoringGlitches);
+
 module.exports = router;

@@ -9,6 +9,7 @@ const mongoose = require('mongoose');
 const { validateEnv } = require('./src/config/env');
 const { setupSocket } = require('./src/config/socket');
 const { verifyEmailTransport } = require('./src/services/email.service');
+const monitoringService = require('./src/services/monitoring.service');
 const logger = require('./src/utils/logger');
 
 // Fail fast if any required env vars are missing
@@ -26,6 +27,7 @@ app.set('io', io);
 server.listen(env.PORT, '0.0.0.0', () => {
   logger.info(`EventFlow Backend running on port ${env.PORT} [${env.NODE_ENV}]`);
   verifyEmailTransport().catch(() => {});
+  monitoringService.startMonitoringProbe();
 });
 
 // Graceful shutdown on container / process signals
@@ -42,6 +44,7 @@ async function shutdown(signal) {
   forceExitTimer.unref();
 
   try {
+    monitoringService.stopMonitoringProbe();
     if (io) await new Promise((resolve) => io.close(() => resolve()));
     await new Promise((resolve) => server.close(() => resolve()));
     if (mongoose.connection.readyState !== 0) {
