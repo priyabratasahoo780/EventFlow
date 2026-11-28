@@ -42,6 +42,7 @@ import { getDepartureSuggestion, formatLeaveBy, modeEmoji, DepartureSuggestion }
 import { notificationService } from '../../services/notificationService';
 import { geofencingService } from '../../services/geofencingService';
 import { alarmService } from '../../services/alarmService';
+import { findDueAlarmTask } from '../../services/alarmCheck';
 
 
 const CATEGORIES = [
@@ -101,6 +102,166 @@ const HeroCoverImage = ({ userUri, defaultUri }: { userUri?: string; defaultUri:
     />
   );
 };
+
+const HomeTaskCard = React.memo(function HomeTaskCard({
+  item,
+  colors,
+  s,
+  prio,
+  onPressCard,
+  onToggleCompletion,
+  onActionPress,
+}: {
+  item: Event;
+  colors: ColorTheme;
+  s: ReturnType<typeof getStyles>;
+  prio: { strip: string; bg: string; text: string; label: string };
+  onPressCard: (item: Event) => void;
+  onToggleCompletion: (id: string) => void;
+  onActionPress: (item: Event) => void;
+}) {
+  const isCompleted = item.completed || item.status === 'completed';
+  const isInProgress = item.status === 'in_progress';
+  const dateFormatted = item.date ? item.date.split('T')[0] : '';
+  const estDuration = item.estimatedDuration || 30;
+
+  return (
+    <Pressable
+      onPress={() => onPressCard(item)}
+      style={s.taskCard}
+    >
+      {/* Left orange accent bar */}
+      <LinearGradient
+        colors={isInProgress ? [colors.primary, '#3F35C8'] : isCompleted ? [colors.success, colors.success] : [colors.secondary, colors.secondary]}
+        style={s.taskBar}
+      />
+      <View style={s.taskContent}>
+        {/* Top row: chips + check */}
+        <View style={s.taskTopRow}>
+          <View style={s.taskChips}>
+            {item.category ? (
+              <View style={s.catBadge}>
+                <Text style={s.catBadgeText}>{item.category.toUpperCase()}</Text>
+              </View>
+            ) : null}
+            <View style={[s.prioBadge, { backgroundColor: prio.bg }]}>
+              <Text style={[s.prioBadgeText, { color: prio.text }]}>{prio.label}</Text>
+            </View>
+            {isInProgress && (
+              <View style={s.focusingBadge}>
+                <Zap color={colors.primary} size={9} strokeWidth={3} />
+                <Text style={s.focusingText}>FOCUSING</Text>
+              </View>
+            )}
+            {item.visibility && item.visibility !== 'onlyMe' && (
+              <View style={[s.focusingBadge, { backgroundColor: '#E0E7FF' }]}>
+                <Users color="#4F46E5" size={10} strokeWidth={2.5} />
+                <Text style={[s.focusingText, { color: '#4F46E5' }]}>SHARED</Text>
+              </View>
+            )}
+          </View>
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onToggleCompletion((item.id || item._id) as string);
+            }}
+            hitSlop={10}
+          >
+            <CheckCircle2 color={isCompleted ? colors.success : '#CBD5E1'} size={22} strokeWidth={2.5} />
+          </Pressable>
+        </View>
+
+        {/* Title & description */}
+        <Text style={[s.taskTitle, isCompleted && s.taskTitleDone]} numberOfLines={2}>{item.title}</Text>
+        {item.description ? (
+          <Text style={[s.taskDesc, isCompleted && s.taskDescDone]} numberOfLines={1}>{item.description}</Text>
+        ) : null}
+
+        {/* Footer meta */}
+        <View style={s.taskFooter}>
+          <View style={s.taskFooterLeft}>
+            <View style={s.taskMeta}>
+              {dateFormatted ? (
+                <View style={s.metaTag}>
+                  <CalendarIcon color={colors.textSecondary} size={11} strokeWidth={2} />
+                  <Text style={s.metaTagText}>{dateFormatted}</Text>
+                </View>
+              ) : null}
+              {item.time ? (
+                <View style={s.metaTag}>
+                  <Clock color={colors.textSecondary} size={11} strokeWidth={2} />
+                  <Text style={s.metaTagText}>{item.time}</Text>
+                </View>
+              ) : null}
+              <View style={s.durationTag}>
+                <Text style={s.durationText}>~{estDuration}m</Text>
+              </View>
+              {item.reminders && item.reminders.length > 0 && (
+                <View style={[s.metaTag, { backgroundColor: colors.secondaryLight, borderColor: colors.secondary, borderWidth: 0.5 }]}>
+                  <Bell color={colors.secondary} size={11} strokeWidth={2.5} />
+                  <Text style={[s.metaTagText, { color: colors.secondary, fontFamily: 'Poppins_600SemiBold' }]}>
+                    {item.reminders[0].type === 'exact' ? item.reminders[0].time : item.reminders[0].type === 'before' ? `${item.reminders[0].value}${item.reminders[0].unit?.charAt(0)} bfr` : item.reminders[0].time || 'Reminder'}
+                  </Text>
+                </View>
+              )}
+              {item.location ? (
+                <View
+                  style={[
+                    s.locTag,
+                    item.locationReminderEnabled && {
+                      backgroundColor: item.triggerType === 'leave' ? '#FFFBEB' : '#F0FDF4',
+                      borderColor: item.triggerType === 'leave' ? '#FDE68A' : '#BBF7D0',
+                      borderWidth: 1,
+                    },
+                  ]}
+                >
+                  <MapPin
+                    color={
+                      item.locationReminderEnabled
+                        ? item.triggerType === 'leave'
+                          ? '#D97706'
+                          : '#15803D'
+                        : colors.textSecondary
+                    }
+                    size={11}
+                  />
+                  <Text
+                    style={[
+                      s.locTagText,
+                      item.locationReminderEnabled && {
+                        color: item.triggerType === 'leave' ? '#D97706' : '#15803D',
+                        fontFamily: 'Poppins_600SemiBold',
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.locationReminderEnabled
+                      ? `${item.triggerType === 'leave' ? '🚶 Leave' : '📍 Arrive'} (${item.geofenceRadius || 500}m)`
+                      : item.location}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+          <Pressable
+            style={[s.taskAddBtn, isCompleted && s.taskCompletedBtn]}
+            onPress={(e) => {
+              e.stopPropagation();
+              onActionPress(item);
+            }}
+          >
+            <LinearGradient
+              colors={isCompleted ? [colors.success, colors.success] : [colors.dangerLight || '#FEF2F2', colors.dangerLight || '#FEE2E2']}
+              style={[s.taskAddBtnGrad, !isCompleted && { borderWidth: 1, borderColor: colors.error }, isCompleted && { borderWidth: 0 }]}
+            >
+              {isCompleted ? <Check color="#FFF" size={20} strokeWidth={3} /> : <X color={colors.error} size={20} strokeWidth={2.5} />}
+            </LinearGradient>
+          </Pressable>
+        </View>
+      </View>
+    </Pressable>
+  );
+});
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -246,7 +407,9 @@ export default function HomeScreen() {
     socketService.on('festival_updated', onFestivalUpdated);
 
     let syncInterval: ReturnType<typeof setInterval> | null = setInterval(() => {
-      syncFriendSharedEvents().catch(() => {});
+      if (appState.current === 'active') {
+        syncFriendSharedEvents().catch(() => {});
+      }
     }, 15000);
 
     const subscription = AppState.addEventListener('change', nextAppState => {
@@ -331,118 +494,34 @@ export default function HomeScreen() {
     };
   }, [events, friendsEvents]);
 
-  // 2. Precise foreground alarm checker (fixes Android exact alarm delays)
+  // 2. Minute-gated foreground alarm checker (avoids redundant 1s scanning when idle)
   useEffect(() => {
     if (events.length === 0 && friendsEvents.length === 0) return;
 
-    const parseTime = (timeStr?: string): { h: number; m: number } | null => {
-      if (!timeStr || typeof timeStr !== 'string') return null;
-      const trimmed = timeStr.trim();
-      const isPM = /pm/i.test(trimmed);
-      const isAM = /am/i.test(trimmed);
-      const parts = trimmed.replace(/[ap]m/i, '').trim().split(':');
-      if (parts.length < 2) return null;
-      let h = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10);
-      if (isNaN(h) || isNaN(m)) return null;
-      if (isPM && h !== 12) h += 12;
-      if (isAM && h === 12) h = 0;
-      return { h, m };
-    };
+    let lastCheckedMinute = '';
+    let lastEventsRef: Event[] | null = null;
+    let lastFriendsRef: Event[] | null = null;
 
-    const interval = setInterval(() => {
+    const runCheck = () => {
+      if (appState.current !== 'active' || showAlarmModal) return;
       const now = new Date();
-      const currentHours = now.getHours();
-      const currentMinutes = now.getMinutes();
+      const minuteKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}_${now.getHours()}:${now.getMinutes()}`;
+      if (minuteKey === lastCheckedMinute && events === lastEventsRef && friendsEvents === lastFriendsRef) {
+        return;
+      }
+      lastCheckedMinute = minuteKey;
+      lastEventsRef = events;
+      lastFriendsRef = friendsEvents;
 
-      const allEvents = [...events, ...friendsEvents];
-      
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const todayStr = `${year}-${month}-${day}`;
-      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const todayDayName = dayNames[now.getDay()];
-      
-      const dueTask = allEvents.find(e => {
-        if (!e || e.completed || e.status === 'completed' || e.status === 'in_progress') return false;
-        
-        let triggerTimes: { h: number; m: number }[] = [];
-        
-        // 1. Add main event time
-        if (e.time && e.date && e.date.startsWith(todayStr)) {
-          const parsed = parseTime(e.time);
-          if (parsed) triggerTimes.push(parsed);
-        }
-        
-        // 2. Add reminder times (exact, daily, weekly, monthly, yearly, before)
-        if (e.reminders && e.reminders.length > 0) {
-          e.reminders.forEach((r: any) => {
-            if (!r) return;
-
-            if (r.type === 'exact') {
-              if (r.time && (!r.date || r.date.startsWith(todayStr))) {
-                const parsed = parseTime(r.time);
-                if (parsed) triggerTimes.push(parsed);
-              }
-            } else if (r.type === 'daily') {
-              if (r.time) {
-                const parsed = parseTime(r.time);
-                if (parsed) triggerTimes.push(parsed);
-              }
-            } else if (r.type === 'weekly') {
-              if (r.time && r.days && r.days.includes(todayDayName)) {
-                const parsed = parseTime(r.time);
-                if (parsed) triggerTimes.push(parsed);
-              }
-            } else if (r.type === 'monthly') {
-              if (r.time && r.dayOfMonth === now.getDate()) {
-                const parsed = parseTime(r.time);
-                if (parsed) triggerTimes.push(parsed);
-              }
-            } else if (r.type === 'yearly') {
-              if (r.time && r.date) {
-                const parts = r.date.split('-');
-                const m = parseInt(parts[0], 10) || parseInt(parts[1], 10);
-                const d = parseInt(parts[1], 10) || parseInt(parts[2], 10);
-                if (m === now.getMonth() + 1 && d === now.getDate()) {
-                  const parsed = parseTime(r.time);
-                  if (parsed) triggerTimes.push(parsed);
-                }
-              }
-            } else if (r.type === 'before' && r.value && e.time) {
-              const mainParsed = parseTime(e.time);
-              if (mainParsed) {
-                let triggerDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), mainParsed.h, mainParsed.m);
-                if (r.unit === 'minutes') triggerDate.setMinutes(triggerDate.getMinutes() - r.value);
-                else if (r.unit === 'hours') triggerDate.setHours(triggerDate.getHours() - r.value);
-                else if (r.unit === 'days') triggerDate.setDate(triggerDate.getDate() - r.value);
-                
-                if (triggerDate.getDate() === now.getDate()) {
-                  triggerTimes.push({ h: triggerDate.getHours(), m: triggerDate.getMinutes() });
-                }
-              }
-            }
-          });
-        }
-        
-        // Check if ANY trigger time matches current time
-        for (let time of triggerTimes) {
-          const alarmKey = `${e.id || e._id}_${time.h}:${time.m}_${todayStr}`;
-          if (time.h === currentHours && time.m === currentMinutes && !triggeredAlarms.current.has(alarmKey)) {
-            triggeredAlarms.current.add(alarmKey);
-            return true;
-          }
-        }
-        return false;
-      });
-
-      if (dueTask && !showAlarmModal) {
+      const dueTask = findDueAlarmTask(events, friendsEvents, triggeredAlarms.current, now);
+      if (dueTask) {
         setActiveAlarmEvent(dueTask);
         setShowAlarmModal(true);
       }
-    }, 1000); 
+    };
 
+    runCheck();
+    const interval = setInterval(runCheck, 3000);
     return () => clearInterval(interval);
   }, [events, friendsEvents, showAlarmModal]);
 
@@ -1024,6 +1103,7 @@ export default function HomeScreen() {
   useEffect(() => {
     if (heroTasks.length < 2) return;
     const interval = setInterval(() => {
+      if (appState.current !== 'active') return;
       const next = (carouselIndex.current + 1) % heroTasks.length;
       carouselIndex.current = next;
       carouselRef.current?.scrollToIndex({ index: next, animated: true });
@@ -1307,171 +1387,59 @@ export default function HomeScreen() {
 
 
 
-  const renderEventCard = ({ item }: { item: Event }) => {
+  const priorityConfig = useMemo(() => getPriorityConfig(colors), [colors]);
+
+  const handlePressTaskCard = useCallback((item: Event) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/event/${item.id || item._id}` as any);
+  }, [router]);
+
+  const handleActionTaskCard = useCallback((item: Event) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const isCompleted = item.completed || item.status === 'completed';
     const isInProgress = item.status === 'in_progress';
-    const PRIORITY_CONFIG = getPriorityConfig(colors);
-    const prio = PRIORITY_CONFIG[item.priority?.toLowerCase()] || PRIORITY_CONFIG.medium;
-    const dateFormatted = item.date ? item.date.split('T')[0] : '';
-    const estDuration = item.estimatedDuration || 30;
+    if (isCompleted || isInProgress) {
+      handleCompleteTask(item);
+    } else {
+      handleStartTask(item);
+    }
+  }, [handleCompleteTask, handleStartTask]);
 
+  const handleToggleCardCompletion = useCallback((id: string) => {
+    toggleEventCompletion(id);
+  }, [toggleEventCompletion]);
+
+  const renderEventCard = useCallback(({ item }: { item: Event }) => {
+    const prio = priorityConfig[item.priority?.toLowerCase()] || priorityConfig.medium;
     return (
-      <Pressable
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/event/${item.id || item._id}` as any); }}
-        style={s.taskCard}
-      >
-        {/* Left orange accent bar */}
-        <LinearGradient
-          colors={isInProgress ? [colors.primary, '#3F35C8'] : isCompleted ? [colors.success, colors.success] : [colors.secondary, colors.secondary]}
-          style={s.taskBar}
-        />
-        <View style={s.taskContent}>
-          {/* Top row: chips + check */}
-          <View style={s.taskTopRow}>
-            <View style={s.taskChips}>
-              {item.category ? (
-                <View style={s.catBadge}>
-                  <Text style={s.catBadgeText}>{item.category.toUpperCase()}</Text>
-                </View>
-              ) : null}
-              <View style={[s.prioBadge, { backgroundColor: prio.bg }]}>
-                <Text style={[s.prioBadgeText, { color: prio.text }]}>{prio.label}</Text>
-              </View>
-              {isInProgress && (
-                <View style={s.focusingBadge}>
-                  <Zap color={colors.primary} size={9} strokeWidth={3} />
-                  <Text style={s.focusingText}>FOCUSING</Text>
-                </View>
-              )}
-              {item.visibility && item.visibility !== 'onlyMe' && (
-                <View style={[s.focusingBadge, { backgroundColor: '#E0E7FF' }]}>
-                  <Users color="#4F46E5" size={10} strokeWidth={2.5} />
-                  <Text style={[s.focusingText, { color: '#4F46E5' }]}>SHARED</Text>
-                </View>
-              )}
-            </View>
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation?.();
-                toggleEventCompletion((item.id || item._id) as string);
-              }}
-              hitSlop={10}
-            >
-              <CheckCircle2 color={isCompleted ? colors.success : '#CBD5E1'} size={22} strokeWidth={2.5} />
-            </Pressable>
-          </View>
-
-          {/* Title & description */}
-          <Text style={[s.taskTitle, isCompleted && s.taskTitleDone]} numberOfLines={2}>{item.title}</Text>
-          {item.description ? (
-            <Text style={[s.taskDesc, isCompleted && s.taskDescDone]} numberOfLines={1}>{item.description}</Text>
-          ) : null}
-
-          {/* Footer meta */}
-          {/* Footer meta */}
-          <View style={s.taskFooter}>
-            <View style={s.taskFooterLeft}>
-              <View style={s.taskMeta}>
-                {dateFormatted ? (
-                  <View style={s.metaTag}>
-                    <CalendarIcon color={colors.textSecondary} size={11} strokeWidth={2} />
-                    <Text style={s.metaTagText}>{dateFormatted}</Text>
-                  </View>
-                ) : null}
-                {item.time ? (
-                  <View style={s.metaTag}>
-                    <Clock color={colors.textSecondary} size={11} strokeWidth={2} />
-                    <Text style={s.metaTagText}>{item.time}</Text>
-                  </View>
-                ) : null}
-                <View style={s.durationTag}>
-                  <Text style={s.durationText}>~{estDuration}m</Text>
-                </View>
-                {item.reminders && item.reminders.length > 0 && (
-                  <View style={[s.metaTag, { backgroundColor: colors.secondaryLight, borderColor: colors.secondary, borderWidth: 0.5 }]}>
-                    <Bell color={colors.secondary} size={11} strokeWidth={2.5} />
-                    <Text style={[s.metaTagText, { color: colors.secondary, fontFamily: 'Poppins_600SemiBold' }]}>
-                      {item.reminders[0].type === 'exact' ? item.reminders[0].time : item.reminders[0].type === 'before' ? `${item.reminders[0].value}${item.reminders[0].unit?.charAt(0)} bfr` : item.reminders[0].time || 'Reminder'}
-                    </Text>
-                  </View>
-                )}
-                {item.location ? (
-                  <View
-                    style={[
-                      s.locTag,
-                      item.locationReminderEnabled && {
-                        backgroundColor: item.triggerType === 'leave' ? '#FFFBEB' : '#F0FDF4',
-                        borderColor: item.triggerType === 'leave' ? '#FDE68A' : '#BBF7D0',
-                        borderWidth: 1,
-                      },
-                    ]}
-                  >
-                    <MapPin
-                      color={
-                        item.locationReminderEnabled
-                          ? item.triggerType === 'leave'
-                            ? '#D97706'
-                            : '#15803D'
-                          : colors.textSecondary
-                      }
-                      size={11}
-                    />
-                    <Text
-                      style={[
-                        s.locTagText,
-                        item.locationReminderEnabled && {
-                          color: item.triggerType === 'leave' ? '#D97706' : '#15803D',
-                          fontFamily: 'Poppins_600SemiBold',
-                        },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {item.locationReminderEnabled
-                        ? `${item.triggerType === 'leave' ? '🚶 Leave' : '📍 Arrive'} (${item.geofenceRadius || 500}m)`
-                        : item.location}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-            <Pressable 
-              style={[s.taskAddBtn, isCompleted && s.taskCompletedBtn]}
-              onPress={(e) => {
-                e.stopPropagation();
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                if (isCompleted) {
-                  // Allow undoing completion
-                  handleCompleteTask(item);
-                } else if (isInProgress) {
-                  handleCompleteTask(item);
-                } else {
-                  handleStartTask(item);
-                }
-              }}
-            >
-              <LinearGradient 
-                colors={isCompleted ? [colors.success, colors.success] : [colors.dangerLight || '#FEF2F2', colors.dangerLight || '#FEE2E2']} 
-                style={[s.taskAddBtnGrad, !isCompleted && { borderWidth: 1, borderColor: colors.error }, isCompleted && { borderWidth: 0 }]}
-              >
-                {isCompleted ? <Check color="#FFF" size={20} strokeWidth={3} /> : <X color={colors.error} size={20} strokeWidth={2.5} />}
-              </LinearGradient>
-            </Pressable>
-          </View>
-        </View>
-      </Pressable>
+      <HomeTaskCard
+        item={item}
+        colors={colors}
+        s={s}
+        prio={prio}
+        onPressCard={handlePressTaskCard}
+        onToggleCompletion={handleToggleCardCompletion}
+        onActionPress={handleActionTaskCard}
+      />
     );
-  };
+  }, [priorityConfig, colors, s, handlePressTaskCard, handleToggleCardCompletion, handleActionTaskCard]);
+
+  const keyExtractorTask = useCallback(
+    (item: Event, index: number) => item.id || item._id || `task-${index}`,
+    []
+  );
 
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
       <FlatList
         data={filteredEvents}
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        updateCellsBatchingPeriod={30}
         windowSize={5}
         removeClippedSubviews={true}
-        keyExtractor={(item, index) => (item.id ? `${item.id}-${index}` : `task-${index}`)}
+        keyExtractor={keyExtractorTask}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={renderHeader()}
         renderItem={renderEventCard}
@@ -2627,6 +2595,7 @@ const getStyles = (colors: ColorTheme) => StyleSheet.create({
   },
   categoryScroll: {
     paddingHorizontal: 16,
+    paddingVertical: 3,
     gap: 8,
     alignItems: 'center',
   },

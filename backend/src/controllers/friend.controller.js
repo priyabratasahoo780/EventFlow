@@ -44,17 +44,19 @@ exports.searchFriend = async (req, res) => {
       return res.status(400).json({ error: 'This is your own profile' });
     }
 
-    const currentUser = await User.findById(req.user._id);
+    const [currentUser, pendingRequest] = await Promise.all([
+      User.findById(req.user._id).select('friends').lean(),
+      FriendRequest.findOne({
+        $or: [
+          { senderId: req.user._id, receiverId: user._id, status: 'pending' },
+          { senderId: user._id, receiverId: req.user._id, status: 'pending' },
+        ],
+      }).lean(),
+    ]);
+
     const isAlreadyFriend = currentUser?.friends
       ? currentUser.friends.some((f) => f.toString() === user._id.toString())
       : false;
-
-    const pendingRequest = await FriendRequest.findOne({
-      $or: [
-        { senderId: req.user._id, receiverId: user._id, status: 'pending' },
-        { senderId: user._id, receiverId: req.user._id, status: 'pending' },
-      ],
-    }).lean();
 
     let relationshipStatus = 'none';
     if (isAlreadyFriend) {

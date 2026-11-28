@@ -145,10 +145,8 @@ export default function AllCaughtUpCard({
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
-    const w = Math.round(width);
-    const h = Math.round(height);
-    if (Math.abs(w - dim.w) > 1 || Math.abs(h - dim.h) > 1) {
-      setDim({ w, h });
+    if (Math.abs(width - dim.w) > 0.25 || Math.abs(height - dim.h) > 0.25) {
+      setDim({ w: width, h: height });
     }
   };
 
@@ -226,7 +224,8 @@ export default function AllCaughtUpCard({
 
   const cardRadius = rs(32);
   const strokeWidth = 1.5;
-  const half = strokeWidth / 2;
+  const inset = strokeWidth / 2 + 0.25;
+  const svgRadius = Math.max(0, cardRadius - inset);
   const hasSvgFrame = dim.w > 0 && dim.h > 0;
 
   return (
@@ -237,21 +236,18 @@ export default function AllCaughtUpCard({
           style={{
             borderRadius: cardRadius,
             position: 'relative',
-            borderWidth: hasSvgFrame ? 0 : strokeWidth,
-            borderColor: `${colors.secondary}40`,
-            borderStyle: 'dashed',
           }}
         >
           {hasSvgFrame && (
             <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 2 }]}>
               <Svg width={dim.w} height={dim.h}>
                 <AnimatedRect
-                  x={half}
-                  y={half}
-                  width={Math.max(0, dim.w - strokeWidth)}
-                  height={Math.max(0, dim.h - strokeWidth)}
-                  rx={cardRadius}
-                  ry={cardRadius}
+                  x={inset}
+                  y={inset}
+                  width={Math.max(0, dim.w - inset * 2)}
+                  height={Math.max(0, dim.h - inset * 2)}
+                  rx={svgRadius}
+                  ry={svgRadius}
                   stroke={`${colors.secondary}55`}
                   strokeWidth={strokeWidth}
                   strokeDasharray="8 6"

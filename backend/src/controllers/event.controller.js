@@ -58,15 +58,15 @@ exports.getFriendsEvents = async (req, res) => {
       return res.json([]);
     }
 
-    const user = await User.findById(userId);
+    const [user, usersWhoHaveMeAsFriend] = await Promise.all([
+      User.findById(userId).select('friends').lean(),
+      User.find({ friends: userId }).select('_id').lean(),
+    ]);
     if (!user) {
       return res.json([]);
     }
 
     const friendIds = user.friends || [];
-
-    // Find all users who are mutual friends (either current user has them, or they have current user)
-    const usersWhoHaveMeAsFriend = await User.find({ friends: userId }).select('_id').lean();
     const allConnectedFriendIds = Array.from(
       new Set([
         ...friendIds.map((f) => f.toString()),

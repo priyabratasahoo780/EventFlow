@@ -25,7 +25,6 @@ function AnimatedTabIcon({
   size?: number;
 }) {
   const scaleAnim = useRef(new Animated.Value(focused ? 1.15 : 1)).current;
-  const glowAnim  = useRef(new Animated.Value(focused ? 1 : 0)).current;
   const bgAnim    = useRef(new Animated.Value(focused ? 1 : 0)).current;
 
   useEffect(() => {
@@ -36,18 +35,13 @@ function AnimatedTabIcon({
         tension: 200,
         friction: 12,
       }),
-      Animated.timing(glowAnim, {
-        toValue: focused ? 1 : 0,
-        duration: 220,
-        useNativeDriver: false,
-      }),
       Animated.timing(bgAnim, {
         toValue: focused ? 1 : 0,
         duration: 200,
-        useNativeDriver: false,
+        useNativeDriver: true,
       }),
     ]).start();
-  }, [focused]);
+  }, [focused, scaleAnim, bgAnim]);
 
   // Pill opacity — more visible in dark mode
   const pillOpacity = bgAnim.interpolate({

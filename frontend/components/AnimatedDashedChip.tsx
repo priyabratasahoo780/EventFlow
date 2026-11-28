@@ -62,10 +62,8 @@ export default function AnimatedDashedChip({
 
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
-    const w = Math.round(width);
-    const h = Math.round(height);
-    if (Math.abs(w - dim.w) > 1 || Math.abs(h - dim.h) > 1) {
-      setDim({ w, h });
+    if (Math.abs(width - dim.w) > 0.25 || Math.abs(height - dim.h) > 0.25) {
+      setDim({ w: width, h: height });
     }
   };
 
@@ -74,10 +72,23 @@ export default function AnimatedDashedChip({
   }));
 
   const strokeWidth = isActive ? 1.65 : 1.4;
-  const half = strokeWidth / 2;
+  const inset = strokeWidth / 2 + 0.25;
+  const svgRadius = Math.max(0, borderRadius - inset);
   const hasSvg = dim.w > 0 && dim.h > 0;
   const borderColor = isActive ? activeBorderColor : inactiveBorderColor;
   const backgroundColor = isActive ? activeBackgroundColor : inactiveBackgroundColor;
+  const rectProps = {
+    x: inset,
+    y: inset,
+    width: Math.max(0, dim.w - inset * 2),
+    height: Math.max(0, dim.h - inset * 2),
+    rx: svgRadius,
+    ry: svgRadius,
+    stroke: borderColor,
+    strokeWidth,
+    strokeDasharray: '6 4',
+    fill: 'none',
+  };
 
   return (
     <Pressable
@@ -88,9 +99,6 @@ export default function AnimatedDashedChip({
         {
           borderRadius,
           backgroundColor,
-          borderWidth: strokeWidth,
-          borderStyle: 'dashed',
-          borderColor: hasSvg ? 'transparent' : borderColor,
         },
         pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] },
       ]}
@@ -99,32 +107,9 @@ export default function AnimatedDashedChip({
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, { zIndex: 2 }]}>
           <Svg width={dim.w} height={dim.h}>
             {isActive ? (
-              <AnimatedRect
-                x={half}
-                y={half}
-                width={Math.max(0, dim.w - strokeWidth)}
-                height={Math.max(0, dim.h - strokeWidth)}
-                rx={borderRadius}
-                ry={borderRadius}
-                stroke={borderColor}
-                strokeWidth={strokeWidth}
-                strokeDasharray="6 4"
-                fill="none"
-                animatedProps={animRectProps}
-              />
+              <AnimatedRect {...rectProps} animatedProps={animRectProps} />
             ) : (
-              <Rect
-                x={half}
-                y={half}
-                width={Math.max(0, dim.w - strokeWidth)}
-                height={Math.max(0, dim.h - strokeWidth)}
-                rx={borderRadius}
-                ry={borderRadius}
-                stroke={borderColor}
-                strokeWidth={strokeWidth}
-                strokeDasharray="6 4"
-                fill="none"
-              />
+              <Rect {...rectProps} />
             )}
           </Svg>
         </View>
@@ -139,8 +124,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 13.5,
+    paddingVertical: 8.5,
     position: 'relative',
   },
 });

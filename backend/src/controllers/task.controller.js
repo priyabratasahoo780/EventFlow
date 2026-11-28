@@ -13,24 +13,34 @@ const { deleteFromCloudinary } = require('../config/cloudinary');
 const MAX_VISIBLE_TASKS = 80;
 const CLEANUP_CYCLE_MS = 90 * 24 * 60 * 60 * 1000; // Every 3 months (90 days)
 const ARCHIVE_AGE_MS = 45 * 24 * 60 * 60 * 1000;   // Archive tasks older than 1.5 months (45 days)
+const CLEANUP_CACHE_TTL_MS = 60 * 60 * 1000;       // Skip redundant cleanup DB read for 1h per user
+const recentCleanupCheckCache = new Map();
 
 async function runPeriodicTaskCleanupIfDue(userId) {
   try {
-    const user = await User.findById(userId).select('lastTaskCleanupAt');
+    const cacheKey = String(userId);
+    const cachedAt = recentCleanupCheckCache.get(cacheKey);
+    const nowMs = Date.now();
+    if (cachedAt && nowMs - cachedAt < CLEANUP_CACHE_TTL_MS) {
+      return 0;
+    }
+
+    const user = await User.findById(userId).select('lastTaskCleanupAt').lean();
     if (!user) return 0;
 
-    const now = new Date();
+    const now = new Date(nowMs);
     if (!user.lastTaskCleanupAt) {
-      user.lastTaskCleanupAt = now;
-      await user.save();
+      recentCleanupCheckCache.set(cacheKey, nowMs);
+      await User.updateOne({ _id: userId }, { $set: { lastTaskCleanupAt: now } });
       return 0;
     }
 
-    if (now.getTime() - new Date(user.lastTaskCleanupAt).getTime() < CLEANUP_CYCLE_MS) {
+    if (nowMs - new Date(user.lastTaskCleanupAt).getTime() < CLEANUP_CYCLE_MS) {
+      recentCleanupCheckCache.set(cacheKey, nowMs);
       return 0;
     }
 
-    const cutoffDate = new Date(now.getTime() - ARCHIVE_AGE_MS);
+    const cutoffDate = new Date(nowMs - ARCHIVE_AGE_MS);
     const result = await Event.updateMany(
       {
         ownerId: userId,
@@ -42,8 +52,8 @@ async function runPeriodicTaskCleanupIfDue(userId) {
       }
     );
 
-    user.lastTaskCleanupAt = now;
-    await user.save();
+    recentCleanupCheckCache.set(cacheKey, nowMs);
+    await User.updateOne({ _id: userId }, { $set: { lastTaskCleanupAt: now } });
     return result.modifiedCount || 0;
   } catch (err) {
     console.error('Periodic task cleanup error:', err);
@@ -224,7 +234,7 @@ exports.createTask = async (req, res) => {
       }
     }
 
-    const currentUser = await User.findById(req.userId);
+    const currentUser = await User.findById(req.userId).select('name username friends').lean();
     const allowedFriends = new Set((currentUser?.friends || []).map((f) => f.toString()));
 
     const payload = pickTaskFields(req.body);
@@ -349,7 +359,7 @@ exports.updateTask = async (req, res) => {
       { returnDocument: 'after' }
     );
 
-    const currentUser = await User.findById(req.userId);
+    const currentUser = await User.findById(req.userId).select('name username friends').lean();
     const nextSharedIds = new Set((updated.sharedWith || []).map((id) => id.toString()));
     const emitIds = new Set([
       updated.ownerId.toString(),
@@ -436,7 +446,7 @@ exports.updateStatus = async (req, res) => {
     );
     if (!updated) return res.status(404).json({ error: 'Task not found' });
 
-    const currentUser = await User.findById(req.userId);
+    const currentUser = await User.findById(req.userId).select('name username friends').lean();
     const emitIds = new Set([
       updated.ownerId.toString(),
       ...(updated.sharedWith || []).map((id) => id.toString()),

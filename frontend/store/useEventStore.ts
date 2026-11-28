@@ -322,9 +322,33 @@ export const useEventStore = create<EventState>((set, get) => ({
   },
 
   loadEvents: async () => {
-    set({ isLoading: true });
-    
+    const normalizeLoadedEvents = (rawList: any[]): Event[] =>
+      rawList.map((e: any) => ({
+        ...e,
+        id: e.id || e._id,
+        reminders: e.reminders || [],
+        status: e.status || (e.completed ? 'completed' : 'pending'),
+        estimatedDuration: e.estimatedDuration || 30,
+        isArchived: Boolean(e.isArchived),
+      }));
+
+    const hasExisting = get().events.length > 0;
+    if (!hasExisting) {
+      set({ isLoading: true });
+    }
+
     const localEvents = await storageService.getEvents();
+
+    // Instant cold-start hydration from on-device cache before network round-trip
+    if (!hasExisting && localEvents.length > 0) {
+      const cachedAll = normalizeLoadedEvents(localEvents);
+      set({
+        events: cachedAll.filter((e) => !e.isArchived),
+        statsEvents: cachedAll,
+        isLoading: false,
+      });
+    }
+
     const localMap = new Map<string, Event>();
     for (const le of localEvents) {
       if (le.id) localMap.set(le.id, le);
@@ -363,15 +387,7 @@ export const useEventStore = create<EventState>((set, get) => ({
       rawEvents = await applyLocalPeriodicCleanup(localEvents);
     }
 
-    const migratedAll: Event[] = rawEvents.map((e: any) => ({
-      ...e,
-      id: e.id || e._id,
-      reminders: e.reminders || [],
-      status: e.status || (e.completed ? 'completed' : 'pending'),
-      estimatedDuration: e.estimatedDuration || 30,
-      isArchived: Boolean(e.isArchived),
-    }));
-
+    const migratedAll = normalizeLoadedEvents(rawEvents);
     const visibleEvents = migratedAll.filter((e) => !e.isArchived);
 
     set({ events: visibleEvents, statsEvents: migratedAll, isLoading: false });
@@ -704,10 +720,13 @@ export const useEventStore = create<EventState>((set, get) => ({
 
   getFilteredEvents: (userLocation = null) => {
     const { events, filters } = get();
-    
-    return events.filter(event => {
-      if (filters.searchQuery) {
-        const query = filters.searchQuery.toLowerCase();
+    const todayStr = filters.status === 'today' ? new Date().toISOString().split('T')[0] : '';
+    const nowMs = Date.now();
+    const weekEndMs = nowMs + 7 * 24 * 60 * 60 * 1000;
+    const query = filters.searchQuery ? filters.searchQuery.toLowerCase() : '';
+
+    const filtered = events.filter(event => {
+      if (query) {
         const matchesTitle = (event.title || '').toLowerCase().includes(query);
         const matchesCategory = (event.category || '').toLowerCase().includes(query);
         const matchesLocation = (event.location || '').toLowerCase().includes(query);
@@ -726,13 +745,10 @@ export const useEventStore = create<EventState>((set, get) => ({
       if (filters.status === 'completed' && (!event.completed && event.status !== 'completed' && event.status !== 'late_completed')) return false;
       if (filters.status === 'pending' && (event.completed || event.status === 'completed' || event.status === 'late_completed')) return false;
       if (filters.status === 'in_progress' && event.status !== 'in_progress') return false;
-      if (filters.status === 'today') {
-        const todayStr = new Date().toISOString().split('T')[0];
-        if (!event.date.startsWith(todayStr)) return false;
-      }
+      if (filters.status === 'today' && !event.date.startsWith(todayStr)) return false;
       if (filters.status === 'overdue') {
         const deadline = parseDeadline(event);
-        const isPast = deadline ? deadline.getTime() < new Date().getTime() : false;
+        const isPast = deadline ? deadline.getTime() < nowMs : false;
         if (!isPast || event.completed || event.status === 'completed' || event.status === 'late_completed') return false;
       }
       
@@ -741,18 +757,20 @@ export const useEventStore = create<EventState>((set, get) => ({
       }
 
       if (filters.timeframe === 'this_week') {
-        const now = new Date();
-        const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-        const taskDate = new Date(event.date);
-        if (taskDate < now || taskDate > weekEnd) return false;
+        const taskMs = new Date(event.date).getTime();
+        if (taskMs < nowMs || taskMs > weekEndMs) return false;
       }
       
       return true;
-    }).sort((a, b) => {
-      const scoreA = priorityService.calculateScore(a, userLocation);
-      const scoreB = priorityService.calculateScore(b, userLocation);
-      return scoreB - scoreA;
     });
+
+    // Precompute priority scores once per task (O(N)) rather than twice per comparator call (O(N log N))
+    const scoreMap = new Map<Event, number>();
+    for (let i = 0; i < filtered.length; i++) {
+      scoreMap.set(filtered[i], priorityService.calculateScore(filtered[i], userLocation));
+    }
+
+    return filtered.sort((a, b) => (scoreMap.get(b) ?? 0) - (scoreMap.get(a) ?? 0));
   },
   
   getEventsByDate: (date: string) => {
