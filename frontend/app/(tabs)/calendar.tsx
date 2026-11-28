@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { StyleSheet, View, Text, FlatList, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -25,7 +25,7 @@ export default function CalendarScreen() {
   const { containerStyle } = useResponsive();
   const colors = getColors();
   const isDarkMode = isDark();
-  const styles = getStyles(colors, isDarkMode);
+  const styles = useMemo(() => getStyles(colors, isDarkMode), [colors, isDarkMode]);
   const { events, toggleEventCompletion, deleteEvent } = useEventStore();
   
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -79,16 +79,53 @@ export default function CalendarScreen() {
       });
   }, [events, selectedDate]);
 
-  const onDayPress = (day: DateData) => {
+  const onDayPress = useCallback((day: DateData) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedDate(day.dateString);
-  };
+  }, []);
 
-  const jumpToToday = () => {
+  const jumpToToday = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedDate(todayStr);
     flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-  };
+  }, [todayStr]);
+
+  const renderCalendarArrow = useCallback((direction: 'left' | 'right') => (
+    direction === 'left'
+      ? <ChevronLeft color={colors.text} size={24} strokeWidth={2.5} />
+      : <ChevronRight color={colors.text} size={24} strokeWidth={2.5} />
+  ), [colors.text]);
+
+  const renderCalendarDay = useCallback(({ date, state, marking }: any) => {
+    const isSelected = marking?.selected;
+    const hasDot = marking?.marked;
+    return (
+      <Pressable onPress={() => onDayPress(date)} style={styles.dayCell}>
+        <View style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}>
+          <Text style={[
+            styles.dayText,
+            state === 'disabled' && styles.dayTextDisabled,
+            isSelected && styles.dayTextSelected
+          ]}>
+            {date.day}
+          </Text>
+        </View>
+        {hasDot && !isSelected && <View style={styles.dayDot} />}
+      </Pressable>
+    );
+  }, [onDayPress, styles]);
+
+  const renderCalendarEvent = useCallback(({ item, index }: { item: any; index: number }) => (
+    <View style={styles.eventWrapper}>
+      <EventCard
+        event={item}
+        index={index}
+        onPress={() => router.push(`/event/${item.id || item._id}` as any)}
+        onComplete={() => toggleEventCompletion((item.id || item._id) as string)}
+        onDelete={() => deleteEvent((item.id || item._id) as string)}
+      />
+    </View>
+  ), [styles.eventWrapper, router, toggleEventCompletion, deleteEvent]);
 
   const pendingCount = useMemo(() => {
     return selectedEvents.filter(e => !e.completed && e.status !== 'completed').length;
@@ -150,29 +187,8 @@ export default function CalendarScreen() {
                 onDayPress={onDayPress}
                 markedDates={markedDates}
                 hideDayNames={false}
-                renderArrow={(direction: 'left' | 'right') => (
-                  direction === 'left' 
-                    ? <ChevronLeft color={colors.text} size={24} strokeWidth={2.5} />
-                    : <ChevronRight color={colors.text} size={24} strokeWidth={2.5} />
-                )}
-                dayComponent={({date, state, marking}: any) => {
-                  const isSelected = marking?.selected;
-                  const hasDot = marking?.marked;
-                  return (
-                    <Pressable onPress={() => onDayPress(date)} style={styles.dayCell}>
-                      <View style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}>
-                        <Text style={[
-                          styles.dayText, 
-                          state === 'disabled' && styles.dayTextDisabled,
-                          isSelected && styles.dayTextSelected
-                        ]}>
-                          {date.day}
-                        </Text>
-                      </View>
-                      {hasDot && !isSelected && <View style={styles.dayDot} />}
-                    </Pressable>
-                  );
-                }}
+                renderArrow={renderCalendarArrow}
+                dayComponent={renderCalendarDay}
                 theme={{
                   backgroundColor: colors.card,
                   calendarBackground: colors.card,
@@ -251,17 +267,7 @@ export default function CalendarScreen() {
             </LinearGradient>
           </>
         }
-        renderItem={({ item, index }) => (
-          <View style={styles.eventWrapper}>
-            <EventCard
-              event={item}
-              index={index}
-              onPress={() => router.push(`/event/${item.id || item._id}` as any)}
-              onComplete={() => toggleEventCompletion((item.id || item._id) as string)}
-              onDelete={() => deleteEvent((item.id || item._id) as string)}
-            />
-          </View>
-        )}
+        renderItem={renderCalendarEvent}
         ListEmptyComponent={
           <View style={styles.emptyCard}>
             <View style={styles.illustrationWrapper}>

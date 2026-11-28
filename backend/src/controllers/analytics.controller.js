@@ -15,7 +15,7 @@ exports.getDashboardAnalytics = async (req, res) => {
 
 exports.getWeeklyAnalytics = async (req, res) => {
   try {
-    const tasks = await Event.find({ ownerId: req.userId }).lean();
+    const tasks = await Event.find({ ownerId: req.userId }).select('createdAt completed completedAt').lean();
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const weeklyData = days.map((day) => ({ day, completed: 0, created: 0 }));
 
@@ -38,7 +38,7 @@ exports.getWeeklyAnalytics = async (req, res) => {
 
 exports.getCategoriesAnalytics = async (req, res) => {
   try {
-    const tasks = await Event.find({ ownerId: req.userId }).lean();
+    const tasks = await Event.find({ ownerId: req.userId }).select('category').lean();
     const categoryDistribution = {};
 
     tasks.forEach((t) => {

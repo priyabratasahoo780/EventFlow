@@ -1,3 +1,4 @@
+import React, { useMemo } from 'react';
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
 import { StyleSheet, View, Text, Pressable } from 'react-native';
@@ -22,14 +23,14 @@ const getPriorityConfig = (colors: ColorTheme): Record<string, { strip: string; 
   low:      { strip: colors.success, bg: colors.successLight, text: colors.success, label: 'LOW' },
 });
 
-export default function EventCard({ event, onPress, onComplete }: EventCardProps) {
+const EventCard = React.memo(function EventCard({ event, onPress, onComplete }: EventCardProps) {
   const { getColors, isDark } = useThemeStore();
   const colors = getColors();
   const isDarkMode = isDark();
-  const styles = getStyles(colors, isDarkMode);
+  const styles = useMemo(() => getStyles(colors, isDarkMode), [colors, isDarkMode]);
   const isCompleted = event.completed || event.status === 'completed';
   const isInProgress = event.status === 'in_progress';
-  const PRIORITY_CONFIG = getPriorityConfig(colors);
+  const PRIORITY_CONFIG = useMemo(() => getPriorityConfig(colors), [colors]);
   const prio = PRIORITY_CONFIG[event.priority?.toLowerCase()] || PRIORITY_CONFIG.medium;
 
   const dateFormatted = event.date ? event.date.split('T')[0] : '';
@@ -152,7 +153,9 @@ export default function EventCard({ event, onPress, onComplete }: EventCardProps
       </View>
     </Pressable>
   );
-}
+});
+
+export default EventCard;
 
 const getStyles = (colors: ColorTheme, isDarkMode: boolean) => StyleSheet.create({
   container: {
