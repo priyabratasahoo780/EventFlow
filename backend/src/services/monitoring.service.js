@@ -203,18 +203,30 @@ async function probeEmailService() {
   const t0 = Date.now();
   try {
     if (process.env.BREVO_API_KEY && process.env.BREVO_API_KEY.trim()) {
-      const res = await fetch('https://api.brevo.com/v3/account', {
-        headers: { 'api-key': process.env.BREVO_API_KEY.trim(), Accept: 'application/json' },
-        signal: AbortSignal.timeout(4000),
-      });
+      const [acctRes, senderStatus] = await Promise.all([
+        fetch('https://api.brevo.com/v3/account', {
+          headers: { 'api-key': process.env.BREVO_API_KEY.trim(), Accept: 'application/json' },
+          signal: AbortSignal.timeout(4000),
+        }),
+        emailService.getBrevoSenderStatus(),
+      ]);
       const latencyMs = Math.max(1, Date.now() - t0);
+      const hasAnyActive = senderStatus.activeSenders.length > 0;
+      const ok = acctRes.ok && hasAnyActive;
+      const detail = !acctRes.ok
+        ? `Brevo API returned HTTP ${acctRes.status}`
+        : !hasAnyActive
+          ? `Brevo API OK, but NO verified active sender! Verify EMAIL_FROM (${senderStatus.configuredSender}) in Brevo`
+          : senderStatus.senderVerified
+            ? `Brevo verified live (${senderStatus.configuredSender})`
+            : `Brevo active using ${senderStatus.activeSenders[0]} (verify ${senderStatus.configuredSender})`;
       return {
         name: '2FA Email OTP Service',
-        status: res.ok ? 'ok' : 'degraded',
-        statusCode: res.status,
+        status: ok ? 'ok' : 'degraded',
+        statusCode: ok ? 200 : 503,
         latencyMs,
         critical: false,
-        detail: res.ok ? 'Brevo HTTPS API verified live' : `Brevo returned HTTP ${res.status}`,
+        detail,
       };
     }
 

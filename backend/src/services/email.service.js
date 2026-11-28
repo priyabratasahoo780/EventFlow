@@ -58,8 +58,6 @@ function getOrCreateTransporter(account) {
         port: parseInt(process.env.SMTP_PORT || '587', 10),
         secure: process.env.SMTP_SECURE === 'true',
         family: 4, // Force IPv4 to avoid IPv6 timeouts in Docker/cloud containers
-        pool: true,
-        maxConnections: 3,
         connectionTimeout: 10000,
         greetingTimeout: 10000,
         socketTimeout: 15000,
@@ -71,8 +69,6 @@ function getOrCreateTransporter(account) {
     : {
         service: 'gmail',
         family: 4, // Force IPv4 to avoid IPv6 timeouts in Docker/cloud containers
-        pool: true,
-        maxConnections: 3,
         connectionTimeout: 10000,
         greetingTimeout: 10000,
         socketTimeout: 15000,
@@ -114,7 +110,52 @@ function resolveSenderEmail(fallbackUser) {
   };
 }
 
+let cachedBrevoSenders = null;
+let cachedBrevoSendersAt = 0;
+
+async function getBrevoVerifiedSenders(forceRefresh = false) {
+  if (!hasBrevoConfig()) return [];
+  const now = Date.now();
+  if (!forceRefresh && cachedBrevoSenders && now - cachedBrevoSendersAt < 10 * 60 * 1000) {
+    return cachedBrevoSenders;
+  }
+  try {
+    const res = await fetch('https://api.brevo.com/v3/senders', {
+      headers: { 'api-key': process.env.BREVO_API_KEY.trim(), Accept: 'application/json' },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return [];
+    const json = await res.json().catch(() => ({}));
+    const list = Array.isArray(json.senders) ? json.senders.filter((s) => s && s.active) : [];
+    cachedBrevoSenders = list;
+    cachedBrevoSendersAt = now;
+    return list;
+  } catch {
+    return [];
+  }
+}
+
 async function sendViaBrevo({ toEmail, subject, text, html, sender }) {
+  const activeSenders = await getBrevoVerifiedSenders();
+  let effectiveSender = sender;
+
+  if (activeSenders.length > 0) {
+    const matchesConfigured = activeSenders.some(
+      (s) => String(s.email || '').toLowerCase() === String(sender.email || '').toLowerCase()
+    );
+    if (!matchesConfigured) {
+      logger.warn(
+        `[EmailService] Configured EMAIL_FROM (${sender.email}) is not a verified active sender in Brevo; falling back to verified sender (${activeSenders[0].email}).`
+      );
+      effectiveSender = {
+        name: sender.name || activeSenders[0].name || 'EventFlow Security',
+        email: activeSenders[0].email,
+      };
+    }
+  } else if (getConfiguredAccounts().length > 0) {
+    throw new Error('No verified active sender found in Brevo account; falling back to SMTP.');
+  }
+
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
@@ -123,7 +164,7 @@ async function sendViaBrevo({ toEmail, subject, text, html, sender }) {
       Accept: 'application/json',
     },
     body: JSON.stringify({
-      sender: { name: sender.name, email: sender.email },
+      sender: { name: effectiveSender.name, email: effectiveSender.email },
       to: [{ email: toEmail }],
       subject,
       htmlContent: html,
@@ -137,8 +178,28 @@ async function sendViaBrevo({ toEmail, subject, text, html, sender }) {
     throw new Error(`Brevo API failed (${res.status}): ${body}`);
   }
   const json = await res.json().catch(() => ({}));
-  return { success: true, messageId: json.messageId || 'brevo-ok', provider: 'brevo' };
+  return {
+    success: true,
+    messageId: json.messageId || 'brevo-ok',
+    provider: 'brevo',
+    senderEmail: effectiveSender.email,
+  };
 }
+
+exports.getBrevoSenderStatus = async () => {
+  if (!hasBrevoConfig()) return { configured: false, activeSenders: [] };
+  const activeSenders = await getBrevoVerifiedSenders(true);
+  const configuredSender = resolveSenderEmail(getConfiguredAccounts()[0]?.user).email;
+  const senderVerified = activeSenders.some(
+    (s) => String(s.email || '').toLowerCase() === String(configuredSender || '').toLowerCase()
+  );
+  return {
+    configured: true,
+    configuredSender,
+    senderVerified,
+    activeSenders: activeSenders.map((s) => s.email),
+  };
+};
 
 async function sendViaResend({ toEmail, subject, text, html, sender }) {
   const res = await fetch('https://api.resend.com/emails', {
@@ -289,8 +350,11 @@ exports.sendOTPEmail = async (toEmail, otp, options = {}) => {
       text,
       html,
     });
-    logger.info(`[EmailService] OTP email sent to ${toEmail}`, { messageId: info.messageId });
-    return { success: true, messageId: info.messageId, provider: 'smtp' };
+    if (Array.isArray(info.rejected) && info.rejected.length > 0 && (!info.accepted || info.accepted.length === 0)) {
+      throw new Error(`SMTP rejected recipient ${toEmail}`);
+    }
+    logger.info(`[EmailService] OTP email sent to ${toEmail}`, { messageId: info.messageId, accepted: info.accepted });
+    return { success: true, messageId: info.messageId, provider: 'smtp', senderEmail: smtpSender.email };
   } catch (err) {
     logger.error(`[EmailService] Failed sending OTP email to ${toEmail}`, err);
     throw err;

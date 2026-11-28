@@ -466,7 +466,7 @@ const issuePasswordOtp = async (user, purpose) => {
   const salt = await bcrypt.genSalt(10);
   const hashedOtp = await bcrypt.hash(otp, salt);
 
-  await emailService.sendOTPEmail(user.email, otp, {
+  const mailResult = await emailService.sendOTPEmail(user.email, otp, {
     purpose,
     expiryMinutes: 10,
   });
@@ -476,6 +476,8 @@ const issuePasswordOtp = async (user, purpose) => {
   user.resetPasswordOtpAttempts = 0;
   user.resetPasswordLastSentAt = new Date();
   await user.save();
+
+  return mailResult;
 };
 
 const checkOtpForUser = async (user, cleanOtp) => {
@@ -623,8 +625,11 @@ exports.sendForgotPasswordOtp = async (req, res) => {
       });
     }
 
-    await issuePasswordOtp(user, 'Password Reset 2FA Verification');
-    res.json({ message: 'Password reset 2FA verification code sent to your email.' });
+    const mailResult = await issuePasswordOtp(user, 'Password Reset 2FA Verification');
+    res.json({
+      message: 'Password reset 2FA verification code sent to your email.',
+      deliveryProvider: mailResult?.provider || 'email',
+    });
   } catch (err) {
     console.error('sendForgotPasswordOtp error:', err);
     if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
@@ -762,10 +767,11 @@ exports.sendChangePasswordOtp = async (req, res) => {
       }
     }
 
-    await issuePasswordOtp(user, 'Password Change 2FA Verification');
+    const mailResult = await issuePasswordOtp(user, 'Password Change 2FA Verification');
     res.json({
       message: '2FA verification code sent to your registered email.',
       email: user.email,
+      deliveryProvider: mailResult?.provider || 'email',
     });
   } catch (err) {
     console.error('sendChangePasswordOtp error:', err);
