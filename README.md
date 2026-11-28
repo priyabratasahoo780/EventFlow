@@ -316,16 +316,28 @@ Building a reliable alarm and productivity app comes with complex edge cases, es
 - **Privacy-First On-Device Media (`Only Me`)**: Private task photos, videos, and local avatars persist strictly inside the app's sandboxed device storage (`services/localMediaService.ts`) — consuming **0 KB** of cloud storage.
 - **Auto-Optimized Cloud Sharing (`Friends` / `Selected Friends`)**: When a task is shared with friends (or Admin publishes a Festival Banner), media automatically uploads to **Cloudinary** with `quality: auto:good` and `fetch_format: auto` optimization, with automatic cloud cleanup when tasks, banners, or accounts are deleted.
 
-### 🛡️ 8. Biometric Admin Command Center & Strict Task Privacy
+### 🛡️ 8. Biometric Admin Command Center, Monitoring & Strict Task Privacy
 - **Multi-Layer Vault Lock**: Supports Biometric (Fingerprint / Face ID), Device Pattern/PIN fallback, and Admin Password (`services/biometricAuth.ts`).
 - **Scheduled Festival Greeting Cards**: Publish seasonal banners with interactive Date & Time window pickers (`startDate` → `endDate`), auto-showing on users' home screens during the window and auto-hiding upon expiration.
-- **Strict Privacy Block**: Admin endpoints enforce `403 Forbidden` isolation on `/api/admin/tasks` — Admins can moderate community reviews and manage users but can **never** view or modify user tasks.
+- **Strict Privacy Block**: Admin endpoints enforce `403 Forbidden` isolation on `/api/admin/tasks` — Admins can moderate community reviews, inspect live telemetry, and manage users, but can **never** view or modify user tasks.
 
-### 💬 9. Full-Duplex Socket.IO Presence & Live Friend Chat
+### 🔐 9. Dedicated 3-Step 2FA Email OTP (Password Change & Reset Only)
+- **Streamlined Login & Sign-Up**: Instant email/password authentication with strong password enforcement and hardware-encrypted `expo-secure-store` session persistence—no intrusive login OTP prompts.
+- **Strict 3-Step Password Security**: Available both via **Settings → Security → Change Password** (`app/change-password.tsx`) and **Forgot Password** (`app/(auth)/forgot-password.tsx`):
+  1. **Request Code**: Validates current password / registered email and dispatches a 6-digit 2FA OTP via Brevo / Resend / SMTP (`25s` resend cooldown).
+  2. **Verify OTP**: Validates OTP against hashed DB storage (max 5 attempts) and returns clear feedback (`OTP is wrong...`) before unlocking password entry.
+  3. **Set New Password**: Consumes a single-use signed `resetToken` (10m TTL) and enforces a strict **2 changes per 24-hour** limit.
+
+### 📡 10. Real-Time App Monitoring Center (Admin Telemetry NOC)
+- **Live Request & Status Telemetry**: Express middleware (`services/monitoring.service.js`) measures real per-route latency, `2xx`/`3xx`/`4xx`/`5xx` status distributions, success rates, and P95 latency across every API module.
+- **Automated 5 / 10-Minute Live Probes**: Periodically verifies **HTTP API Gateway** loopback, **MongoDB** ping, **Auth & JWT**, **Events Store**, **2FA Email OTP** handshake/API, and **Cloudinary Admin API** ping with zero static/mocked metrics.
+- **Glitch Locator & MongoDB Persistence**: Captures `4xx`/`5xx` route anomalies (with module location, endpoint, latency, and sanitized message—zero PII/secrets) persisted in `MonitoringRecord` (7-day TTL) and rendered inside an animated SVG dashed-border Command Center (`AdminMonitoringSection.tsx`).
+
+### 💬 11. Full-Duplex Socket.IO Presence & Live Friend Chat
 - **Resilient Transport**: Dual `websocket` + `polling` transport with infinite auto-reconnect, token refresh handling, and foreground state sync.
 - **Live Presence & Typing**: Real-time online/offline indicators (`check_online`, `user_status`), live `typing...` indicators, persistent chat history (`/api/friends/messages/:friendId`), focus cheers, and instant friend request notifications.
 
-### 📱 10. Full Cross-Device Responsiveness & Production Hardening
+### 📱 12. Full Cross-Device Responsiveness & Production Hardening
 - **Adaptive Layout Engine**: Dynamic scaling (`constants/responsive.ts`, `ResponsiveContainer.tsx`) supporting compact phones, standard phones, tablets, foldables, and web viewports, plus safe-area bottom padding for Android 3-button navigation bars.
 - **80-Task Active Cap**: Caps visible screen tasks at 80 with oldest-task archival confirmation while preserving analytics history forever.
 
@@ -424,8 +436,8 @@ flowchart TD
         A --> B --> C --> D
     end
 
-    subgraph Auth["🔐 Auth — Clerk Provider"]
-        E["Clerk OAuth / Email Auth"]
+    subgraph Auth["🔐 Auth — JWT & 2FA Password Security"]
+        E["Email/Password Auth + 3-Step 2FA OTP"]
         F["Secure Token Cache (expo-secure-store)"]
         E --> F
     end
@@ -507,9 +519,9 @@ EventFlow/                              # Mono-repo root
 │       │   ├── seedAdmin.js            # Auto-seeds Admin Portal account
 │       │   └── socket.js               # Socket.io setup (presence, typing, JWT rooms)
 │       ├── controllers/
-│       │   ├── admin.controller.js     # Overview, reviews, users, festival cards, privacy lock
+│       │   ├── admin.controller.js     # Overview, monitoring, reviews, users, festival cards, privacy lock
 │       │   ├── analytics.controller.js
-│       │   ├── auth.controller.js
+│       │   ├── auth.controller.js      # Register, login, 3-step 2FA OTP password change/reset
 │       │   ├── event.controller.js
 │       │   ├── friend.controller.js
 │       │   ├── review.controller.js
@@ -528,6 +540,7 @@ EventFlow/                              # Mono-repo root
 │       │   ├── FestivalBanner.js
 │       │   ├── FriendRequest.js
 │       │   ├── Message.js
+│       │   ├── MonitoringRecord.js     # 7-day TTL live probe & glitch persistence
 │       │   ├── Review.js
 │       │   └── User.js
 │       ├── routes/
@@ -543,7 +556,8 @@ EventFlow/                              # Mono-repo root
 │       │   └── user.routes.js
 │       ├── services/
 │       │   ├── analytics.service.js
-│       │   ├── email.service.js
+│       │   ├── email.service.js        # Brevo/Resend HTTPS API & SMTP OTP delivery
+│       │   ├── monitoring.service.js   # Live telemetry, 5/10m probes & Glitch Locator
 │       │   └── priority.service.js     # Dynamic priority scoring engine
 │       └── utils/
 │           └── logger.js               # Structured logger (ISO timestamps)
@@ -553,18 +567,21 @@ EventFlow/                              # Mono-repo root
     │   ├── (auth)/                     # welcome, login, register, forgot-password
     │   ├── (tabs)/                     # home, calendar, stats, profile, settings
     │   ├── admin/index.tsx             # Biometric-protected Admin Command Center
+    │   ├── change-password.tsx         # Logged-in 3-step 2FA Email OTP password change
     │   ├── event/[id].tsx              # Dynamic event detail & zoom preview screen
     │   ├── add-event.tsx               # Create/edit task with hybrid media & visibility
     │   ├── triage.tsx                  # AI Task triage & smart rescheduling
     │   ├── friends/                    # connect, list (live chat), requests, groupSchedule
     │   ├── community/reviews.tsx       # Community reviews feed
     │   ├── map.tsx                     # Full-screen interactive map & route planning
-    │   └── _layout.tsx                 # Root layout (ClerkProvider, fonts, themes, alarms)
+    │   └── _layout.tsx                 # Root layout (auth guard, fonts, themes, alarms)
     │
     ├── components/                     # Core UI Components
+    │   ├── AdminMonitoringSection.tsx  # Animated SVG dashed NOC Monitoring UI
     │   ├── AiInsightCard.tsx
     │   ├── AiInsightSection.tsx
     │   ├── AlarmModal.tsx
+    │   ├── AuthStatusModal.tsx         # Branded auth & OTP feedback modal
     │   ├── BrutalButton.tsx
     │   ├── BrutalCard.tsx
     │   ├── BuddyAlertModal.tsx
@@ -699,7 +716,8 @@ MONGO_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/eventflow
 JWT_SECRET=your_super_secret_jwt_key_min_32_chars
 CLERK_SECRET_KEY=sk_test_your_clerk_secret_key
 
-# Gmail SMTP for OTP & Password Reset (optional)
+# Email Delivery for Password Change / Reset 2FA OTP (Brevo / Resend HTTPS API or Gmail SMTP)
+BREVO_API_KEY=your_brevo_api_key
 EMAIL_USER=your_email@gmail.com
 EMAIL_PASS=your_16_char_app_password
 EMAIL_FROM="EventFlow Security <your_email@gmail.com>"
@@ -739,10 +757,14 @@ EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your_clerk_key
 | Method | Endpoint | Protected | Description |
 |:---:|:---|:---:|:---|
 | `POST` | `/api/auth/register` | ✗ | Register a new user (email + password) |
-| `POST` | `/api/auth/login` | ✗ | Login and receive JWT |
-| `POST` | `/api/auth/google` | ✗ | Login with Google OAuth |
-| `POST` | `/api/auth/sync` | ✗ | Sync Clerk user with MongoDB |
-| `POST` | `/api/auth/forgot-password` | ✗ | Send password reset email |
+| `POST` | `/api/auth/login` | ✗ | Login and receive JWT (no login OTP required) |
+| `POST` | `/api/auth/sync` | ✓ | Sync authenticated user profile & Unique ID |
+| `POST` | `/api/auth/forgot-password/send-otp` | ✗ | Send 6-digit 2FA OTP for forgot password |
+| `POST` | `/api/auth/forgot-password/verify-otp` | ✗ | Verify 6-digit OTP & issue single-use resetToken |
+| `POST` | `/api/auth/forgot-password` | ✗ | Reset password using verified resetToken |
+| `POST` | `/api/auth/change-password/send-otp` | ✓ | Verify current password & dispatch 2FA OTP |
+| `POST` | `/api/auth/change-password/verify-otp` | ✓ | Verify 6-digit 2FA OTP & issue resetToken |
+| `POST` | `/api/auth/change-password` | ✓ | Update password using verified resetToken |
 | `GET` | `/api/auth/profile` | ✓ | Get authenticated user's profile |
 
 ### Users — `/api/users`
@@ -824,6 +846,10 @@ EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your_clerk_key
 | `PATCH` | `/api/admin/users/:id/ban` | Admin | Suspend or restore a user |
 | `DELETE` | `/api/admin/users/:id` | Admin | Delete user and cascade-clean cloud/local assets |
 | `GET/POST/PATCH/DELETE` | `/api/admin/festival` | Admin | Manage scheduled Festival Greeting Cards |
+| `GET` | `/api/admin/monitoring` | Admin | Get live App Monitoring stats, subsystems, probes & glitches |
+| `POST` | `/api/admin/monitoring/probe` | Admin | Trigger an immediate live 6-subsystem health probe |
+| `PATCH` | `/api/admin/monitoring/interval` | Admin | Set automated probe interval (`5` or `10` minutes) |
+| `DELETE` | `/api/admin/monitoring/glitches` | Admin | Clear recorded glitch logs |
 | `GET` | `/api/admin/tasks` | 403 | Strictly blocked (`403`) to protect user task privacy |
 
 ---
@@ -896,6 +922,8 @@ Notification triggered
 - [x] High-urgency radar pulse alarm modal & native lockscreen
 - [x] AI behavioral insights & productivity intelligence engine
 - [x] Modernized dual-action geofence & radius selector
+- [x] Dedicated 3-step 2FA Email OTP exclusively for password change & reset
+- [x] Secured Admin App Monitoring Center with 5/10m live subsystem probes, Glitch Locator & MongoDB TTL persistence
 
 ---
 
