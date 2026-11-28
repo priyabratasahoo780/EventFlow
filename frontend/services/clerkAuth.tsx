@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
 import * as Linking from 'expo-linking';
 import {
   ClerkProvider as ExpoClerkProvider,
@@ -16,20 +15,25 @@ import {
 } from '@clerk/expo';
 import { tokenCache as defaultClerkTokenCache } from '@clerk/expo/token-cache';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CRITICAL: Call this at module level, not inside a component / effect.
-// Without it, expo-web-browser never signals the OAuth popup to close after
-// the user picks a Google account, causing the spinner to hang forever.
-// ─────────────────────────────────────────────────────────────────────────────
 WebBrowser.maybeCompleteAuthSession();
+
+// does not tear down the Android Custom Tabs service mid-flow.
+let warmUpRefCount = 0;
 
 // Warm up Chrome Custom Tabs on Android for faster popup open
 export const useWarmUpBrowser = () => {
   useEffect(() => {
-    if (Platform.OS !== 'web') {
-      void WebBrowser.warmUpAsync();
-      return () => { void WebBrowser.coolDownAsync(); };
+    if (Platform.OS !== 'android') return;
+    warmUpRefCount += 1;
+    if (warmUpRefCount === 1) {
+      void WebBrowser.warmUpAsync().catch(() => {});
     }
+    return () => {
+      warmUpRefCount = Math.max(0, warmUpRefCount - 1);
+      if (warmUpRefCount === 0) {
+        void WebBrowser.coolDownAsync().catch(() => {});
+      }
+    };
   }, []);
 };
 
@@ -70,17 +74,8 @@ export interface GoogleAuthResult {
   };
 }
 
-/**
- * Builds the redirect URI for Clerk OAuth.
- *
- * In a standalone / production APK → eventflow://sso-callback
- * In Expo Go                       → exp://192.x.x.x:8081/--/sso-callback
- *
- * Both are whitelisted in Clerk Dashboard's Redirect URLs.
- */
+
 function getOAuthRedirectUrl(): string {
-  // On native standalone builds, Linking.createURL gives eventflow://sso-callback
-  // On Expo Go it gives exp://...
   return Linking.createURL('sso-callback');
 }
 
@@ -91,30 +86,54 @@ export const useGoogleAuth = () => {
   const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
     try {
       const redirectUrl = getOAuthRedirectUrl();
+      console.log('[Google OAuth] Starting flow', {
+        platform: Platform.OS,
+        redirectUrl,
+      });
 
-      // ── Start the OAuth browser flow ────────────────────────────────────────
-      // We race against a 65-second hard timeout so the loading button never
-      // gets permanently stuck if the deep-link back never fires.
-      const result = await Promise.race([
-        startSSOFlow({ strategy: 'oauth_google', redirectUrl }),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error('Google Sign-In timed out. Please try again.')),
-            65000
-          )
-        ),
-      ]);
+      let capturedCallbackUrl: string | null = null;
+      const urlSub = Linking.addEventListener('url', (event) => {
+        if (event?.url?.includes('sso-callback')) {
+          capturedCallbackUrl = event.url;
+          console.log('[Google OAuth] Callback URL received:', event.url.split('?')[0]);
+        }
+      });
 
-      // ── User cancelled / dismissed the browser ───────────────────────────────
+      let result: any;
+      try {
+        result = await Promise.race([
+          startSSOFlow({ strategy: 'oauth_google', redirectUrl }),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error('Google Sign-In timed out. Please try again.')),
+              65000
+            )
+          ),
+        ]);
+      } finally {
+        urlSub.remove();
+      }
+
       const sessionType = (result as any)?.authSessionResult?.type;
+      const su = result?.signUp;
+      const si = result?.signIn;
+
+      console.log('[Google OAuth] Flow result', {
+        authSessionType: sessionType ?? null,
+        capturedCallbackUrl: !!capturedCallbackUrl,
+        createdSessionId: result?.createdSessionId ?? null,
+        signInStatus: si?.status ?? null,
+        signInVerificationStatus: si?.firstFactorVerification?.status ?? null,
+        signUpStatus: su?.status ?? null,
+        signUpMissingFields: (su as any)?.missingFields ?? null,
+        signUpUnverifiedFields: (su as any)?.unverifiedFields ?? null,
+      });
+
       if (sessionType === 'cancel' || sessionType === 'dismiss') {
         return { success: false, cancelled: true };
       }
 
-      const su = result?.signUp;
-      const si = result?.signIn;
-
-      // ── No session created ───────────────────────────────────────────────────
+      //  No session created 
       if (!result?.createdSessionId) {
         // authSessionResult is null ⟹ Clerk SDK not loaded yet, rare edge case
         if (!result?.authSessionResult) {
@@ -149,18 +168,11 @@ export const useGoogleAuth = () => {
         return { success: false, cancelled: true };
       }
 
-      // ── Session created — activate it ────────────────────────────────────────
+      // ── Session created — activate it 
       if (result?.setActive) {
-        try {
-          await result.setActive({ session: result.createdSessionId });
-        } catch (err) {
-          console.warn('[Google OAuth] setActive warning (non-fatal):', err);
-        }
+        await result.setActive({ session: result.createdSessionId });
       }
 
-      // ── Extract user data ────────────────────────────────────────────────────
-      // Prefer signIn/signUp resources which are available immediately after
-      // the flow. Clerk instance user may not be hydrated yet at this point.
       const email =
         su?.emailAddress ||
         si?.identifier ||
@@ -199,7 +211,12 @@ export const useGoogleAuth = () => {
 
       if (isCancelled) return { success: false, cancelled: true };
 
-      console.warn('[Google OAuth Error]:', err?.message || err);
+      console.warn('[Google OAuth Error]:', {
+        status: err?.status ?? null,
+        code: errCode || null,
+        clerkErrors: err?.errors ?? null,
+        message: err?.message ?? null,
+      });
       throw new Error(
         err?.errors?.[0]?.longMessage ||
         err?.errors?.[0]?.message    ||

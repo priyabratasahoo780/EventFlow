@@ -33,7 +33,7 @@ export default function SSOCallbackScreen() {
           router.replace('/(auth)/login');
         }
       }
-    }, 20000);
+    }, 65000);
     return () => clearTimeout(timeout);
   }, [token, router]);
 

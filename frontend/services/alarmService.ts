@@ -160,6 +160,7 @@ export const alarmService = {
         reminder.time
       ) {
         const [eh, em] = reminder.time.split(":").map(Number);
+        
         const [ey, emo, ed] = reminder.date.split("T")[0].split("-").map(Number);
         triggerDate = new Date(ey, emo - 1, ed, eh, em, 0, 0);
         title = `⏰ Time to start: ${event.title}`;

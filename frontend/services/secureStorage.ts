@@ -119,9 +119,7 @@ export async function removeAuthToken(): Promise<void> {
   }
 }
 
-/**
- * Generate an 8-character Unique ID (2 upper, 2 lower, 2 digits, 2 symbols).
- */
+  // Generate an 8-character Unique ID (2 upper, 2 lower, 2 digits, 2 symbols).
 export function generateSecureUniqueId(): string {
   const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const lowers = 'abcdefghijkmnopqrstuvwxyz';

@@ -374,6 +374,27 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
 
+          <Text style={styles.sectionTitle}>SECURITY</Text>
+
+          <View style={styles.premiumCard}>
+            <Pressable
+              style={({pressed}) => [styles.settingRow, pressed && { opacity: 0.7 }]}
+              onPress={() => router.push('/change-password' as any)}
+            >
+              <View style={styles.settingLeft}>
+                <View style={[styles.iconBadge, { backgroundColor: colors.secondaryLight }]}>
+                  <Lock color={colors.secondary} size={18} strokeWidth={2.5} />
+                </View>
+                <View>
+                  <Text style={styles.settingText}>Change Password</Text>
+                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: colors.textSecondary }}>
+                    Protected by Email 2FA verification
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
+          </View>
+
           <Text style={styles.sectionTitle}>DATA & BACKUP</Text>
           
           <View style={styles.premiumCard}>

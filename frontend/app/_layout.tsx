@@ -71,7 +71,7 @@ SplashScreen.preventAutoHideAsync();
 
 const CLERK_PUBLISHABLE_KEY =
   process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ||
-  'pk_test_cmFwaWQtd2FscnVzLTU2ODYuY2xlcmsuYWNjb3VudHMuZGV2JA';
+  'pk_test_cmVsYXhlZC1mZWxpbmUtODM0LmNsZXJrLmFjY291bnRzLmRldiQ';
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({

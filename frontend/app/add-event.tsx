@@ -665,7 +665,6 @@ export default function AddEventScreen() {
                   </View>
                 </Pressable>
               )}
-              {/* ─────────────────────────────── */}
 
               <View style={styles.mt24}>
                 <Text style={styles.label}>CATEGORY</Text>

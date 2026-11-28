@@ -14,6 +14,8 @@ router.post('/google', authLimiter, authController.googleLogin);
 router.post('/sync', auth, authController.syncUser);
 router.post('/forgot-password/send-otp', otpLimiter, authController.sendForgotPasswordOtp);
 router.post('/forgot-password', otpLimiter, authController.forgotPassword);
+router.post('/change-password/send-otp', auth, otpLimiter, authController.sendChangePasswordOtp);
+router.post('/change-password', auth, otpLimiter, authController.changePassword);
 router.get('/profile', auth, authController.getProfile);
 
 // 2FA Routes

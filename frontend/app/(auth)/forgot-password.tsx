@@ -110,7 +110,7 @@ export default function ForgotPasswordScreen() {
   }));
 
   const triggerShake = useCallback(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
     shakeX.value = withSequence(
       withTiming(-9, { duration: 55 }),
       withTiming(9, { duration: 55 }),
@@ -137,14 +137,14 @@ export default function ForgotPasswordScreen() {
       const cleanEmail = values.email.trim().toLowerCase();
       setLoading(true);
       setBannerError('');
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 
       try {
         await api.post('/auth/forgot-password/send-otp', { email: cleanEmail });
         setTargetEmail(cleanEmail);
         setResendCooldown(30);
         setStep('verify');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       } catch (err: any) {
         triggerShake();
         const parsed = extractApiError(
@@ -198,7 +198,7 @@ export default function ForgotPasswordScreen() {
       if (loading) return;
       setLoading(true);
       setBannerError('');
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 
       try {
         await api.post('/auth/forgot-password', {
@@ -207,7 +207,7 @@ export default function ForgotPasswordScreen() {
           newPassword: values.newPassword,
         });
 
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         setModalConfig({
           visible: true,
           type: 'account_exists',
@@ -267,7 +267,7 @@ export default function ForgotPasswordScreen() {
     try {
       await api.post('/auth/forgot-password/send-otp', { email: targetEmail });
       setResendCooldown(30);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (err: any) {
       triggerShake();
       const parsed = extractApiError(err, 'Could not resend verification code. Please try again.');

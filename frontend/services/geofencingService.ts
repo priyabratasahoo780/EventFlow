@@ -24,7 +24,7 @@ const MAX_OS_REGIONS = Platform.OS === 'ios' ? 20 : 95;
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export interface GeofenceRuntimeState {
-  /** Epoch ms when each task last fired an Arrive or Leave alert */
+  //  Epoch ms when each task last fired an Arrive or Leave alert 
   lastFired: Record<string, number>;
   /** Whether the user was last observed inside each task's geofence */
   inside: Record<string, boolean>;
@@ -32,9 +32,9 @@ export interface GeofenceRuntimeState {
   pendingExit: Record<string, boolean>;
 }
 
-/**
- * Computes great-circle distance in meters using the Haversine formula.
- */
+
+  // Computes great-circle distance in meters using the Haversine formula.
+ 
 export function getDistanceMeters(
   lat1: number,
   lon1: number,
@@ -53,9 +53,9 @@ export function getDistanceMeters(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/**
- * Returns true if the task has an active location reminder with valid coordinates.
- */
+
+  // Returns true if the task has an active location reminder with valid coordinates.
+ 
 export function isTaskActiveForGeofence(event?: Event | null): boolean {
   if (!event) return false;
   if (
@@ -73,9 +73,9 @@ export function isTaskActiveForGeofence(event?: Event | null): boolean {
   );
 }
 
-/**
- * Checks whether the current day & hour fall inside an optional LocationTimeGate.
- */
+
+//  Checks whether the current day & hour fall inside an optional LocationTimeGate.
+ 
 export function isWithinTimeGate(gate?: LocationTimeGate): boolean {
   if (!gate) return true;
 
@@ -99,9 +99,9 @@ export function isWithinTimeGate(gate?: LocationTimeGate): boolean {
   return currentHour >= startHour || currentHour < endHour;
 }
 
-/**
- * Reads unified geofence runtime state from AsyncStorage.
- */
+
+//  Reads unified geofence runtime state from AsyncStorage.
+ 
 export async function loadGeofenceState(): Promise<GeofenceRuntimeState> {
   try {
     const [raw, legacyPendingRaw] = await Promise.all([
@@ -134,9 +134,9 @@ export async function loadGeofenceState(): Promise<GeofenceRuntimeState> {
   }
 }
 
-/**
- * Persists unified geofence runtime state to AsyncStorage.
- */
+
+  // Persists unified geofence runtime state to AsyncStorage.
+
 export async function saveGeofenceState(state: GeofenceRuntimeState): Promise<void> {
   try {
     await AsyncStorage.setItem(GEOFENCE_STATE_KEY, JSON.stringify(state));
@@ -145,10 +145,8 @@ export async function saveGeofenceState(state: GeofenceRuntimeState): Promise<vo
   }
 }
 
-/**
- * Dispatches notification, native background alarm (when backgrounded or critical),
- * in-app foreground modal event, and friend buddy alerts.
- */
+  // Dispatches notification, native background alarm (when backgrounded or critical),
+  // in-app foreground modal event, and friend buddy alerts.
 export async function fireLocationAlarm(
   event: Event,
   taskId: string,
@@ -239,10 +237,8 @@ export async function fireLocationAlarm(
   return true;
 }
 
-/**
- * Fetches current position safely inside headless background tasks with a strict timeout
- * so OS background execution budgets are never exceeded.
- */
+  // Fetches current position safely inside headless background tasks with a strict timeout
+  // so OS background execution budgets are never exceeded.
 async function getFastPositionForBackground(): Promise<Location.LocationObject | null> {
   try {
     const lastKnown = await Location.getLastKnownPositionAsync({ maxAge: 45000 });
@@ -263,9 +259,7 @@ async function getFastPositionForBackground(): Promise<Location.LocationObject |
   }
 }
 
-/**
- * Evaluates a geofence transition for a single event. Used by background TaskManager.
- */
+  // Evaluates a geofence transition for a single event. Used by background TaskManager.
 async function handleGeofenceTransition(
   eventType: Location.GeofencingEventType,
   region: Location.LocationRegion
@@ -378,10 +372,8 @@ TaskManager.defineTask(GEOFENCING_TASK_NAME, async ({ data, error }) => {
 });
 
 class GeofencingService {
-  /**
-   * Synchronizes all registered OS geofence regions against active events,
-   * pruning completed/deleted entries and seeding inside states for Leave tasks.
-   */
+  // Synchronizes all registered OS geofence regions against active events,
+  //   pruning completed/deleted entries and seeding inside states for Leave tasks.
   async syncGeofences(events: Event[]): Promise<void> {
     if (Platform.OS === 'web') return;
 
@@ -424,9 +416,7 @@ class GeofencingService {
     }
   }
 
-  /**
-   * Checks current coordinates against active events to prime Leave/Arrive inside-state.
-   */
+    // Checks current coordinates against active events to prime Leave/Arrive inside-state.
   async seedInsideStates(events: Event[]): Promise<void> {
     if (events.length === 0) return;
     try {
@@ -480,9 +470,7 @@ class GeofencingService {
     }
   }
 
-  /**
-   * Registers (or updates) geofence monitoring for a single event.
-   */
+    // Registers (or updates) geofence monitoring for a single event.
   async startGeofence(event: Event): Promise<void> {
     if (Platform.OS === 'web' || !isTaskActiveForGeofence(event)) return;
 
@@ -511,9 +499,8 @@ class GeofencingService {
     }
   }
 
-  /**
-   * Unregisters geofence monitoring for a completed or deleted event.
-   */
+  //  Unregisters geofence monitoring for a completed or deleted event.
+   
   async stopGeofence(eventId: string): Promise<void> {
     if (Platform.OS === 'web') return;
 
@@ -542,10 +529,8 @@ class GeofencingService {
     }
   }
 
-  /**
-   * Runs a network/cell triangulation check (triggered by ActivityRecognition
-   * when parking a car underground) for both Arrive and deferred drive-by tasks.
-   */
+  //  Runs a network/cell triangulation check (triggered by ActivityRecognition
+  //   when parking a car underground) for both Arrive and deferred drive-by tasks.
   async forceGeofenceCheck(): Promise<void> {
     if (Platform.OS === 'web') return;
 
@@ -599,9 +584,7 @@ class GeofencingService {
     }
   }
 
-  /**
-   * Marks an Arrive task as snoozed until the user exits and re-enters the area (EC4).
-   */
+    // Marks an Arrive task as snoozed until the user exits and re-enters the area (EC4).
   async setTaskPendingExit(taskId: string): Promise<void> {
     try {
       const state = await loadGeofenceState();

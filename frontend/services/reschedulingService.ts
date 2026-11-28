@@ -32,7 +32,7 @@ function formatSlotLabel(d: Date): string {
 
   let prefix = dateStr;
   if (dateStr === todayStr) prefix = 'Today';
-  else if (dateStr === tomorrowStr) prefix = 'Tomorrow';
+  else if (dateStr === tomorrowStr) prefix = 'Tomorrow'; 
   else {
     const opts: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
     prefix = d.toLocaleDateString('en-IN', opts);
@@ -88,7 +88,7 @@ export const reschedulingService = {
       const freeUntil = blocking ? blocking.startMs : scanMs + 4 * 60 * 60 * 1000;
       const freeForMins = Math.floor((freeUntil - scanMs) / 60000);
 
-      if (freeForMins >= minDurationMins) {
+      if (freeForMins >= minDurationMins) {          
         const slotDate = new Date(scanMs);
         const confidence: 'high' | 'medium' | 'low' =
           freeForMins >= minDurationMins * 2 ? 'high' :

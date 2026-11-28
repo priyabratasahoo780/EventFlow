@@ -28,11 +28,9 @@ export function isLocalMediaUri(uri?: string | null): boolean {
   );
 }
 
-/**
- * Copies a user-picked photo or video from temporary picker cache into persistent
- * app-sandboxed device storage (documentDirectory) so private media lives strictly on
- * the user's device and never uploads to the backend server.
- */
+//  Copies a user-picked photo or video from temporary picker cache into persistent
+//  app-sandboxed device storage (documentDirectory) so private media lives strictly on
+//  the user's device and never uploads to the backend server.
 export async function saveMediaToDevice(
   sourceUri: string,
   prefix: 'profile' | 'task_img' | 'task_vid'
@@ -68,10 +66,8 @@ export async function saveMediaToDevice(
   }
 }
 
-/**
- * Uploads a local image or video to the backend Cloudinary endpoint.
- * Used ONLY when sharing tasks with connected friends or publishing Admin Festival Cards.
- */
+//  Uploads a local image or video to the backend Cloudinary endpoint.
+//  Used ONLY when sharing tasks with connected friends or publishing Admin Festival Cards.
 export async function uploadMediaToCloud(
   sourceUri: string,
   kind: 'image' | 'video'
@@ -118,10 +114,8 @@ export async function uploadMediaToCloud(
   throw new Error('Cloud upload returned an invalid response.');
 }
 
-/**
- * Deletes a previously persisted on-device media file inside eventflow_media/.
- * Ignores remote URLs or files outside our sandboxed media folder.
- */
+//  Deletes a previously persisted on-device media file inside eventflow_media/.
+//  Ignores remote URLs or files outside our sandboxed media folder.
 export async function deleteLocalMediaIfOwned(uri?: string | null): Promise<void> {
   if (!uri || !LOCAL_MEDIA_DIR || Platform.OS === 'web') return;
   if (!uri.startsWith(LOCAL_MEDIA_DIR)) return;

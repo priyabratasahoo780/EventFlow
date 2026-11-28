@@ -173,7 +173,7 @@ export default function LoginScreen() {
       if (loading || googleLoading) return;
       setLoading(true);
       setFormBannerError('');
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       const cleanEmail = values.email.trim().toLowerCase();
 
       try {
@@ -342,7 +342,7 @@ export default function LoginScreen() {
     }
     setLoading(true);
     setOtpError('');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     try {
       const res = await api.post('/auth/2fa/verify', { email: emailFor2FA, otp, tempToken });
       if (!res.data?.token || !res.data?.user) {
@@ -379,7 +379,7 @@ export default function LoginScreen() {
     Keyboard.dismiss();
     setGoogleLoading(true);
     setFormBannerError('');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 
     // Safety net: if signInWithGoogle never resolves (deep-link failure, browser stuck),
     // auto-reset the loading state after 65s so the button is usable again.
@@ -701,19 +701,8 @@ export default function LoginScreen() {
                   title="Continue"
                   onPress={handleSubmitForm}
                   loading={loading}
-                  disabled={googleLoading}
                   rightIcon={<ArrowRight color="#FFF" size={18} strokeWidth={2.5} />}
                 />
-              </Animated.View>
-
-              {/* Divider */}
-              <Animated.View entering={FadeInDown.delay(310).duration(400)}>
-                <AuthDivider />
-              </Animated.View>
-
-              {/* Google */}
-              <Animated.View entering={FadeInDown.delay(350).duration(420).springify()}>
-                <GoogleButton onPress={handleGoogleLogin} loading={googleLoading} />
               </Animated.View>
 
               {/* Sign Up Link */}

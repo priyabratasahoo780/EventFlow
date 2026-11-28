@@ -141,7 +141,7 @@ export default function RegisterScreen() {
       if (loading || googleLoading) return;
       setLoading(true);
       setFormBannerError('');
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 
       const cleanEmail = values.email.trim().toLowerCase();
       const cleanUsername = values.username.trim().toLowerCase();
@@ -289,7 +289,7 @@ export default function RegisterScreen() {
     Keyboard.dismiss();
     setGoogleLoading(true);
     setFormBannerError('');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 
     // Safety net: if signInWithGoogle never resolves (deep-link failure, browser stuck),
     // auto-reset the loading state after 65s so the button is usable again.
@@ -656,7 +656,7 @@ export default function RegisterScreen() {
                       <View key={label} style={styles.ruleItem}>
                         {met ? (
                           <Check color="#10B981" size={13} strokeWidth={3} />
-                        ) : (
+                        ) : ( 
                           <X color={colors.textSecondary} size={13} strokeWidth={2} />
                         )}
                         <Text
@@ -683,24 +683,12 @@ export default function RegisterScreen() {
                 title="Create Account"
                 onPress={handleSubmitForm}
                 loading={loading}
-                disabled={googleLoading}
+                
                 rightIcon={<ArrowRight color="#FFF" size={18} strokeWidth={2.5} />}
               />
             </Animated.View>
 
-            {/* Divider */}
-            <Animated.View entering={FadeInDown.delay(330).duration(360)}>
-              <AuthDivider />
-            </Animated.View>
-
-            {/* Google Sign Up */}
-            <Animated.View entering={FadeInDown.delay(370).duration(380).springify()}>
-              <GoogleButton
-                onPress={handleGoogleSignUp}
-                loading={googleLoading}
-                title="CONTINUE WITH GOOGLE"
-              />
-            </Animated.View>
+            
 
             {/* Login Link */}
             <Animated.View entering={FadeInDown.delay(410).duration(360)} style={styles.loginRow}>

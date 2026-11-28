@@ -23,7 +23,7 @@ export default function GoogleButton({ onPress, loading, title = 'CONTINUE WITH 
   }));
 
   const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     onPress();
   };
 

@@ -122,9 +122,14 @@ const verifyTempToken = (tempToken) => {
 };
 
 const verifyClerkGoogleSession = async (sessionId) => {
-  const secretKey = process.env.CLERK_SECRET_KEY;
+  const secretKey = (process.env.CLERK_SECRET_KEY || '').trim();
   if (!secretKey) {
     throw new Error('CLERK_NOT_CONFIGURED');
+  }
+
+  const cleanSessionId = typeof sessionId === 'string' ? sessionId.trim() : '';
+  if (!cleanSessionId) {
+    throw new Error('Verified Google OAuth session is required.');
   }
 
   const headers = {
@@ -135,13 +140,21 @@ const verifyClerkGoogleSession = async (sessionId) => {
   let sessionRes;
   try {
     sessionRes = await fetch(
-      `https://api.clerk.com/v1/sessions/${encodeURIComponent(sessionId)}`,
+      `https://api.clerk.com/v1/sessions/${encodeURIComponent(cleanSessionId)}`,
       { headers, signal: AbortSignal.timeout(15000) }
     );
-  } catch {
+  } catch (err) {
+    console.error('[Clerk] Session verification network error:', err?.message || err);
     const netErr = new Error('Google verification service timed out. Please try again.');
     netErr.statusCode = 503;
     throw netErr;
+  }
+
+  if (sessionRes.status === 401 || sessionRes.status === 403) {
+    console.error('[Clerk] Invalid or mismatched CLERK_SECRET_KEY (status:', sessionRes.status, ')');
+    const cfgErr = new Error('Google authentication is misconfigured on the server.');
+    cfgErr.statusCode = 503;
+    throw cfgErr;
   }
 
   if (sessionRes.status >= 500) {
@@ -165,10 +178,18 @@ const verifyClerkGoogleSession = async (sessionId) => {
       `https://api.clerk.com/v1/users/${encodeURIComponent(sessionData.user_id)}`,
       { headers, signal: AbortSignal.timeout(15000) }
     );
-  } catch {
+  } catch (err) {
+    console.error('[Clerk] User fetch network error:', err?.message || err);
     const netErr = new Error('Timed out retrieving Google profile. Please try again.');
     netErr.statusCode = 503;
     throw netErr;
+  }
+
+  if (userRes.status === 401 || userRes.status === 403) {
+    console.error('[Clerk] User fetch rejected by Clerk (status:', userRes.status, ')');
+    const cfgErr = new Error('Google authentication is misconfigured on the server.');
+    cfgErr.statusCode = 503;
+    throw cfgErr;
   }
 
   if (userRes.status >= 500 || !userRes.ok) {
@@ -180,7 +201,9 @@ const verifyClerkGoogleSession = async (sessionId) => {
   const clerkUser = await userRes.json();
   const emails = Array.isArray(clerkUser.email_addresses) ? clerkUser.email_addresses : [];
   const primaryObj =
-    emails.find((e) => e.id === clerkUser.primary_email_address_id) || emails[0];
+    emails.find((e) => e.id === clerkUser.primary_email_address_id) ||
+    emails.find((e) => e.verification?.status === 'verified') ||
+    emails[0];
   const verifiedEmail = primaryObj?.email_address;
 
   if (!verifiedEmail) {
@@ -421,6 +444,111 @@ exports.login = async (req, res) => {
   }
 };
 
+const issuePasswordOtp = async (user, purpose) => {
+  const limitCheck = checkPasswordChangeLimit(user);
+  if (limitCheck.exceeded) {
+    const err = new Error(limitCheck.error);
+    err.statusCode = 429;
+    throw err;
+  }
+
+  if (user.resetPasswordLastSentAt) {
+    const elapsedMs = Date.now() - new Date(user.resetPasswordLastSentAt).getTime();
+    if (elapsedMs < OTP_RESEND_COOLDOWN_MS) {
+      const waitSec = Math.ceil((OTP_RESEND_COOLDOWN_MS - elapsedMs) / 1000);
+      const err = new Error(`Please wait ${waitSec}s before requesting another verification code.`);
+      err.statusCode = 429;
+      throw err;
+    }
+  }
+
+  const otp = crypto.randomInt(100000, 1000000).toString();
+  const salt = await bcrypt.genSalt(10);
+  const hashedOtp = await bcrypt.hash(otp, salt);
+
+  await emailService.sendOTPEmail(user.email, otp, {
+    purpose,
+    expiryMinutes: 10,
+  });
+
+  user.resetPasswordOtp = hashedOtp;
+  user.resetPasswordOtpExpiry = new Date(Date.now() + OTP_EXPIRY_MS);
+  user.resetPasswordOtpAttempts = 0;
+  user.resetPasswordLastSentAt = new Date();
+  await user.save();
+};
+
+const verifyPasswordOtpAndUpdate = async (user, cleanOtp, newPassword) => {
+  const limitCheck = checkPasswordChangeLimit(user);
+  if (limitCheck.exceeded) {
+    const err = new Error(limitCheck.error);
+    err.statusCode = 429;
+    throw err;
+  }
+
+  if (!user.resetPasswordOtp || !user.resetPasswordOtpExpiry) {
+    const err = new Error('No verification code requested. Please request a 2FA code first.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (new Date() > user.resetPasswordOtpExpiry) {
+    user.resetPasswordOtp = null;
+    user.resetPasswordOtpExpiry = null;
+    user.resetPasswordOtpAttempts = 0;
+    await user.save();
+    const err = new Error('Verification code expired. Please request a new code.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if ((user.resetPasswordOtpAttempts || 0) >= MAX_OTP_ATTEMPTS) {
+    user.resetPasswordOtp = null;
+    user.resetPasswordOtpExpiry = null;
+    user.resetPasswordOtpAttempts = 0;
+    await user.save();
+    const err = new Error('Too many incorrect attempts. Please request a new verification code.');
+    err.statusCode = 429;
+    throw err;
+  }
+
+  const validOtp = await bcrypt.compare(cleanOtp, user.resetPasswordOtp);
+  if (!validOtp) {
+    const nextAttempts = (user.resetPasswordOtpAttempts || 0) + 1;
+    user.resetPasswordOtpAttempts = nextAttempts;
+
+    if (nextAttempts >= MAX_OTP_ATTEMPTS) {
+      user.resetPasswordOtp = null;
+      user.resetPasswordOtpExpiry = null;
+      user.resetPasswordOtpAttempts = 0;
+      await user.save();
+      const err = new Error('Too many incorrect attempts. Please request a new verification code.');
+      err.statusCode = 429;
+      throw err;
+    }
+
+    await user.save();
+    const remaining = MAX_OTP_ATTEMPTS - nextAttempts;
+    const err = new Error(`Invalid 2FA OTP code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const salt = await bcrypt.genSalt(12);
+  user.password = await bcrypt.hash(newPassword, salt);
+  user.isGoogleAccount = false;
+  user.resetPasswordOtp = null;
+  user.resetPasswordOtpExpiry = null;
+  user.resetPasswordOtpAttempts = 0;
+  user.resetPasswordLastSentAt = null;
+
+  const updatedHistory = (limitCheck.recentChanges || []).map((t) => new Date(t));
+  updatedHistory.push(new Date());
+  user.passwordChangeHistory = updatedHistory;
+
+  await user.save();
+};
+
 exports.sendForgotPasswordOtp = async (req, res) => {
   try {
     const { email } = req.body;
@@ -439,38 +567,16 @@ exports.sendForgotPasswordOtp = async (req, res) => {
       });
     }
 
-    // Check 2-times-per-day password change limit upfront
-    const limitCheck = checkPasswordChangeLimit(user);
-    if (limitCheck.exceeded) {
-      return res.status(429).json({ error: limitCheck.error });
+    if (user.isBanned) {
+      return res.status(403).json({
+        error: 'Your account has been suspended by an administrator. Please contact support.',
+        code: 'ACCOUNT_BANNED',
+        accountBanned: true,
+      });
     }
 
-    if (user.resetPasswordLastSentAt) {
-      const elapsedMs = Date.now() - new Date(user.resetPasswordLastSentAt).getTime();
-      if (elapsedMs < OTP_RESEND_COOLDOWN_MS) {
-        const waitSec = Math.ceil((OTP_RESEND_COOLDOWN_MS - elapsedMs) / 1000);
-        return res.status(429).json({
-          error: `Please wait ${waitSec}s before requesting another reset code.`,
-        });
-      }
-    }
-
-    const otp = crypto.randomInt(100000, 1000000).toString();
-    const salt = await bcrypt.genSalt(10);
-    const hashedOtp = await bcrypt.hash(otp, salt);
-
-    await emailService.sendOTPEmail(user.email, otp, {
-      purpose: 'Password Reset Verification',
-      expiryMinutes: 10,
-    });
-
-    user.resetPasswordOtp = hashedOtp;
-    user.resetPasswordOtpExpiry = new Date(Date.now() + OTP_EXPIRY_MS);
-    user.resetPasswordOtpAttempts = 0;
-    user.resetPasswordLastSentAt = new Date();
-    await user.save();
-
-    res.json({ message: 'Password reset verification code sent to your email.' });
+    await issuePasswordOtp(user, 'Password Reset 2FA Verification');
+    res.json({ message: 'Password reset 2FA verification code sent to your email.' });
   } catch (err) {
     console.error('sendForgotPasswordOtp error:', err);
     if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
@@ -478,6 +584,9 @@ exports.sendForgotPasswordOtp = async (req, res) => {
         error: 'Email delivery service is temporarily unavailable. Please try again later.',
         code: 'EMAIL_SERVICE_UNAVAILABLE',
       });
+    }
+    if (err && err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message });
     }
     res.status(500).json({ error: 'Failed to send password reset code. Please try again.' });
   }
@@ -511,72 +620,133 @@ exports.forgotPassword = async (req, res) => {
       });
     }
 
-    // Enforce 2-times-per-day password change limit
-    const limitCheck = checkPasswordChangeLimit(user);
-    if (limitCheck.exceeded) {
-      return res.status(429).json({ error: limitCheck.error });
-    }
-
-    if (!user.resetPasswordOtp || !user.resetPasswordOtpExpiry) {
-      return res.status(400).json({ error: 'No reset code requested. Please request a verification code first.' });
-    }
-
-    if (new Date() > user.resetPasswordOtpExpiry) {
-      user.resetPasswordOtp = null;
-      user.resetPasswordOtpExpiry = null;
-      user.resetPasswordOtpAttempts = 0;
-      await user.save();
-      return res.status(400).json({ error: 'Reset code expired. Please request a new code.' });
-    }
-
-    if ((user.resetPasswordOtpAttempts || 0) >= MAX_OTP_ATTEMPTS) {
-      user.resetPasswordOtp = null;
-      user.resetPasswordOtpExpiry = null;
-      user.resetPasswordOtpAttempts = 0;
-      await user.save();
-      return res.status(429).json({ error: 'Too many incorrect attempts. Please request a new reset code.' });
-    }
-
-    const validOtp = await bcrypt.compare(cleanOtp, user.resetPasswordOtp);
-    if (!validOtp) {
-      const nextAttempts = (user.resetPasswordOtpAttempts || 0) + 1;
-      user.resetPasswordOtpAttempts = nextAttempts;
-
-      if (nextAttempts >= MAX_OTP_ATTEMPTS) {
-        user.resetPasswordOtp = null;
-        user.resetPasswordOtpExpiry = null;
-        user.resetPasswordOtpAttempts = 0;
-        await user.save();
-        return res.status(429).json({
-          error: 'Too many incorrect attempts. Please request a new reset code.',
-        });
-      }
-
-      await user.save();
-      const remaining = MAX_OTP_ATTEMPTS - nextAttempts;
-      return res.status(400).json({
-        error: `Invalid OTP code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`,
+    if (user.isBanned) {
+      return res.status(403).json({
+        error: 'Your account has been suspended by an administrator. Please contact support.',
+        code: 'ACCOUNT_BANNED',
+        accountBanned: true,
       });
     }
 
-    const salt = await bcrypt.genSalt(12);
-    user.password = await bcrypt.hash(newPassword, salt);
-    user.resetPasswordOtp = null;
-    user.resetPasswordOtpExpiry = null;
-    user.resetPasswordOtpAttempts = 0;
-    user.resetPasswordLastSentAt = null;
-
-    // Record password change timestamp and prune entries older than 24 hours
-    const updatedHistory = (limitCheck.recentChanges || []).map((t) => new Date(t));
-    updatedHistory.push(new Date());
-    user.passwordChangeHistory = updatedHistory;
-
-    await user.save();
-
+    await verifyPasswordOtpAndUpdate(user, cleanOtp, newPassword);
     res.json({ message: 'Password updated successfully.' });
   } catch (err) {
     console.error('Forgot password error:', err);
+    if (err && err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
     res.status(500).json({ error: 'Failed to reset password.' });
+  }
+};
+
+exports.sendChangePasswordOtp = async (req, res) => {
+  try {
+    const userId = req.userId || (req.user && req.user._id);
+    const { currentPassword } = req.body || {};
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    if (user.isBanned) {
+      return res.status(403).json({
+        error: 'Your account has been suspended by an administrator.',
+        code: 'ACCOUNT_BANNED',
+        accountBanned: true,
+      });
+    }
+
+    if (!user.isGoogleAccount) {
+      if (!currentPassword || typeof currentPassword !== 'string') {
+        return res.status(400).json({
+          error: 'Please enter your current password to receive a 2FA verification code.',
+          field: 'currentPassword',
+        });
+      }
+      const validCurrent = await bcrypt.compare(currentPassword, user.password);
+      if (!validCurrent) {
+        return res.status(400).json({
+          error: 'Current password is incorrect.',
+          code: 'INVALID_PASSWORD',
+          field: 'currentPassword',
+        });
+      }
+    }
+
+    await issuePasswordOtp(user, 'Password Change 2FA Verification');
+    res.json({
+      message: '2FA verification code sent to your registered email.',
+      email: user.email,
+    });
+  } catch (err) {
+    console.error('sendChangePasswordOtp error:', err);
+    if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
+      return res.status(503).json({
+        error: 'Email delivery service is temporarily unavailable. Please try again later.',
+        code: 'EMAIL_SERVICE_UNAVAILABLE',
+      });
+    }
+    if (err && err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'Failed to send 2FA verification code. Please try again.' });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const userId = req.userId || (req.user && req.user._id);
+    const { currentPassword, otp, newPassword } = req.body || {};
+
+    if (!otp || !newPassword) {
+      return res.status(400).json({ error: '6-digit 2FA OTP code and new password are required.' });
+    }
+
+    const cleanOtp = String(otp).trim();
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      return res.status(400).json({ error: 'Please enter a valid 6-digit 2FA OTP code.' });
+    }
+
+    const pwdError = validateStrongPassword(newPassword);
+    if (pwdError) {
+      return res.status(400).json({ error: pwdError });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    if (user.isBanned) {
+      return res.status(403).json({
+        error: 'Your account has been suspended by an administrator.',
+        code: 'ACCOUNT_BANNED',
+        accountBanned: true,
+      });
+    }
+
+    if (!user.isGoogleAccount) {
+      if (!currentPassword || typeof currentPassword !== 'string') {
+        return res.status(400).json({ error: 'Current password is required.' });
+      }
+      const validCurrent = await bcrypt.compare(currentPassword, user.password);
+      if (!validCurrent) {
+        return res.status(400).json({ error: 'Current password is incorrect.', field: 'currentPassword' });
+      }
+      if (currentPassword === newPassword) {
+        return res.status(400).json({ error: 'New password must be different from your current password.' });
+      }
+    }
+
+    await verifyPasswordOtpAndUpdate(user, cleanOtp, newPassword);
+    res.json({ message: 'Password changed successfully.' });
+  } catch (err) {
+    console.error('changePassword error:', err);
+    if (err && err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'Failed to change password. Please try again.' });
   }
 };
 
@@ -591,17 +761,40 @@ exports.getProfile = async (req, res) => {
   }
 };
 
+/**
+ * Generates a unique, schema-safe username from a Google email address.
+ */
+const buildUniqueGoogleUsername = async (email) => {
+  let base = (email.split('@')[0] || 'user')
+    .replace(/[^a-zA-Z0-9_]/g, '')
+    .toLowerCase()
+    .slice(0, 32) || 'user';
+  if (base.length < 3) {
+    base = `${base}user`.slice(0, 32);
+  }
+
+  let candidate = base;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const exists = await User.findOne({ username: candidate }).select('_id').lean();
+    if (!exists) return candidate;
+    candidate = `${base.slice(0, 26)}${crypto.randomInt(100, 9999)}`;
+  }
+
+  return `${base.slice(0, 22)}_${crypto.randomBytes(4).toString('hex')}`;
+};
+
 exports.googleLogin = async (req, res) => {
   try {
-    const { sessionId, name, profilePhoto } = req.body;
+    const { sessionId, name, profilePhoto } = req.body || {};
+    const cleanSessionId = typeof sessionId === 'string' ? sessionId.trim() : '';
 
-    if (!sessionId || typeof sessionId !== 'string') {
+    if (!cleanSessionId) {
       return res.status(401).json({ error: 'Verified Google OAuth session is required.' });
     }
 
     let verifiedProfile;
     try {
-      verifiedProfile = await verifyClerkGoogleSession(sessionId);
+      verifiedProfile = await verifyClerkGoogleSession(cleanSessionId);
     } catch (verifyErr) {
       const status = verifyErr.message === 'CLERK_NOT_CONFIGURED'
         ? 503
@@ -616,43 +809,62 @@ exports.googleLogin = async (req, res) => {
 
     const cleanEmail = verifiedProfile.email;
     let user = await User.findOne({ email: cleanEmail });
+    let isNewUser = false;
 
     if (!user) {
       const uniqueId = await generateUniqueId();
-      const randomSecret = crypto.randomBytes(24).toString('hex');
-      const randomPassword = await bcrypt.hash(randomSecret, 12);
-      let cleanUsername = (cleanEmail.split('@')[0] || 'user')
-        .replace(/[^a-zA-Z0-9_]/g, '')
-        .toLowerCase()
-        .slice(0, 32) || 'user';
-      if (cleanUsername.length < 3) {
-        cleanUsername = `${cleanUsername}user`.slice(0, 32);
-      }
+      const randomPassword = await bcrypt.hash(crypto.randomBytes(24).toString('hex'), 12);
+      const cleanUsername = await buildUniqueGoogleUsername(cleanEmail);
+      const resolvedName =
+        verifiedProfile.name ||
+        (typeof name === 'string' && name.trim().slice(0, 80)) ||
+        cleanUsername;
+      const resolvedPhoto =
+        verifiedProfile.profilePhoto ||
+        (typeof profilePhoto === 'string' ? profilePhoto.trim() : '');
 
-      for (let attempt = 0; attempt < 5; attempt++) {
-        const existingUsername = await User.findOne({ username: cleanUsername }).select('_id').lean();
-        if (!existingUsername) break;
-        cleanUsername = `${cleanUsername.slice(0, 26)}${crypto.randomInt(100, 9999)}`;
-      }
-
-      user = new User({
-        uniqueId,
-        name: verifiedProfile.name || (typeof name === 'string' && name.trim()) || cleanUsername,
-        username: cleanUsername,
-        email: cleanEmail,
-        password: randomPassword,
-        isGoogleAccount: true,
-        profilePhoto: verifiedProfile.profilePhoto || (typeof profilePhoto === 'string' ? profilePhoto : ''),
-        city: '',
-      });
-
-      await user.save();
-    } else {
-      // Sync profile photo from Google if user has none
-      if (!user.profilePhoto && verifiedProfile.profilePhoto) {
-        user.profilePhoto = verifiedProfile.profilePhoto;
+      try {
+        user = new User({
+          uniqueId,
+          name: resolvedName,
+          username: cleanUsername,
+          email: cleanEmail,
+          password: randomPassword,
+          isGoogleAccount: true,
+          profilePhoto: resolvedPhoto,
+          city: '',
+        });
         await user.save();
+        isNewUser = true;
+      } catch (saveErr) {
+        if (saveErr && saveErr.code === 11000) {
+          // Concurrent sign-in/sign-up for same email: load existing user if present
+          const existingByEmail = await User.findOne({ email: cleanEmail });
+          if (existingByEmail) {
+            user = existingByEmail;
+          } else {
+            // Username or uniqueId collision: retry once with fresh values
+            user = new User({
+              uniqueId: await generateUniqueId(),
+              name: resolvedName,
+              username: `${cleanUsername.slice(0, 22)}_${crypto.randomBytes(4).toString('hex')}`,
+              email: cleanEmail,
+              password: randomPassword,
+              isGoogleAccount: true,
+              profilePhoto: resolvedPhoto,
+              city: '',
+            });
+            await user.save();
+            isNewUser = true;
+          }
+        } else {
+          throw saveErr;
+        }
       }
+    } else if (!user.profilePhoto && verifiedProfile.profilePhoto) {
+      // Sync profile photo from Google if user has none
+      user.profilePhoto = verifiedProfile.profilePhoto;
+      await user.save();
     }
 
     if (user.isBanned) {
@@ -663,10 +875,16 @@ exports.googleLogin = async (req, res) => {
       });
     }
 
-    const token = jwt.sign({ _id: user._id, uniqueId: user.uniqueId, role: user.role || 'user' }, getJwtSecret(), { expiresIn: '30d' });
-    res.json({
+    const token = jwt.sign(
+      { _id: user._id, uniqueId: user.uniqueId, role: user.role || 'user' },
+      getJwtSecret(),
+      { expiresIn: '30d' }
+    );
+
+    return res.json({
       token,
       user: serializeUser(user),
+      isNewUser,
     });
   } catch (err) {
     console.error('Google login error:', err);
@@ -675,7 +893,7 @@ exports.googleLogin = async (req, res) => {
         error: 'An account conflict occurred while completing Google Sign-In. Please tap Continue with Google once more.',
       });
     }
-    res.status(500).json({ error: 'Google authentication failed. Please try again.' });
+    return res.status(500).json({ error: 'Google authentication failed. Please try again.' });
   }
 };
 
