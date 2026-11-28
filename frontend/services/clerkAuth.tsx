@@ -86,16 +86,18 @@ export const useGoogleAuth = () => {
   const signInWithGoogle = async (): Promise<GoogleAuthResult> => {
     try {
       const redirectUrl = getOAuthRedirectUrl();
-      console.log('[Google OAuth] Starting flow', {
-        platform: Platform.OS,
-        redirectUrl,
-      });
+      if (__DEV__) {
+        console.log('[Google OAuth] Starting flow', {
+          platform: Platform.OS,
+          redirectUrl,
+        });
+      }
 
       let capturedCallbackUrl: string | null = null;
       const urlSub = Linking.addEventListener('url', (event) => {
         if (event?.url?.includes('sso-callback')) {
           capturedCallbackUrl = event.url;
-          console.log('[Google OAuth] Callback URL received:', event.url.split('?')[0]);
+          if (__DEV__) console.log('[Google OAuth] Callback URL received:', event.url.split('?')[0]);
         }
       });
 
@@ -118,16 +120,18 @@ export const useGoogleAuth = () => {
       const su = result?.signUp;
       const si = result?.signIn;
 
-      console.log('[Google OAuth] Flow result', {
-        authSessionType: sessionType ?? null,
-        capturedCallbackUrl: !!capturedCallbackUrl,
-        createdSessionId: result?.createdSessionId ?? null,
-        signInStatus: si?.status ?? null,
-        signInVerificationStatus: si?.firstFactorVerification?.status ?? null,
-        signUpStatus: su?.status ?? null,
-        signUpMissingFields: (su as any)?.missingFields ?? null,
-        signUpUnverifiedFields: (su as any)?.unverifiedFields ?? null,
-      });
+      if (__DEV__) {
+        console.log('[Google OAuth] Flow result', {
+          authSessionType: sessionType ?? null,
+          capturedCallbackUrl: !!capturedCallbackUrl,
+          createdSessionId: result?.createdSessionId ?? null,
+          signInStatus: si?.status ?? null,
+          signInVerificationStatus: si?.firstFactorVerification?.status ?? null,
+          signUpStatus: su?.status ?? null,
+          signUpMissingFields: (su as any)?.missingFields ?? null,
+          signUpUnverifiedFields: (su as any)?.unverifiedFields ?? null,
+        });
+      }
 
       if (sessionType === 'cancel' || sessionType === 'dismiss') {
         return { success: false, cancelled: true };

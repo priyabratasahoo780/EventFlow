@@ -21,12 +21,21 @@ function validateEnv() {
     logger.warn('[ENV] JWT_SECRET is shorter than 32 characters. Use a 64+ char random secret in production.');
   }
 
+  if (
+    process.env.NODE_ENV === 'production' &&
+    !process.env.BREVO_API_KEY &&
+    !(process.env.EMAIL_USER && process.env.EMAIL_PASS)
+  ) {
+    logger.warn('[ENV] Email OTP delivery is unconfigured: set BREVO_API_KEY or EMAIL_USER + EMAIL_PASS.');
+  }
+
   return {
     PORT: parseInt(process.env.PORT || '5000', 10),
     NODE_ENV: process.env.NODE_ENV || 'development',
     MONGO_URI: process.env.MONGO_URI,
     JWT_SECRET: process.env.JWT_SECRET,
     EXPO_ACCESS_TOKEN: process.env.EXPO_ACCESS_TOKEN || '',
+    BREVO_API_KEY: process.env.BREVO_API_KEY || '',
     EMAIL_USER: process.env.EMAIL_USER || '',
     EMAIL_PASS: process.env.EMAIL_PASS || '',
     EMAIL_FROM: process.env.EMAIL_FROM || '',
