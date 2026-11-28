@@ -17,7 +17,7 @@ const getJwtSecret = () => {
 };
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;     // 10 minutes
-const OTP_RESEND_COOLDOWN_MS = 25 * 1000; // 25 seconds server-side cooldown
+const OTP_RESEND_COOLDOWN_MS = 115 * 1000; // ~2 min cooldown (5s buffer under 120s UI timer)
 const MAX_OTP_ATTEMPTS = 5;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000; // 24 hours rolling day
 const MAX_DAILY_PASSWORD_CHANGES = 2; // Strict limit: max 2 changes per 24 hours
@@ -456,8 +456,12 @@ const issuePasswordOtp = async (user, purpose) => {
     const elapsedMs = Date.now() - new Date(user.resetPasswordLastSentAt).getTime();
     if (elapsedMs < OTP_RESEND_COOLDOWN_MS) {
       const waitSec = Math.ceil((OTP_RESEND_COOLDOWN_MS - elapsedMs) / 1000);
-      const err = new Error(`Please wait ${waitSec}s before requesting another verification code.`);
+      const mins = Math.floor(waitSec / 60);
+      const secs = waitSec % 60;
+      const waitLabel = mins > 0 ? `${mins}m ${String(secs).padStart(2, '0')}s` : `${waitSec}s`;
+      const err = new Error(`Please wait ${waitLabel} before requesting another verification code.`);
       err.statusCode = 429;
+      err.retryAfterSeconds = waitSec;
       throw err;
     }
   }
@@ -639,7 +643,10 @@ exports.sendForgotPasswordOtp = async (req, res) => {
       });
     }
     if (err && err.statusCode) {
-      return res.status(err.statusCode).json({ error: err.message });
+      return res.status(err.statusCode).json({
+        error: err.message,
+        ...(err.retryAfterSeconds ? { retryAfterSeconds: err.retryAfterSeconds } : {}),
+      });
     }
     res.status(500).json({ error: 'Failed to send password reset code. Please try again.' });
   }
@@ -684,7 +691,10 @@ exports.verifyForgotPasswordOtp = async (req, res) => {
   } catch (err) {
     console.error('verifyForgotPasswordOtp error:', err);
     if (err && err.statusCode) {
-      return res.status(err.statusCode).json({ error: err.message });
+      return res.status(err.statusCode).json({
+        error: err.message,
+        ...(err.retryAfterSeconds ? { retryAfterSeconds: err.retryAfterSeconds } : {}),
+      });
     }
     res.status(500).json({ error: 'Failed to verify OTP code.' });
   }
@@ -726,7 +736,10 @@ exports.forgotPassword = async (req, res) => {
   } catch (err) {
     console.error('Forgot password error:', err);
     if (err && err.statusCode) {
-      return res.status(err.statusCode).json({ error: err.message });
+      return res.status(err.statusCode).json({
+        error: err.message,
+        ...(err.retryAfterSeconds ? { retryAfterSeconds: err.retryAfterSeconds } : {}),
+      });
     }
     res.status(500).json({ error: 'Failed to reset password.' });
   }
@@ -782,7 +795,10 @@ exports.sendChangePasswordOtp = async (req, res) => {
       });
     }
     if (err && err.statusCode) {
-      return res.status(err.statusCode).json({ error: err.message });
+      return res.status(err.statusCode).json({
+        error: err.message,
+        ...(err.retryAfterSeconds ? { retryAfterSeconds: err.retryAfterSeconds } : {}),
+      });
     }
     res.status(500).json({ error: 'Failed to send 2FA verification code. Please try again.' });
   }
@@ -823,7 +839,10 @@ exports.verifyChangePasswordOtp = async (req, res) => {
   } catch (err) {
     console.error('verifyChangePasswordOtp error:', err);
     if (err && err.statusCode) {
-      return res.status(err.statusCode).json({ error: err.message });
+      return res.status(err.statusCode).json({
+        error: err.message,
+        ...(err.retryAfterSeconds ? { retryAfterSeconds: err.retryAfterSeconds } : {}),
+      });
     }
     res.status(500).json({ error: 'Failed to verify 2FA OTP code.' });
   }
@@ -874,7 +893,10 @@ exports.changePassword = async (req, res) => {
   } catch (err) {
     console.error('changePassword error:', err);
     if (err && err.statusCode) {
-      return res.status(err.statusCode).json({ error: err.message });
+      return res.status(err.statusCode).json({
+        error: err.message,
+        ...(err.retryAfterSeconds ? { retryAfterSeconds: err.retryAfterSeconds } : {}),
+      });
     }
     res.status(500).json({ error: 'Failed to change password. Please try again.' });
   }

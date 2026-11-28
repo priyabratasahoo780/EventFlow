@@ -47,6 +47,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
+import { useOtpCooldown } from '../hooks/useOtpCooldown';
 
 const currentPwdSchema = yup.object().shape({
   currentPassword: yup.string().required('Current password is required'),
@@ -101,7 +102,11 @@ export default function ChangePasswordScreen() {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [otpResending, setOtpResending] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
+  const {
+    remainingSec: resendCooldown,
+    formattedTime: resendFormatted,
+    startCooldown,
+  } = useOtpCooldown(120);
   const [bannerError, setBannerError] = useState('');
   const [modalConfig, setModalConfig] = useState<AuthModalConfig>(INITIAL_MODAL);
 
@@ -128,14 +133,6 @@ export default function ChangePasswordScreen() {
     );
   }, [shakeX]);
 
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = setInterval(() => {
-      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [resendCooldown]);
-
   const currentFormik = useFormik({
     initialValues: { currentPassword: '' },
     validationSchema: currentPwdSchema,
@@ -150,10 +147,17 @@ export default function ChangePasswordScreen() {
           currentPassword: values.currentPassword,
         });
         setVerifiedEmail(res.data?.email || user?.email || '');
-        setResendCooldown(30);
+        startCooldown(120);
         setStep('verify_otp');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       } catch (err: any) {
+        const retrySec = Number(err?.response?.data?.retryAfterSeconds || 0);
+        if (err?.response?.status === 429 && retrySec > 0) {
+          setVerifiedEmail(user?.email || '');
+          startCooldown(retrySec);
+          setStep('verify_otp');
+          return;
+        }
         triggerShake();
         const parsed = extractApiError(err, 'Could not send 2FA verification code.');
         setBannerError(parsed.message);
@@ -287,9 +291,13 @@ export default function ChangePasswordScreen() {
       await api.post('/auth/change-password/send-otp', {
         currentPassword: currentFormik.values.currentPassword,
       });
-      setResendCooldown(30);
+      startCooldown(120);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (err: any) {
+      const retrySec = Number(err?.response?.data?.retryAfterSeconds || 0);
+      if (err?.response?.status === 429 && retrySec > 0) {
+        startCooldown(retrySec);
+      }
       triggerShake();
       const parsed = extractApiError(err, 'Could not resend 2FA code. Please try again.');
       setBannerError(parsed.message);
@@ -534,7 +542,7 @@ export default function ChangePasswordScreen() {
                       { color: resendCooldown > 0 ? colors.textSecondary : colors.secondary },
                     ]}
                   >
-                    {resendCooldown > 0 ? `Resend 2FA code in ${resendCooldown}s` : 'Resend 2FA Code'}
+                    {resendCooldown > 0 ? `Resend 2FA code in ${resendFormatted}` : 'Resend 2FA Code'}
                   </Text>
                 )}
               </Pressable>

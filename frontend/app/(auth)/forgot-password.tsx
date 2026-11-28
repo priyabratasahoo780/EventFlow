@@ -46,6 +46,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
+import { useOtpCooldown } from '../../hooks/useOtpCooldown';
 
 const emailSchema = yup.object().shape({
   email: yup.string().trim().email('Invalid email address').required('Registered email is required'),
@@ -94,7 +95,11 @@ export default function ForgotPasswordScreen() {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [otpResending, setOtpResending] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
+  const {
+    remainingSec: resendCooldown,
+    formattedTime: resendFormatted,
+    startCooldown,
+  } = useOtpCooldown(120);
   const [bannerError, setBannerError] = useState('');
   const [modalConfig, setModalConfig] = useState<AuthModalConfig>(INITIAL_MODAL);
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
@@ -125,14 +130,6 @@ export default function ForgotPasswordScreen() {
     );
   }, [shakeX]);
 
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = setInterval(() => {
-      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [resendCooldown]);
-
   const emailFormik = useFormik({
     initialValues: { email: initialEmail },
     validationSchema: emailSchema,
@@ -146,10 +143,17 @@ export default function ForgotPasswordScreen() {
       try {
         await api.post('/auth/forgot-password/send-otp', { email: cleanEmail });
         setTargetEmail(cleanEmail);
-        setResendCooldown(30);
+        startCooldown(120);
         setStep('verify_otp');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       } catch (err: any) {
+        const retrySec = Number(err?.response?.data?.retryAfterSeconds || 0);
+        if (err?.response?.status === 429 && retrySec > 0) {
+          setTargetEmail(cleanEmail);
+          startCooldown(retrySec);
+          setStep('verify_otp');
+          return;
+        }
         triggerShake();
         const parsed = extractApiError(
           err,
@@ -303,9 +307,13 @@ export default function ForgotPasswordScreen() {
     setBannerError('');
     try {
       await api.post('/auth/forgot-password/send-otp', { email: targetEmail });
-      setResendCooldown(30);
+      startCooldown(120);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (err: any) {
+      const retrySec = Number(err?.response?.data?.retryAfterSeconds || 0);
+      if (err?.response?.status === 429 && retrySec > 0) {
+        startCooldown(retrySec);
+      }
       triggerShake();
       const parsed = extractApiError(err, 'Could not resend verification code. Please try again.');
       setBannerError(parsed.message);
@@ -540,7 +548,7 @@ export default function ForgotPasswordScreen() {
                       { color: resendCooldown > 0 ? colors.textSecondary : colors.secondary },
                     ]}
                   >
-                    {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend Code'}
+                    {resendCooldown > 0 ? `Resend code in ${resendFormatted}` : 'Resend Code'}
                   </Text>
                 )}
               </Pressable>
