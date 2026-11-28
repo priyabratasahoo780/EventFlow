@@ -175,6 +175,7 @@ function formatCountdown(nextIso?: string | null): string {
 }
 
 function getSubsystemIcon(name: string) {
+  if (name.includes('Gateway') || name.includes('HTTP')) return Activity;
   if (name.includes('MongoDB')) return Database;
   if (name.includes('Auth')) return ShieldCheck;
   if (name.includes('Email')) return Mail;
@@ -219,7 +220,7 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
   // Reanimated shared values
   const pulseScale = useSharedValue(1);
   const pulseOpacity = useSharedValue(0.85);
-  const animatedScore = useSharedValue(100);
+  const animatedScore = useSharedValue(0);
   const floatY = useSharedValue(0);
   const floatAltY = useSharedValue(0);
   const cardFloatY = useSharedValue(0);
@@ -340,7 +341,7 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
     try {
       const res = await api.get('/admin/monitoring');
       setData(res.data);
-      const score = Number(res.data?.healthScore ?? 100);
+      const score = Number(res.data?.healthScore ?? 0);
       animatedScore.value = withTiming(score, {
         duration: 850,
         easing: Easing.out(Easing.cubic),
@@ -377,7 +378,7 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
     try {
       const res = await api.post('/admin/monitoring/probe');
       setData(res.data);
-      animatedScore.value = withTiming(Number(res.data?.healthScore ?? 100), { duration: 650 });
+      animatedScore.value = withTiming(Number(res.data?.healthScore ?? 0), { duration: 650 });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (err: any) {
       Alert.alert('Probe Failed', err?.response?.data?.error || 'Could not run health probe.');
@@ -575,7 +576,9 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
                   />
                 </Svg>
                 <View style={styles.svgGaugeCenter}>
-                  <Text style={styles.gaugePercent}>{data?.healthScore ?? 100}%</Text>
+                  <Text style={styles.gaugePercent}>
+                    {typeof data?.healthScore === 'number' ? `${data.healthScore}%` : '—'}
+                  </Text>
                   <Text style={styles.gaugeLabel}>HEALTH</Text>
                 </View>
               </Animated.View>
@@ -788,9 +791,11 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
                         <ShieldCheck color="#10B981" size={14} />
                       </View>
                       <Text style={[styles.kpiTileVal, { color: '#10B981' }]}>
-                        {data?.stats?.successRate ?? 100}%
+                        {typeof data?.stats?.successRate === 'number' ? `${data.stats.successRate}%` : '—'}
                       </Text>
-                      <Text style={[styles.kpiTag, { color: '#10B981' }]}>Zero 5xx Crash</Text>
+                      <Text style={[styles.kpiTag, { color: '#10B981' }]}>
+                        {rawTotalReq > 0 ? `${statusCounts.s5xx} Server Err` : 'Awaiting Traffic'}
+                      </Text>
                     </View>
                   </SvgDashedFrame>
                 </Animated.View>
@@ -929,7 +934,7 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
                   const c =
                     sub.status === 'ok' ? '#10B981' : sub.status === 'degraded' ? '#F59E0B' : '#EF4444';
                   const lat = Number(sub.latencyMs || 0);
-                  const barPct = Math.min(100, Math.max(10, Math.round((Math.max(5, lat) / 300) * 100)));
+                  const barPct = Math.min(100, Math.round((lat / 500) * 100));
                   return (
                     <Animated.View key={sub.name} entering={FadeInRight.delay(idx * 50).duration(300)}>
                       <SvgDashedFrame
