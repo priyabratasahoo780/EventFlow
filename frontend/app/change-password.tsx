@@ -42,6 +42,7 @@ import {
   KeyRound,
   ArrowRight,
   AlertCircle,
+  CheckCircle2,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useFormik } from 'formik';
@@ -51,12 +52,15 @@ const currentPwdSchema = yup.object().shape({
   currentPassword: yup.string().required('Current password is required'),
 });
 
-const changeSchema = yup.object().shape({
+const otpSchema = yup.object().shape({
   otp: yup
     .string()
     .trim()
     .matches(/^\d{6}$/, 'Enter the 6-digit 2FA code')
     .required('6-digit 2FA OTP is required'),
+});
+
+const newPwdSchema = yup.object().shape({
   newPassword: yup
     .string()
     .min(8, 'Password must be at least 8 characters')
@@ -88,8 +92,9 @@ export default function ChangePasswordScreen() {
   const { authMaxWidth, isSmall } = useResponsive();
   const router = useRouter();
 
-  const [step, setStep] = useState<'verify_current' | 'confirm_otp'>('verify_current');
+  const [step, setStep] = useState<'verify_current' | 'verify_otp' | 'set_password'>('verify_current');
   const [verifiedEmail, setVerifiedEmail] = useState(user?.email || '');
+  const [resetToken, setResetToken] = useState('');
   const [showCurrentPwd, setShowCurrentPwd] = useState(false);
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
@@ -100,7 +105,6 @@ export default function ChangePasswordScreen() {
   const [bannerError, setBannerError] = useState('');
   const [modalConfig, setModalConfig] = useState<AuthModalConfig>(INITIAL_MODAL);
 
-  const newPwdRef = useRef<ComponentRef<typeof TextInput>>(null);
   const confirmPwdRef = useRef<ComponentRef<typeof TextInput>>(null);
 
   const closeModal = useCallback(() => {
@@ -147,7 +151,7 @@ export default function ChangePasswordScreen() {
         });
         setVerifiedEmail(res.data?.email || user?.email || '');
         setResendCooldown(30);
-        setStep('confirm_otp');
+        setStep('verify_otp');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       } catch (err: any) {
         triggerShake();
@@ -169,9 +173,41 @@ export default function ChangePasswordScreen() {
     },
   });
 
-  const changeFormik = useFormik({
-    initialValues: { otp: '', newPassword: '', confirmPassword: '' },
-    validationSchema: changeSchema,
+  const otpFormik = useFormik({
+    initialValues: { otp: '' },
+    validationSchema: otpSchema,
+    onSubmit: async (values) => {
+      if (loading) return;
+      setLoading(true);
+      setBannerError('');
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+
+      try {
+        const res = await api.post('/auth/change-password/verify-otp', {
+          otp: values.otp.trim(),
+        });
+        setResetToken(res.data?.resetToken || '');
+        setStep('set_password');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      } catch (err: any) {
+        triggerShake();
+        const parsed = extractApiError(err, 'OTP is wrong. Please check your code and try again.');
+        setBannerError(parsed.message);
+        setModalConfig({
+          visible: true,
+          type: parsed.isNetworkError || parsed.isTimeout ? 'network' : 'error',
+          title: 'Invalid OTP',
+          message: parsed.message,
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+  });
+
+  const newPwdFormik = useFormik({
+    initialValues: { newPassword: '', confirmPassword: '' },
+    validationSchema: newPwdSchema,
     onSubmit: async (values) => {
       if (loading) return;
       setLoading(true);
@@ -181,7 +217,7 @@ export default function ChangePasswordScreen() {
       try {
         await api.post('/auth/change-password', {
           currentPassword: currentFormik.values.currentPassword,
-          otp: values.otp.trim(),
+          resetToken,
           newPassword: values.newPassword,
         });
 
@@ -203,7 +239,7 @@ export default function ChangePasswordScreen() {
         });
       } catch (err: any) {
         triggerShake();
-        const parsed = extractApiError(err, 'Unable to verify 2FA OTP or update password.');
+        const parsed = extractApiError(err, 'Unable to update password. Please try again.');
         setBannerError(parsed.message);
         setModalConfig({
           visible: true,
@@ -228,6 +264,19 @@ export default function ChangePasswordScreen() {
       return;
     }
     currentFormik.handleSubmit();
+  };
+
+  const handleVerifyOtp = async () => {
+    Keyboard.dismiss();
+    setBannerError('');
+    const errors = await otpFormik.validateForm();
+    if (errors.otp) {
+      otpFormik.setTouched({ otp: true });
+      setBannerError(String(errors.otp));
+      triggerShake();
+      return;
+    }
+    otpFormik.handleSubmit();
   };
 
   const handleResendOtp = async () => {
@@ -258,16 +307,30 @@ export default function ChangePasswordScreen() {
   const handleConfirmChange = async () => {
     Keyboard.dismiss();
     setBannerError('');
-    const errors = await changeFormik.validateForm();
-    const firstErr = errors.otp || errors.newPassword || errors.confirmPassword;
+    const errors = await newPwdFormik.validateForm();
+    const firstErr = errors.newPassword || errors.confirmPassword;
     if (firstErr) {
-      changeFormik.setTouched({ otp: true, newPassword: true, confirmPassword: true });
+      newPwdFormik.setTouched({ newPassword: true, confirmPassword: true });
       setBannerError(String(firstErr));
       triggerShake();
       return;
     }
-    changeFormik.handleSubmit();
+    newPwdFormik.handleSubmit();
   };
+
+  const headerTitle =
+    step === 'verify_current'
+      ? 'Change Password'
+      : step === 'verify_otp'
+        ? '2FA Verification'
+        : 'Set New Password';
+
+  const headerSubtitle =
+    step === 'verify_current'
+      ? 'Verify your current password to receive a 2FA email code.'
+      : step === 'verify_otp'
+        ? 'Enter the 6-digit OTP sent to your email and tap Verify OTP.'
+        : 'OTP verified! Now enter your new strong password.';
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -294,17 +357,17 @@ export default function ChangePasswordScreen() {
           ]}
         >
           <AuthHeader
-            title={step === 'confirm_otp' ? '2FA Verification' : 'Change Password'}
-            subtitle={
-              step === 'confirm_otp'
-                ? 'Enter the 6-digit 2FA code sent to your email and set your new password.'
-                : 'Verify your current password to receive a 2FA email code.'
-            }
+            title={headerTitle}
+            subtitle={headerSubtitle}
             onBack={() => {
-              if (step === 'confirm_otp') {
+              if (step === 'set_password') {
+                setStep('verify_otp');
+                setBannerError('');
+                newPwdFormik.resetForm();
+              } else if (step === 'verify_otp') {
                 setStep('verify_current');
                 setBannerError('');
-                changeFormik.resetForm();
+                otpFormik.resetForm();
               } else if (router.canGoBack()) {
                 router.back();
               } else {
@@ -329,7 +392,7 @@ export default function ChangePasswordScreen() {
             </Animated.View>
           ) : null}
 
-          {step === 'verify_current' ? (
+          {step === 'verify_current' && (
             <Animated.View entering={FadeInDown.duration(360)} style={shakeStyle}>
               <AuthInput
                 colors={colors}
@@ -386,7 +449,9 @@ export default function ChangePasswordScreen() {
                 />
               </View>
             </Animated.View>
-          ) : (
+          )}
+
+          {step === 'verify_otp' && (
             <Animated.View entering={FadeInDown.duration(380)} style={shakeStyle}>
               <Animated.View
                 entering={ZoomIn.duration(360)}
@@ -420,8 +485,8 @@ export default function ChangePasswordScreen() {
                 isDark={dark}
                 label="2FA VERIFICATION CODE"
                 isFocused={focusedField === 'otp'}
-                error={changeFormik.errors.otp}
-                touched={changeFormik.touched.otp}
+                error={otpFormik.errors.otp}
+                touched={otpFormik.touched.otp}
                 leftIcon={
                   <KeyRound
                     color={
@@ -431,31 +496,78 @@ export default function ChangePasswordScreen() {
                   />
                 }
                 placeholder="123456"
-                value={changeFormik.values.otp}
+                value={otpFormik.values.otp}
                 onChangeText={(text) => {
-                  changeFormik.setFieldValue('otp', text.replace(/[^0-9]/g, '').slice(0, 6));
+                  otpFormik.setFieldValue('otp', text.replace(/[^0-9]/g, '').slice(0, 6));
                   if (bannerError) setBannerError('');
                 }}
                 onFocus={() => setFocusedField('otp')}
                 onBlur={() => {
                   setFocusedField(null);
-                  changeFormik.setFieldTouched('otp', true);
+                  otpFormik.setFieldTouched('otp', true);
                 }}
                 keyboardType="number-pad"
                 maxLength={6}
-                returnKeyType="next"
-                onSubmitEditing={() => newPwdRef.current?.focus()}
+                returnKeyType="done"
+                onSubmitEditing={handleVerifyOtp}
                 style={styles.otpInput}
               />
 
+              <AnimatedPrimaryButton
+                title="Verify OTP"
+                onPress={handleVerifyOtp}
+                loading={loading}
+                rightIcon={<ArrowRight color="#FFF" size={18} strokeWidth={2.5} />}
+              />
+
+              <Pressable
+                onPress={handleResendOtp}
+                disabled={otpResending || resendCooldown > 0}
+                style={styles.resendRow}
+              >
+                {otpResending ? (
+                  <ActivityIndicator size="small" color={colors.secondary} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.resendText,
+                      { color: resendCooldown > 0 ? colors.textSecondary : colors.secondary },
+                    ]}
+                  >
+                    {resendCooldown > 0 ? `Resend 2FA code in ${resendCooldown}s` : 'Resend 2FA Code'}
+                  </Text>
+                )}
+              </Pressable>
+            </Animated.View>
+          )}
+
+          {step === 'set_password' && (
+            <Animated.View entering={FadeInDown.duration(380)} style={shakeStyle}>
+              <Animated.View
+                entering={ZoomIn.duration(340)}
+                style={[
+                  styles.otpBadgeCard,
+                  {
+                    backgroundColor: colors.successLight,
+                    borderColor: colors.success,
+                  },
+                ]}
+              >
+                <View style={[styles.otpIconWrap, { backgroundColor: colors.card }]}>
+                  <CheckCircle2 color={colors.success} size={28} strokeWidth={2.2} />
+                </View>
+                <Text style={[styles.otpSub, { color: colors.text }]}>
+                  2FA OTP Verified! Set your new password below.
+                </Text>
+              </Animated.View>
+
               <AuthInput
-                ref={newPwdRef}
                 colors={colors}
                 isDark={dark}
                 label="NEW PASSWORD"
                 isFocused={focusedField === 'newPassword'}
-                error={changeFormik.errors.newPassword}
-                touched={changeFormik.touched.newPassword}
+                error={newPwdFormik.errors.newPassword}
+                touched={newPwdFormik.touched.newPassword}
                 leftIcon={
                   <Lock
                     color={
@@ -480,15 +592,15 @@ export default function ChangePasswordScreen() {
                   </Pressable>
                 }
                 placeholder="Min 8 chars, A-Z, 0-9, symbol"
-                value={changeFormik.values.newPassword}
+                value={newPwdFormik.values.newPassword}
                 onChangeText={(text) => {
-                  changeFormik.handleChange('newPassword')(text);
+                  newPwdFormik.handleChange('newPassword')(text);
                   if (bannerError) setBannerError('');
                 }}
                 onFocus={() => setFocusedField('newPassword')}
                 onBlur={() => {
                   setFocusedField(null);
-                  changeFormik.setFieldTouched('newPassword', true);
+                  newPwdFormik.setFieldTouched('newPassword', true);
                 }}
                 secureTextEntry={!showNewPwd}
                 returnKeyType="next"
@@ -501,8 +613,8 @@ export default function ChangePasswordScreen() {
                 isDark={dark}
                 label="CONFIRM NEW PASSWORD"
                 isFocused={focusedField === 'confirmPassword'}
-                error={changeFormik.errors.confirmPassword}
-                touched={changeFormik.touched.confirmPassword}
+                error={newPwdFormik.errors.confirmPassword}
+                touched={newPwdFormik.touched.confirmPassword}
                 leftIcon={
                   <Lock
                     color={
@@ -527,15 +639,15 @@ export default function ChangePasswordScreen() {
                   </Pressable>
                 }
                 placeholder="Re-enter new password"
-                value={changeFormik.values.confirmPassword}
+                value={newPwdFormik.values.confirmPassword}
                 onChangeText={(text) => {
-                  changeFormik.handleChange('confirmPassword')(text);
+                  newPwdFormik.handleChange('confirmPassword')(text);
                   if (bannerError) setBannerError('');
                 }}
                 onFocus={() => setFocusedField('confirmPassword')}
                 onBlur={() => {
                   setFocusedField(null);
-                  changeFormik.setFieldTouched('confirmPassword', true);
+                  newPwdFormik.setFieldTouched('confirmPassword', true);
                 }}
                 secureTextEntry={!showConfirmPwd}
                 returnKeyType="done"
@@ -543,30 +655,11 @@ export default function ChangePasswordScreen() {
               />
 
               <AnimatedPrimaryButton
-                title="Verify 2FA & Update Password"
+                title="Update Password"
                 onPress={handleConfirmChange}
                 loading={loading}
                 rightIcon={<ArrowRight color="#FFF" size={18} strokeWidth={2.5} />}
               />
-
-              <Pressable
-                onPress={handleResendOtp}
-                disabled={otpResending || resendCooldown > 0}
-                style={styles.resendRow}
-              >
-                {otpResending ? (
-                  <ActivityIndicator size="small" color={colors.secondary} />
-                ) : (
-                  <Text
-                    style={[
-                      styles.resendText,
-                      { color: resendCooldown > 0 ? colors.textSecondary : colors.secondary },
-                    ]}
-                  >
-                    {resendCooldown > 0 ? `Resend 2FA code in ${resendCooldown}s` : 'Resend 2FA Code'}
-                  </Text>
-                )}
-              </Pressable>
             </Animated.View>
           )}
         </ScrollView>

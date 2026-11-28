@@ -478,7 +478,7 @@ const issuePasswordOtp = async (user, purpose) => {
   await user.save();
 };
 
-const verifyPasswordOtpAndUpdate = async (user, cleanOtp, newPassword) => {
+const checkOtpForUser = async (user, cleanOtp) => {
   const limitCheck = checkPasswordChangeLimit(user);
   if (limitCheck.exceeded) {
     const err = new Error(limitCheck.error);
@@ -529,9 +529,57 @@ const verifyPasswordOtpAndUpdate = async (user, cleanOtp, newPassword) => {
 
     await user.save();
     const remaining = MAX_OTP_ATTEMPTS - nextAttempts;
-    const err = new Error(`Invalid 2FA OTP code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`);
+    const err = new Error(`OTP is wrong. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`);
     err.statusCode = 400;
     throw err;
+  }
+
+  return limitCheck;
+};
+
+const signPasswordResetToken = (userId) =>
+  jwt.sign({ _id: userId, purpose: 'password_otp_verified' }, getJwtSecret(), { expiresIn: '10m' });
+
+const verifyPasswordResetToken = (resetToken, userId) => {
+  try {
+    const decoded = jwt.verify(resetToken, getJwtSecret());
+    return Boolean(
+      decoded &&
+        decoded.purpose === 'password_otp_verified' &&
+        String(decoded._id) === String(userId)
+    );
+  } catch {
+    return false;
+  }
+};
+
+const verifyPasswordOtpAndUpdate = async (user, { otp, resetToken }, newPassword) => {
+  let limitCheck;
+  if (resetToken && typeof resetToken === 'string') {
+    if (!user.resetPasswordOtp || !user.resetPasswordOtpExpiry || new Date() > user.resetPasswordOtpExpiry) {
+      const err = new Error('Verification session expired. Please request a new OTP.');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!verifyPasswordResetToken(resetToken, user._id)) {
+      const err = new Error('Invalid or expired verification session. Please verify OTP again.');
+      err.statusCode = 401;
+      throw err;
+    }
+    limitCheck = checkPasswordChangeLimit(user);
+    if (limitCheck.exceeded) {
+      const err = new Error(limitCheck.error);
+      err.statusCode = 429;
+      throw err;
+    }
+  } else {
+    const cleanOtp = String(otp || '').trim();
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      const err = new Error('Please enter a valid 6-digit OTP code.');
+      err.statusCode = 400;
+      throw err;
+    }
+    limitCheck = await checkOtpForUser(user, cleanOtp);
   }
 
   const salt = await bcrypt.genSalt(12);
@@ -592,16 +640,56 @@ exports.sendForgotPasswordOtp = async (req, res) => {
   }
 };
 
-exports.forgotPassword = async (req, res) => {
+exports.verifyForgotPasswordOtp = async (req, res) => {
   try {
-    const { email, otp, newPassword } = req.body;
-    if (!email || !otp || !newPassword) {
-      return res.status(400).json({ error: 'Email, 6-digit OTP code, and new password are required.' });
+    const { email, otp } = req.body || {};
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and 6-digit OTP code are required.' });
     }
 
     const cleanOtp = String(otp).trim();
     if (!/^\d{6}$/.test(cleanOtp)) {
       return res.status(400).json({ error: 'Please enter a valid 6-digit OTP code.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail });
+    if (!user) {
+      return res.status(404).json({
+        error: 'No account found with this email address.',
+        code: 'ACCOUNT_NOT_FOUND',
+        accountNotFound: true,
+      });
+    }
+
+    if (user.isBanned) {
+      return res.status(403).json({
+        error: 'Your account has been suspended by an administrator. Please contact support.',
+        code: 'ACCOUNT_BANNED',
+        accountBanned: true,
+      });
+    }
+
+    await checkOtpForUser(user, cleanOtp);
+    user.resetPasswordOtpAttempts = 0;
+    await user.save();
+
+    const resetToken = signPasswordResetToken(user._id);
+    res.json({ verified: true, resetToken, message: 'OTP verified. You can now set a new password.' });
+  } catch (err) {
+    console.error('verifyForgotPasswordOtp error:', err);
+    if (err && err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'Failed to verify OTP code.' });
+  }
+};
+
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email, otp, resetToken, newPassword } = req.body || {};
+    if (!email || (!otp && !resetToken) || !newPassword) {
+      return res.status(400).json({ error: 'Email, verification proof, and new password are required.' });
     }
 
     const pwdError = validateStrongPassword(newPassword);
@@ -628,7 +716,7 @@ exports.forgotPassword = async (req, res) => {
       });
     }
 
-    await verifyPasswordOtpAndUpdate(user, cleanOtp, newPassword);
+    await verifyPasswordOtpAndUpdate(user, { otp, resetToken }, newPassword);
     res.json({ message: 'Password updated successfully.' });
   } catch (err) {
     console.error('Forgot password error:', err);
@@ -694,18 +782,54 @@ exports.sendChangePasswordOtp = async (req, res) => {
   }
 };
 
-exports.changePassword = async (req, res) => {
+exports.verifyChangePasswordOtp = async (req, res) => {
   try {
     const userId = req.userId || (req.user && req.user._id);
-    const { currentPassword, otp, newPassword } = req.body || {};
-
-    if (!otp || !newPassword) {
-      return res.status(400).json({ error: '6-digit 2FA OTP code and new password are required.' });
+    const { otp } = req.body || {};
+    if (!otp) {
+      return res.status(400).json({ error: '6-digit 2FA OTP code is required.' });
     }
 
     const cleanOtp = String(otp).trim();
     if (!/^\d{6}$/.test(cleanOtp)) {
       return res.status(400).json({ error: 'Please enter a valid 6-digit 2FA OTP code.' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    if (user.isBanned) {
+      return res.status(403).json({
+        error: 'Your account has been suspended by an administrator.',
+        code: 'ACCOUNT_BANNED',
+        accountBanned: true,
+      });
+    }
+
+    await checkOtpForUser(user, cleanOtp);
+    user.resetPasswordOtpAttempts = 0;
+    await user.save();
+
+    const resetToken = signPasswordResetToken(user._id);
+    res.json({ verified: true, resetToken, message: '2FA OTP verified. You can now set a new password.' });
+  } catch (err) {
+    console.error('verifyChangePasswordOtp error:', err);
+    if (err && err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
+    res.status(500).json({ error: 'Failed to verify 2FA OTP code.' });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const userId = req.userId || (req.user && req.user._id);
+    const { currentPassword, otp, resetToken, newPassword } = req.body || {};
+
+    if ((!otp && !resetToken) || !newPassword) {
+      return res.status(400).json({ error: '2FA verification proof and new password are required.' });
     }
 
     const pwdError = validateStrongPassword(newPassword);
@@ -739,7 +863,7 @@ exports.changePassword = async (req, res) => {
       }
     }
 
-    await verifyPasswordOtpAndUpdate(user, cleanOtp, newPassword);
+    await verifyPasswordOtpAndUpdate(user, { otp, resetToken }, newPassword);
     res.json({ message: 'Password changed successfully.' });
   } catch (err) {
     console.error('changePassword error:', err);

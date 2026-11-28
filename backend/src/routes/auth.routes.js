@@ -13,8 +13,10 @@ router.post('/login', authLimiter, authController.login);
 router.post('/google', authLimiter, authController.googleLogin);
 router.post('/sync', auth, authController.syncUser);
 router.post('/forgot-password/send-otp', otpLimiter, authController.sendForgotPasswordOtp);
+router.post('/forgot-password/verify-otp', otpLimiter, authController.verifyForgotPasswordOtp);
 router.post('/forgot-password', otpLimiter, authController.forgotPassword);
 router.post('/change-password/send-otp', auth, otpLimiter, authController.sendChangePasswordOtp);
+router.post('/change-password/verify-otp', auth, otpLimiter, authController.verifyChangePasswordOtp);
 router.post('/change-password', auth, otpLimiter, authController.changePassword);
 router.get('/profile', auth, authController.getProfile);
 

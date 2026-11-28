@@ -51,12 +51,15 @@ const emailSchema = yup.object().shape({
   email: yup.string().trim().email('Invalid email address').required('Registered email is required'),
 });
 
-const resetSchema = yup.object().shape({
+const otpSchema = yup.object().shape({
   otp: yup
     .string()
     .trim()
     .matches(/^\d{6}$/, 'Enter the 6-digit verification code')
     .required('6-digit OTP is required'),
+});
+
+const resetSchema = yup.object().shape({
   newPassword: yup
     .string()
     .min(8, 'Password must be at least 8 characters')
@@ -84,8 +87,9 @@ export default function ForgotPasswordScreen() {
   const params = useLocalSearchParams<{ email?: string }>();
   const initialEmail = typeof params.email === 'string' ? params.email.trim() : '';
 
-  const [step, setStep] = useState<'request' | 'verify'>('request');
+  const [step, setStep] = useState<'request' | 'verify_otp' | 'set_password'>('request');
   const [targetEmail, setTargetEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -143,7 +147,7 @@ export default function ForgotPasswordScreen() {
         await api.post('/auth/forgot-password/send-otp', { email: cleanEmail });
         setTargetEmail(cleanEmail);
         setResendCooldown(30);
-        setStep('verify');
+        setStep('verify_otp');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       } catch (err: any) {
         triggerShake();
@@ -191,8 +195,41 @@ export default function ForgotPasswordScreen() {
     },
   });
 
+  const otpFormik = useFormik({
+    initialValues: { otp: '' },
+    validationSchema: otpSchema,
+    onSubmit: async (values) => {
+      if (loading) return;
+      setLoading(true);
+      setBannerError('');
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+
+      try {
+        const res = await api.post('/auth/forgot-password/verify-otp', {
+          email: targetEmail,
+          otp: values.otp.trim(),
+        });
+        setResetToken(res.data?.resetToken || '');
+        setStep('set_password');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      } catch (err: any) {
+        triggerShake();
+        const parsed = extractApiError(err, 'OTP is wrong. Please check your code and try again.');
+        setBannerError(parsed.message);
+        setModalConfig({
+          visible: true,
+          type: parsed.isNetworkError || parsed.isTimeout ? 'network' : 'error',
+          title: 'Invalid OTP',
+          message: parsed.message,
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+  });
+
   const resetFormik = useFormik({
-    initialValues: { otp: '', newPassword: '' },
+    initialValues: { newPassword: '' },
     validationSchema: resetSchema,
     onSubmit: async (values) => {
       if (loading) return;
@@ -203,7 +240,7 @@ export default function ForgotPasswordScreen() {
       try {
         await api.post('/auth/forgot-password', {
           email: targetEmail,
-          otp: values.otp.trim(),
+          resetToken,
           newPassword: values.newPassword,
         });
 
@@ -283,14 +320,26 @@ export default function ForgotPasswordScreen() {
     }
   };
 
+  const handleVerifyOtp = async () => {
+    Keyboard.dismiss();
+    setBannerError('');
+    const errors = await otpFormik.validateForm();
+    if (errors.otp) {
+      otpFormik.setTouched({ otp: true });
+      setBannerError(String(errors.otp));
+      triggerShake();
+      return;
+    }
+    otpFormik.handleSubmit();
+  };
+
   const handleResetSubmit = async () => {
     Keyboard.dismiss();
     setBannerError('');
     const errors = await resetFormik.validateForm();
-    const firstErr = errors.otp || errors.newPassword;
-    if (firstErr) {
-      resetFormik.setTouched({ otp: true, newPassword: true });
-      setBannerError(String(firstErr));
+    if (errors.newPassword) {
+      resetFormik.setTouched({ newPassword: true });
+      setBannerError(String(errors.newPassword));
       triggerShake();
       return;
     }
@@ -321,17 +370,28 @@ export default function ForgotPasswordScreen() {
           ]}
         >
           <AuthHeader
-            title={step === 'verify' ? 'Verify & Reset' : 'Forgot Password?'}
+            title={
+              step === 'set_password'
+                ? 'Set New Password'
+                : step === 'verify_otp'
+                  ? 'Verify 2FA OTP'
+                  : 'Forgot Password?'
+            }
             subtitle={
-              step === 'verify'
-                ? 'Enter the 6-digit code sent to your email and set a new password.'
-                : 'Enter your registered email to receive a secure verification OTP.'
+              step === 'set_password'
+                ? 'OTP verified! Enter your new strong password below.'
+                : step === 'verify_otp'
+                  ? 'Enter the 6-digit OTP sent to your email and tap Verify OTP.'
+                  : 'Enter your registered email to receive a secure verification OTP.'
             }
             onBack={() => {
               setBannerError('');
-              if (step === 'verify') {
-                setStep('request');
+              if (step === 'set_password') {
+                setStep('verify_otp');
                 resetFormik.resetForm();
+              } else if (step === 'verify_otp') {
+                setStep('request');
+                otpFormik.resetForm();
               } else {
                 router.back();
               }
@@ -402,9 +462,9 @@ export default function ForgotPasswordScreen() {
                 />
               </Animated.View>
             </Animated.View>
-          ) : (
+          ) : step === 'verify_otp' ? (
             <Animated.View
-              key="step-verify"
+              key="step-verify-otp"
               entering={FadeInDown.duration(350).springify()}
               exiting={FadeOutUp.duration(200)}
               style={shakeStyle}
@@ -430,9 +490,9 @@ export default function ForgotPasswordScreen() {
                 colors={colors}
                 isDark={dark}
                 isFocused={focusedField === 'otp'}
-                error={resetFormik.errors.otp}
-                touched={resetFormik.touched.otp}
-                isValid={/^\d{6}$/.test(resetFormik.values.otp)}
+                error={otpFormik.errors.otp}
+                touched={otpFormik.touched.otp}
+                isValid={/^\d{6}$/.test(otpFormik.values.otp)}
                 leftIcon={
                   <KeyRound
                     color={focusedField === 'otp' ? colors.secondary : colors.textSecondary}
@@ -441,72 +501,27 @@ export default function ForgotPasswordScreen() {
                   />
                 }
                 placeholder="123456"
-                value={resetFormik.values.otp}
+                value={otpFormik.values.otp}
                 onChangeText={(t) => {
                   if (bannerError) setBannerError('');
-                  resetFormik.setFieldValue('otp', t.replace(/[^0-9]/g, ''));
+                  otpFormik.setFieldValue('otp', t.replace(/[^0-9]/g, ''));
                 }}
                 onFocus={() => setFocusedField('otp')}
                 onBlur={() => {
                   setFocusedField(null);
-                  resetFormik.setFieldTouched('otp', true);
+                  otpFormik.setFieldTouched('otp', true);
                 }}
                 keyboardType="number-pad"
                 maxLength={6}
                 autoFocus
-                returnKeyType="next"
-                blurOnSubmit={false}
-                onSubmitEditing={() => passwordRef.current?.focus()}
+                returnKeyType="done"
+                onSubmitEditing={handleVerifyOtp}
                 style={styles.otpInput}
               />
 
-              <AuthInput
-                ref={passwordRef}
-                label="NEW PASSWORD"
-                colors={colors}
-                isDark={dark}
-                isFocused={focusedField === 'newPassword'}
-                error={resetFormik.errors.newPassword}
-                touched={resetFormik.touched.newPassword}
-                leftIcon={
-                  <Lock
-                    color={focusedField === 'newPassword' ? colors.secondary : colors.textSecondary}
-                    size={18}
-                    strokeWidth={2}
-                  />
-                }
-                rightElement={
-                  <Pressable
-                    style={styles.eyeBtn}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setShowPassword((prev) => !prev);
-                    }}
-                    hitSlop={10}
-                  >
-                    {showPassword ? (
-                      <EyeOff color={colors.textSecondary} size={18} />
-                    ) : (
-                      <Eye color={colors.textSecondary} size={18} />
-                    )}
-                  </Pressable>
-                }
-                placeholder="Min 8 chars, A-Z, a-z, 0-9, !@#"
-                value={resetFormik.values.newPassword}
-                onChangeText={resetFormik.handleChange('newPassword')}
-                onFocus={() => setFocusedField('newPassword')}
-                onBlur={() => {
-                  setFocusedField(null);
-                  resetFormik.setFieldTouched('newPassword', true);
-                }}
-                secureTextEntry={!showPassword}
-                returnKeyType="done"
-                onSubmitEditing={handleResetSubmit}
-              />
-
               <AnimatedPrimaryButton
-                title="Reset Password"
-                onPress={handleResetSubmit}
+                title="Verify OTP"
+                onPress={handleVerifyOtp}
                 loading={loading}
                 rightIcon={<ArrowRight color="#FFF" size={18} strokeWidth={2.5} />}
               />
@@ -529,6 +544,65 @@ export default function ForgotPasswordScreen() {
                   </Text>
                 )}
               </Pressable>
+            </Animated.View>
+          ) : (
+            <Animated.View
+              key="step-set-password"
+              entering={FadeInDown.duration(350).springify()}
+              exiting={FadeOutUp.duration(200)}
+              style={shakeStyle}
+            >
+              <AuthInput
+                ref={passwordRef}
+                label="NEW PASSWORD"
+                colors={colors}
+                isDark={dark}
+                isFocused={focusedField === 'newPassword'}
+                error={resetFormik.errors.newPassword}
+                touched={resetFormik.touched.newPassword}
+                leftIcon={
+                  <Lock
+                    color={focusedField === 'newPassword' ? colors.secondary : colors.textSecondary}
+                    size={18}
+                    strokeWidth={2}
+                  />
+                }
+                rightElement={
+                  <Pressable
+                    style={styles.eyeBtn}
+                    onPress={() => {
+                      Haptics.selectionAsync().catch(() => {});
+                      setShowPassword((prev) => !prev);
+                    }}
+                    hitSlop={10}
+                  >
+                    {showPassword ? (
+                      <EyeOff color={colors.textSecondary} size={18} />
+                    ) : (
+                      <Eye color={colors.textSecondary} size={18} />
+                    )}
+                  </Pressable>
+                }
+                placeholder="Min 8 chars, A-Z, a-z, 0-9, !@#"
+                value={resetFormik.values.newPassword}
+                onChangeText={resetFormik.handleChange('newPassword')}
+                onFocus={() => setFocusedField('newPassword')}
+                onBlur={() => {
+                  setFocusedField(null);
+                  resetFormik.setFieldTouched('newPassword', true);
+                }}
+                secureTextEntry={!showPassword}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleResetSubmit}
+              />
+
+              <AnimatedPrimaryButton
+                title="Reset Password"
+                onPress={handleResetSubmit}
+                loading={loading}
+                rightIcon={<ArrowRight color="#FFF" size={18} strokeWidth={2.5} />}
+              />
             </Animated.View>
           )}
         </ScrollView>
