@@ -272,19 +272,20 @@ export function extractApiError(err: any, fallbackMessage = 'Something went wron
 }
 
 export function resolveMediaUrl(url?: string | null): string {
-  if (!url) return '';
+  const clean = url?.trim();
+  if (!clean) return '';
   if (
-    url.startsWith('http://') ||
-    url.startsWith('https://') ||
-    url.startsWith('file://') ||
-    url.startsWith('content://') ||
-    url.startsWith('blob:') ||
-    url.startsWith('data:')
+    clean.startsWith('http://') ||
+    clean.startsWith('https://') ||
+    clean.startsWith('file://') ||
+    clean.startsWith('content://') ||
+    clean.startsWith('blob:') ||
+    clean.startsWith('data:')
   ) {
-    return url;
+    return clean;
   }
   const base = api.defaults.baseURL?.replace(/\/api\/?$/, '') || '';
-  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+  return `${base}${clean.startsWith('/') ? '' : '/'}${clean}`;
 }
 
 export default api;

@@ -80,7 +80,7 @@ export default function AddEventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { addEvent, updateEvent, events } = useEventStore();
   
-  const existingEvent = id ? events.find(e => e.id === id) : null;
+  const existingEvent = id ? events.find(e => e.id === id || e._id === id) : null;
   
   const [date, setDate] = useState(existingEvent?.date ? new Date(existingEvent.date) : new Date());
   const [time, setTime] = useState(

@@ -17,6 +17,7 @@ import { useLocation } from '../../hooks/useLocation';
 import AlarmModal from '../../components/AlarmModal';
 import LocationArrivalModal from '../../components/LocationArrivalModal';
 import BuddyAlertModal from '../../components/BuddyAlertModal';
+import AllCaughtUpCard from '../../components/AllCaughtUpCard';
 import * as Notifications from '../../mock-expo-notifications';
 import {
   Search, Filter, CheckCircle2, Clock, X,
@@ -29,7 +30,7 @@ import {
 } from 'lucide-react-native';
 import { Event } from '../../models/Event';
 import { priorityService } from '../../services/priorityService';
-import api from '../../services/api';
+import api, { resolveMediaUrl } from '../../services/api';
 import { socketService } from '../../services/socketService';
 import { useAuthStore } from '../../store/useAuthStore';
 import * as Haptics from 'expo-haptics';
@@ -72,6 +73,33 @@ const getPriorityConfig = (colors: ColorTheme): Record<string, { strip: string; 
   low:      { strip: colors.success, bg: colors.successLight, text: colors.success, label: 'LOW' },
 });
 
+
+const FALLBACK_HERO_COVER =
+  'https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?q=80&w=800&auto=format&fit=crop';
+
+/** Renders the user-attached task photo on the Hero card, falling back cleanly to the default cover on absence or load error. */
+const HeroCoverImage = ({ userUri, defaultUri }: { userUri?: string; defaultUri: string }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [userUri]);
+
+  const activeUri = !imageFailed && userUri ? userUri : defaultUri;
+
+  return (
+    <Image
+      key={activeUri}
+      source={{ uri: activeUri }}
+      style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
+      onError={() => {
+        if (!imageFailed && userUri) {
+          setImageFailed(true);
+        }
+      }}
+    />
+  );
+};
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -153,16 +181,6 @@ export default function HomeScreen() {
 
   const slideAnim = useRef(new Animated.Value(-winWidth)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const emptyFloatAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(emptyFloatAnim, { toValue: 1, duration: 2500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(emptyFloatAnim, { toValue: 0, duration: 2500, easing: Easing.inOut(Easing.ease), useNativeDriver: true })
-      ])
-    ).start();
-  }, [emptyFloatAnim]);
 
   const openMenu = useCallback(() => {
     setIsMenuOpen(true);
@@ -1037,7 +1055,8 @@ export default function HomeScreen() {
     const durationMins2 = task.estimatedDuration || 30;
     const defaults = getCategoryDefaults();
     const cat2 = (task.category || '').toLowerCase();
-    const cover = task.image || defaults[cat2] || "https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?q=80&w=800&auto=format&fit=crop";
+    const defaultCover = defaults[cat2] || FALLBACK_HERO_COVER;
+    const userCover = resolveMediaUrl(task.image);
 
     const departure: DepartureSuggestion | null = location
       ? getDepartureSuggestion(task, location.latitude, location.longitude)
@@ -1045,8 +1064,8 @@ export default function HomeScreen() {
 
     return (
       <View key={task.id} style={[s.heroCard, { width: customWidth || CARD_W, padding: 0, marginHorizontal: 0, borderRadius: rs(24) }]}>
-        <View style={{ width: '100%', height: hs(160), borderTopLeftRadius: rs(24), borderTopRightRadius: rs(24), overflow: 'hidden' }}>
-          <Image source={{ uri: cover }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
+        <View style={{ width: '100%', height: hs(160), borderTopLeftRadius: rs(24), borderTopRightRadius: rs(24), overflow: 'hidden', backgroundColor: '#182235' }}>
+          <HeroCoverImage userUri={userCover} defaultUri={defaultCover} />
           <LinearGradient colors={['transparent', 'rgba(0,0,0,0.85)']} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end', padding: rs(20) }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: rs(6), marginBottom: rs(6) }}>
               <Flame color={colors.secondary} size={rs(16)} fill={colors.secondary} />
@@ -1202,112 +1221,14 @@ export default function HomeScreen() {
   const renderHeroFocusCard = () => {
     if (heroTasks.length === 0) {
       return (
-        <View style={{ paddingHorizontal: rs(16), marginBottom: rs(20), paddingTop: rs(10) }}>
-          <LinearGradient 
-            colors={[`${colors.secondary}15`, `${colors.secondary}05`, colors.card]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[s.heroCard, { 
-              alignItems: 'center', 
-              paddingVertical: festivalBanner ? rs(24) : rs(40), 
-              borderWidth: 1.5, 
-              borderColor: `${colors.secondary}40`,
-              borderStyle: 'dashed',
-              borderRadius: rs(32),
-              marginHorizontal: 0,
-              paddingHorizontal: rs(20),
-              elevation: 0,
-              shadowOpacity: 0
-            }]}
-          >
-            {festivalBanner ? (
-              renderFestivalCardBody()
-            ) : (
-              <>
-                {/* Perfectly centered layered circles */}
-                <Animated.View style={{
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: rs(20),
-                  transform: [{
-                    translateY: emptyFloatAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, -10]
-                    })
-                  }]
-                }}>
-                  {/* Outer orange glow ring */}
-                  <View style={{
-                    width: rs(130),
-                    height: rs(130),
-                    borderRadius: rs(65),
-                    backgroundColor: `${colors.secondary}22`,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
-                    {/* Mid orange ring */}
-                    <View style={{
-                      width: rs(104),
-                      height: rs(104),
-                      borderRadius: rs(52),
-                      backgroundColor: `${colors.secondary}18`,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      {/* Inner white circle with icon */}
-                      <View style={{
-                        width: rs(76),
-                        height: rs(76),
-                        borderRadius: rs(38),
-                        backgroundColor: colors.card,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        shadowColor: colors.secondary,
-                        shadowOffset: { width: 0, height: 8 },
-                        shadowOpacity: 0.2,
-                        shadowRadius: 16,
-                        elevation: 10,
-                      }}>
-                        <Sparkles color={colors.secondary} size={rs(36)} strokeWidth={2} />
-                      </View>
-                    </View>
-                  </View>
-                </Animated.View>
-                
-                <Text style={[s.aiEmptyTitle, { fontSize: ms(24), marginBottom: rs(8), color: colors.secondary, letterSpacing: -0.5 }]}>All Caught Up! 🎉</Text>
-                
-                <Text style={[s.aiEmptySub, { fontSize: ms(15), textAlign: 'center', paddingHorizontal: rs(20), lineHeight: ms(22), color: colors.textSecondary }]}>
-                  You've conquered your list. Take a breather or plan your next move!
-                </Text>
-              </>
-            )}
-            
-            <Pressable 
-              style={({pressed}) => [{ 
-                marginTop: rs(24), 
-                backgroundColor: colors.secondary, 
-                paddingHorizontal: rs(28), 
-                paddingVertical: rs(16), 
-                borderRadius: rs(20), 
-                flexDirection: 'row', 
-                alignItems: 'center', 
-                gap: rs(10), 
-                shadowColor: colors.secondary, 
-                shadowOffset: { width: 0, height: 8 }, 
-                shadowOpacity: 0.3, 
-                shadowRadius: 16, 
-                elevation: 8 
-              }, pressed && { transform: [{ scale: 0.95 }] }]}
-              onPress={() => { 
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); 
-                router.push('/add-event'); 
-              }}
-            >
-              <Plus color="#FFF" size={rs(20)} strokeWidth={3} />
-              <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: ms(14), color: '#FFF', letterSpacing: 0.8 }}>PLAN NEW TASK</Text>
-            </Pressable>
-          </LinearGradient>
-        </View>
+        <AllCaughtUpCard
+          colors={colors}
+          festivalContent={festivalBanner ? renderFestivalCardBody() : undefined}
+          onPlanNewTask={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            router.push('/add-event');
+          }}
+        />
       );
     }
 
@@ -1355,10 +1276,11 @@ export default function HomeScreen() {
         <FlatList
           ref={carouselRef}
           data={heroTasks}
+          extraData={heroTasks}
           initialNumToRender={5}
           maxToRenderPerBatch={5}
           windowSize={3}
-          removeClippedSubviews={true}
+          removeClippedSubviews={false}
           keyExtractor={item => item.id}
           horizontal
           pagingEnabled={false}

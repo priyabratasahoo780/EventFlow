@@ -327,8 +327,8 @@ export const useEventStore = create<EventState>((set, get) => ({
     const localEvents = await storageService.getEvents();
     const localMap = new Map<string, Event>();
     for (const le of localEvents) {
-      const lid = le.id || le._id;
-      if (lid) localMap.set(lid, le);
+      if (le.id) localMap.set(le.id, le);
+      if (le._id) localMap.set(le._id, le);
     }
 
     let rawEvents = null;
@@ -336,8 +336,8 @@ export const useEventStore = create<EventState>((set, get) => ({
       const res = await api.get('/tasks?includeArchived=true');
       if (res.data && Array.isArray(res.data)) {
         rawEvents = res.data.map((remote: any) => {
-          const rid = remote.id || remote._id;
-          const local = rid ? localMap.get(rid) : undefined;
+          const local = (remote.id ? localMap.get(remote.id) : undefined)
+            || (remote._id ? localMap.get(remote._id) : undefined);
           if (!local) return remote;
           const isShared = remote.visibility && remote.visibility !== 'onlyMe';
           // For private (onlyMe) tasks prefer on-device media; for shared tasks prefer cloud CDN URL
@@ -553,8 +553,8 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     api.put(`/tasks/${syncedEvent.id}`, {
       ...syncedEvent,
-      image: remoteImage,
-      video: remoteVideo,
+      image: remoteImage ?? '',
+      video: remoteVideo ?? '',
     }).catch(e => {
       console.log('Backend update sync failed, updated locally', e);
     });
