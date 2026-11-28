@@ -44,6 +44,7 @@ import {
   Gauge,
   Layers,
   HardDrive,
+  Sparkles,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import api from '../services/api';
@@ -99,6 +100,16 @@ function getSubsystemIcon(name: string) {
   return Server;
 }
 
+function getModuleIcon(name: string) {
+  if (name.includes('Auth')) return ShieldCheck;
+  if (name.includes('Events')) return Clock;
+  if (name.includes('Friends')) return Activity;
+  if (name.includes('Media')) return Cloud;
+  if (name.includes('Festival')) return Sparkles;
+  if (name.includes('Admin')) return Cpu;
+  return Server;
+}
+
 function getLatencyColor(ms: number): string {
   if (ms <= 180) return '#10B981';
   if (ms <= 450) return '#F59E0B';
@@ -113,25 +124,32 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
   const [glitchFilter, setGlitchFilter] = useState<GlitchFilter>('all');
   const [scope, setScope] = useState<SectionScope>('all');
   const [expandedGlitchId, setExpandedGlitchId] = useState<string | null>(null);
+  const [selectedProbeIdx, setSelectedProbeIdx] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<string>('—');
 
-  // SVG Ring Gauge constants
-  const RING_SIZE = 104;
-  const STROKE_WIDTH = 9;
+  // SVG Dual Concentric Ring Gauge constants
+  const OUTER_SIZE = 118;
+  const RING_SIZE = 100;
+  const STROKE_WIDTH = 8;
   const RADIUS = (RING_SIZE - STROKE_WIDTH) / 2;
   const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-  // Reanimated shared values
+  // Reanimated shared values for rich floating & radar animations
   const pulseScale = useSharedValue(1);
   const pulseOpacity = useSharedValue(0.85);
   const animatedScore = useSharedValue(100);
+  const floatY = useSharedValue(0);
+  const floatAltY = useSharedValue(0);
+  const orbFloatY = useSharedValue(0);
+  const radarDeg = useSharedValue(0);
   const probeBtnScale = useSharedValue(1);
   const spinDeg = useSharedValue(0);
 
   useEffect(() => {
+    // 1. Live pulse beacon
     pulseScale.value = withRepeat(
       withSequence(
-        withTiming(1.85, { duration: 1150, easing: Easing.out(Easing.ease) }),
+        withTiming(1.9, { duration: 1150, easing: Easing.out(Easing.ease) }),
         withTiming(1, { duration: 900, easing: Easing.in(Easing.ease) })
       ),
       -1,
@@ -145,19 +163,70 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
       -1,
       false
     );
-  }, [pulseScale, pulseOpacity]);
+
+    // 2. Smooth floating levitation for SVG gauge & zero-glitch shield
+    floatY.value = withRepeat(
+      withSequence(
+        withTiming(-4.5, { duration: 1900, easing: Easing.inOut(Easing.sin) }),
+        withTiming(4.5, { duration: 1900, easing: Easing.inOut(Easing.sin) })
+      ),
+      -1,
+      true
+    );
+
+    // 3. Subtle counter-phase float for glassmorphic telemetry stack
+    floatAltY.value = withRepeat(
+      withSequence(
+        withTiming(2.5, { duration: 2200, easing: Easing.inOut(Easing.sin) }),
+        withTiming(-2.5, { duration: 2200, easing: Easing.inOut(Easing.sin) })
+      ),
+      -1,
+      true
+    );
+
+    // 4. Drifting ambient orb glow inside hero card
+    orbFloatY.value = withRepeat(
+      withSequence(
+        withTiming(10, { duration: 3200, easing: Easing.inOut(Easing.sin) }),
+        withTiming(-10, { duration: 3200, easing: Easing.inOut(Easing.sin) })
+      ),
+      -1,
+      true
+    );
+
+    // 5. Continuous slow rotation of outer dashed radar ring
+    radarDeg.value = withRepeat(
+      withTiming(360, { duration: 18000, easing: Easing.linear }),
+      -1,
+      false
+    );
+  }, [pulseScale, pulseOpacity, floatY, floatAltY, orbFloatY, radarDeg]);
 
   const pulseRingStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
     opacity: pulseOpacity.value,
   }));
 
+  const floatGaugeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: floatY.value }],
+  }));
+
+  const floatAltStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: floatAltY.value }],
+  }));
+
+  const orbFloatStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: orbFloatY.value }],
+  }));
+
+  const radarSpinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${radarDeg.value}deg` }],
+  }));
+
   const gaugeAnimatedProps = useAnimatedProps(() => {
     const clamped = Math.max(0, Math.min(100, animatedScore.value));
     const dashOffset = CIRCUMFERENCE * (1 - clamped / 100);
-    return {
-      strokeDashoffset: dashOffset,
-    };
+    return { strokeDashoffset: dashOffset };
   });
 
   const probeBtnAnimStyle = useAnimatedStyle(() => ({
@@ -257,14 +326,17 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
     return (
       <Animated.View
         entering={FadeIn.duration(280)}
-        style={[styles.centerCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        style={[
+          styles.centerCard,
+          { backgroundColor: colors.card, borderColor: '#F9731650', borderStyle: 'dashed' },
+        ]}
       >
         <ActivityIndicator size="large" color="#F97316" />
         <Text style={[styles.subName, { color: colors.text, marginTop: 14 }]}>
-          Connecting Telemetry Stream...
+          Initializing Telemetry Stream...
         </Text>
         <Text style={[styles.mutedText, { color: colors.textSecondary, marginTop: 4 }]}>
-          Fetching live status codes & subsystem probes
+          Probing server health, HTTP metrics & subsystems
         </Text>
       </Animated.View>
     );
@@ -277,7 +349,7 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
     ? ['#450A0A', '#7F1D1D', '#991B1B']
     : isDeg
       ? ['#451A03', '#78350F', '#92400E']
-      : ['#0B1120', '#131D36', '#1E1B4B'];
+      : ['#090F1E', '#111C33', '#1B1A4A'];
 
   const statusCounts = data?.stats?.statusCounts || { s2xx: 0, s3xx: 0, s4xx: 0, s5xx: 0 };
   const rawTotalReq = Number(data?.stats?.totalRequests || 0);
@@ -295,161 +367,186 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
     glitchFilter === 'all' ? true : g.severity === glitchFilter
   );
   const probes: any[] = data?.probes || [];
+  const sparkProbes = probes.slice(0, 16).reverse();
+  const maxProbeLatency = Math.max(120, ...sparkProbes.map((p) => Number(p.latencyMs || 60)));
   const modules: any[] = data?.modules || [];
   const avgSpeed = Number(data?.stats?.avgLatencyMs ?? 0);
   const p95Speed = Number(data?.stats?.p95LatencyMs ?? 0);
 
   const showSection = (s: SectionScope) => scope === 'all' || scope === s;
+  const dashedBorder = isDark ? 'rgba(148,163,184,0.28)' : 'rgba(100,116,139,0.28)';
 
   return (
-    <View style={{ gap: 14 }}>
-      {/* 1. Ultra-Polished NOC Hero Card with SVG Circular Gauge */}
+    <View style={{ gap: 15 }}>
+      {/* 1. Dashed-Framed Animated NOC Hero Card */}
       <Animated.View entering={FadeInDown.duration(380).springify()}>
-        <LinearGradient
-          colors={heroGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.heroCard}
-        >
-          {/* Ambient Decorative Glow Orbs */}
-          <View style={[styles.ambientOrbTop, { backgroundColor: statusColor + '16' }]} />
-          <View style={[styles.ambientOrbBottom, { backgroundColor: '#6366F120' }]} />
+        <View style={[styles.heroOuterFrame, { borderColor: statusColor + '60' }]}>
+          <LinearGradient
+            colors={heroGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}
+          >
+            {/* Floating Ambient Glow Orbs */}
+            <Animated.View
+              style={[styles.ambientOrbTop, { backgroundColor: statusColor + '1C' }, orbFloatStyle]}
+            />
+            <Animated.View
+              style={[styles.ambientOrbBottom, { backgroundColor: '#6366F125' }, floatAltStyle]}
+            />
 
-          {/* Header */}
-          <View style={styles.rowBetween}>
-            <View style={styles.rowGap}>
-              <View style={styles.beaconWrap}>
-                <Animated.View
-                  style={[styles.beaconRing, { backgroundColor: statusColor }, pulseRingStyle]}
-                />
-                <View style={[styles.beaconCore, { backgroundColor: statusColor }]} />
-              </View>
-              <View>
-                <Text style={styles.heroEyebrow}>LIVE TELEMETRY STREAM</Text>
-                <Text style={styles.heroTitle}>System Command Center</Text>
-              </View>
-            </View>
-
-            <View
-              style={[
-                styles.heroStatusBadge,
-                { backgroundColor: statusColor + '22', borderColor: statusColor + '65' },
-              ]}
-            >
-              <Radio color={statusColor} size={12} />
-              <Text style={[styles.heroStatusText, { color: statusColor }]}>
-                {String(data?.overallStatus || 'healthy').toUpperCase()}
-              </Text>
-            </View>
-          </View>
-
-          {/* Circular SVG Gauge + Glassmorphic Telemetry Pills */}
-          <View style={styles.heroGaugeSection}>
-            <View style={styles.svgGaugeWrap}>
-              <Svg width={RING_SIZE} height={RING_SIZE}>
-                <Circle
-                  cx={RING_SIZE / 2}
-                  cy={RING_SIZE / 2}
-                  r={RADIUS}
-                  stroke="rgba(255,255,255,0.10)"
-                  strokeWidth={STROKE_WIDTH}
-                  fill="none"
-                />
-                <AnimatedCircle
-                  cx={RING_SIZE / 2}
-                  cy={RING_SIZE / 2}
-                  r={RADIUS}
-                  stroke={statusColor}
-                  strokeWidth={STROKE_WIDTH}
-                  fill="none"
-                  strokeDasharray={CIRCUMFERENCE}
-                  animatedProps={gaugeAnimatedProps}
-                  strokeLinecap="round"
-                  rotation="-90"
-                  origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
-                />
-              </Svg>
-              <View style={styles.svgGaugeCenter}>
-                <Text style={[styles.gaugePercent, { color: '#FFFFFF' }]}>
-                  {data?.healthScore ?? 100}%
-                </Text>
-                <Text style={styles.gaugeLabel}>HEALTH</Text>
-              </View>
-            </View>
-
-            <View style={styles.glassMetaStack}>
-              <View style={styles.glassPill}>
-                <Clock color="#94A3B8" size={13} />
-                <Text style={styles.glassPillLabel}>Uptime</Text>
-                <Text style={styles.glassPillValue}>{formatUptime(data?.uptimeSeconds || 0)}</Text>
+            {/* Header */}
+            <View style={styles.rowBetween}>
+              <View style={styles.rowGap}>
+                <View style={styles.beaconWrap}>
+                  <Animated.View
+                    style={[styles.beaconRing, { backgroundColor: statusColor }, pulseRingStyle]}
+                  />
+                  <View style={[styles.beaconCore, { backgroundColor: statusColor }]} />
+                </View>
+                <View>
+                  <Text style={styles.heroEyebrow}>LIVE TELEMETRY STREAM</Text>
+                  <Text style={styles.heroTitle}>System Command Center</Text>
+                </View>
               </View>
 
-              <View style={styles.glassPill}>
-                <HardDrive color="#A78BFA" size={13} />
-                <Text style={styles.glassPillLabel}>Memory</Text>
-                <Text style={styles.glassPillValue}>
-                  {data?.memory?.rssMb || 0} MB{' '}
-                  <Text style={{ color: '#94A3B8', fontSize: 10 }}>
-                    ({data?.memory?.heapUsedMb || 0}M)
-                  </Text>
+              <View
+                style={[
+                  styles.heroStatusBadge,
+                  { backgroundColor: statusColor + '20', borderColor: statusColor + '75' },
+                ]}
+              >
+                <Radio color={statusColor} size={12} />
+                <Text style={[styles.heroStatusText, { color: statusColor }]}>
+                  {String(data?.overallStatus || 'healthy').toUpperCase()}
                 </Text>
               </View>
-
-              <View style={styles.glassPill}>
-                <Activity color="#38BDF8" size={13} />
-                <Text style={styles.glassPillLabel}>Next Probe</Text>
-                <Text style={[styles.glassPillValue, { color: '#38BDF8' }]}>{countdown}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Bottom Action Dock */}
-          <View style={styles.heroControls}>
-            <View style={styles.intervalGroup}>
-              <Text style={styles.heroSubText}>Auto-Probe</Text>
-              <View style={styles.segmentedTrack}>
-                {([5, 10] as const).map((min) => {
-                  const active = data?.intervalMinutes === min;
-                  return (
-                    <Pressable
-                      key={min}
-                      onPress={() => handleSetInterval(min)}
-                      style={[
-                        styles.segmentedItem,
-                        active && styles.segmentedItemActive,
-                      ]}
-                    >
-                      <Text style={[styles.segmentedText, active && { color: '#FFF' }]}>
-                        {min}m
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
             </View>
 
-            <Animated.View style={probeBtnAnimStyle}>
-              <Pressable onPress={handleRunProbe} disabled={probing}>
-                <LinearGradient
-                  colors={['#FF7A00', '#EA580C']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.heroProbeBtn}
-                >
-                  <Animated.View style={spinStyle}>
-                    <RefreshCw color="#FFF" size={13} strokeWidth={2.5} />
-                  </Animated.View>
-                  <Text style={styles.probeBtnText}>
-                    {probing ? 'Probing...' : 'Run Probe'}
+            {/* Floating Dual-Ring SVG Gauge + Dashed Glassmorphic Telemetry Stack */}
+            <View style={styles.heroGaugeSection}>
+              <Animated.View style={[styles.svgGaugeWrap, floatGaugeStyle]}>
+                {/* Rotating Outer Dashed Radar Halo */}
+                <Animated.View style={[styles.outerRadarWrap, radarSpinStyle]}>
+                  <Svg width={OUTER_SIZE} height={OUTER_SIZE}>
+                    <Circle
+                      cx={OUTER_SIZE / 2}
+                      cy={OUTER_SIZE / 2}
+                      r={(OUTER_SIZE - 4) / 2}
+                      stroke={statusColor + '55'}
+                      strokeWidth={1.6}
+                      strokeDasharray="5 6"
+                      fill="none"
+                    />
+                  </Svg>
+                </Animated.View>
+
+                {/* Inner Health Ring */}
+                <Svg width={RING_SIZE} height={RING_SIZE}>
+                  <Circle
+                    cx={RING_SIZE / 2}
+                    cy={RING_SIZE / 2}
+                    r={RADIUS}
+                    stroke="rgba(255,255,255,0.12)"
+                    strokeWidth={STROKE_WIDTH}
+                    fill="none"
+                  />
+                  <AnimatedCircle
+                    cx={RING_SIZE / 2}
+                    cy={RING_SIZE / 2}
+                    r={RADIUS}
+                    stroke={statusColor}
+                    strokeWidth={STROKE_WIDTH}
+                    fill="none"
+                    strokeDasharray={CIRCUMFERENCE}
+                    animatedProps={gaugeAnimatedProps}
+                    strokeLinecap="round"
+                    rotation="-90"
+                    origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+                  />
+                </Svg>
+                <View style={styles.svgGaugeCenter}>
+                  <Text style={styles.gaugePercent}>{data?.healthScore ?? 100}%</Text>
+                  <Text style={styles.gaugeLabel}>HEALTH</Text>
+                </View>
+              </Animated.View>
+
+              <Animated.View style={[styles.glassMetaStack, floatAltStyle]}>
+                <View style={styles.glassDashedPill}>
+                  <Clock color="#94A3B8" size={13} />
+                  <Text style={styles.glassPillLabel}>Uptime</Text>
+                  <Text style={styles.glassPillValue}>
+                    {formatUptime(data?.uptimeSeconds || 0)}
                   </Text>
-                </LinearGradient>
-              </Pressable>
-            </Animated.View>
-          </View>
-        </LinearGradient>
+                </View>
+
+                <View style={styles.glassDashedPill}>
+                  <HardDrive color="#A78BFA" size={13} />
+                  <Text style={styles.glassPillLabel}>Memory</Text>
+                  <Text style={styles.glassPillValue}>
+                    {data?.memory?.rssMb || 0}M{' '}
+                    <Text style={{ color: '#94A3B8', fontSize: 10 }}>
+                      ({data?.memory?.heapUsedMb || 0}M)
+                    </Text>
+                  </Text>
+                </View>
+
+                <View style={styles.glassDashedPill}>
+                  <Activity color="#38BDF8" size={13} />
+                  <Text style={styles.glassPillLabel}>Next Probe</Text>
+                  <Text style={[styles.glassPillValue, { color: '#38BDF8' }]}>{countdown}</Text>
+                </View>
+              </Animated.View>
+            </View>
+
+            {/* Bottom Dashed Dock */}
+            <View style={styles.heroControls}>
+              <View style={styles.intervalGroup}>
+                <Text style={styles.heroSubText}>Auto-Check</Text>
+                <View style={styles.segmentedTrack}>
+                  {([5, 10] as const).map((min) => {
+                    const active = data?.intervalMinutes === min;
+                    return (
+                      <Pressable
+                        key={min}
+                        onPress={() => handleSetInterval(min)}
+                        style={[
+                          styles.segmentedItem,
+                          active && styles.segmentedItemActive,
+                        ]}
+                      >
+                        <Text style={[styles.segmentedText, active && { color: '#FFF' }]}>
+                          {min}m
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <Animated.View style={probeBtnAnimStyle}>
+                <Pressable onPress={handleRunProbe} disabled={probing}>
+                  <LinearGradient
+                    colors={['#FF7A00', '#EA580C']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.heroProbeBtn}
+                  >
+                    <Animated.View style={spinStyle}>
+                      <RefreshCw color="#FFF" size={13} strokeWidth={2.5} />
+                    </Animated.View>
+                    <Text style={styles.probeBtnText}>
+                      {probing ? 'Probing...' : 'Run Probe'}
+                    </Text>
+                  </LinearGradient>
+                </Pressable>
+              </Animated.View>
+            </View>
+          </LinearGradient>
+        </View>
       </Animated.View>
 
-      {/* Interactive Scope Pills */}
+      {/* Dashed Interactive Scope Pills */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -476,7 +573,8 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
                 styles.scopeChip,
                 {
                   backgroundColor: active ? '#FF7A00' : colors.card,
-                  borderColor: active ? '#FF7A00' : colors.border,
+                  borderColor: active ? '#FF7A00' : dashedBorder,
+                  borderStyle: active ? 'solid' : 'dashed',
                 },
               ]}
             >
@@ -494,15 +592,15 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
         })}
       </ScrollView>
 
-      {/* 2. Spacious 2x2 KPI Grid & HTTP Status Matrix */}
+      {/* 2. Dashed 2x2 Floating KPI Grid & Status Matrix */}
       {showSection('traffic') && (
         <Animated.View
           entering={FadeInDown.delay(60).duration(360).springify()}
-          style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[styles.card, { backgroundColor: colors.card, borderColor: dashedBorder }]}
         >
           <View style={[styles.rowBetween, { marginBottom: 14 }]}>
             <View style={styles.rowGap}>
-              <View style={[styles.cardIconBadge, { backgroundColor: '#F9731618' }]}>
+              <View style={[styles.cardIconBadge, { backgroundColor: '#F9731618', borderColor: '#F9731650' }]}>
                 <Zap color="#F97316" size={16} strokeWidth={2.4} />
               </View>
               <View>
@@ -516,11 +614,10 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
             </View>
           </View>
 
-          {/* 2x2 Spacious KPI Cards */}
           <View style={styles.kpiRow}>
             <Animated.View
-              entering={ZoomIn.delay(80).duration(280)}
-              style={[styles.kpiTile, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              entering={ZoomIn.delay(80).duration(300)}
+              style={[styles.kpiTile, { backgroundColor: colors.surface, borderColor: '#6366F145' }]}
             >
               <View style={styles.rowBetween}>
                 <Text style={[styles.kpiTileLbl, { color: colors.textSecondary }]}>Total Requests</Text>
@@ -531,8 +628,8 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
             </Animated.View>
 
             <Animated.View
-              entering={ZoomIn.delay(130).duration(280)}
-              style={[styles.kpiTile, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              entering={ZoomIn.delay(130).duration(300)}
+              style={[styles.kpiTile, { backgroundColor: colors.surface, borderColor: '#10B98145' }]}
             >
               <View style={styles.rowBetween}>
                 <Text style={[styles.kpiTileLbl, { color: colors.textSecondary }]}>Success Rate</Text>
@@ -547,8 +644,11 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
 
           <View style={[styles.kpiRow, { marginTop: 10 }]}>
             <Animated.View
-              entering={ZoomIn.delay(180).duration(280)}
-              style={[styles.kpiTile, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              entering={ZoomIn.delay(180).duration(300)}
+              style={[
+                styles.kpiTile,
+                { backgroundColor: colors.surface, borderColor: getLatencyColor(avgSpeed) + '55' },
+              ]}
             >
               <View style={styles.rowBetween}>
                 <Text style={[styles.kpiTileLbl, { color: colors.textSecondary }]}>Avg Speed</Text>
@@ -563,8 +663,11 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
             </Animated.View>
 
             <Animated.View
-              entering={ZoomIn.delay(230).duration(280)}
-              style={[styles.kpiTile, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              entering={ZoomIn.delay(230).duration(300)}
+              style={[
+                styles.kpiTile,
+                { backgroundColor: colors.surface, borderColor: getLatencyColor(p95Speed) + '55' },
+              ]}
             >
               <View style={styles.rowBetween}>
                 <Text style={[styles.kpiTileLbl, { color: colors.textSecondary }]}>P95 Latency</Text>
@@ -587,7 +690,7 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
             </View>
           ) : null}
 
-          {/* 2x2 Clean Status Legend Cards */}
+          {/* 2x2 Dashed Status Legend Cards */}
           <View style={styles.statusGrid}>
             {[
               { label: '2xx Healthy', count: statusCounts.s2xx, pct: p2xx, color: '#10B981' },
@@ -599,7 +702,7 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
                 key={item.label}
                 style={[
                   styles.statusLegendCard,
-                  { backgroundColor: item.color + '10', borderColor: item.color + '30' },
+                  { backgroundColor: item.color + '10', borderColor: item.color + '55' },
                 ]}
               >
                 <View style={styles.rowGap}>
@@ -618,14 +721,14 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
         </Animated.View>
       )}
 
-      {/* 3. Subsystem Health Checks */}
+      {/* 3. Dashed Subsystem Health Matrix */}
       {showSection('subsystems') && (
         <Animated.View
           entering={FadeInDown.delay(110).duration(360).springify()}
-          style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[styles.card, { backgroundColor: colors.card, borderColor: dashedBorder }]}
         >
           <View style={[styles.rowGap, { marginBottom: 12 }]}>
-            <View style={[styles.cardIconBadge, { backgroundColor: '#6366F118' }]}>
+            <View style={[styles.cardIconBadge, { backgroundColor: '#6366F118', borderColor: '#6366F150' }]}>
               <Server color="#6366F1" size={16} strokeWidth={2.4} />
             </View>
             <View>
@@ -648,13 +751,13 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
               return (
                 <Animated.View
                   key={sub.name}
-                  entering={FadeInRight.delay(idx * 45).duration(280)}
+                  entering={FadeInRight.delay(idx * 50).duration(300)}
                   style={[
                     styles.subCard,
-                    { backgroundColor: colors.surface, borderColor: colors.border },
+                    { backgroundColor: colors.surface, borderColor: c + '45' },
                   ]}
                 >
-                  <View style={[styles.subIconBox, { backgroundColor: c + '18' }]}>
+                  <View style={[styles.subIconBox, { backgroundColor: c + '18', borderColor: c + '50' }]}>
                     <Icon color={c} size={18} />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -674,7 +777,7 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
                     ) : null}
                   </View>
                   <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                    <View style={[styles.statusPill, { backgroundColor: c + '1A' }]}>
+                    <View style={[styles.statusPill, { backgroundColor: c + '1A', borderColor: c + '50' }]}>
                       <Text style={[styles.statusPillText, { color: c }]}>
                         {sub.statusCode} • {String(sub.status).toUpperCase()}
                       </Text>
@@ -698,18 +801,21 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
         </Animated.View>
       )}
 
-      {/* 4. Interactive Glitch Locator */}
+      {/* 4. Dashed & Floating Glitch Locator */}
       {showSection('glitches') && (
         <Animated.View
           entering={FadeInDown.delay(150).duration(360).springify()}
-          style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[styles.card, { backgroundColor: colors.card, borderColor: dashedBorder }]}
         >
           <View style={[styles.rowBetween, { marginBottom: 12 }]}>
             <View style={styles.rowGap}>
               <View
                 style={[
                   styles.cardIconBadge,
-                  { backgroundColor: (critCount > 0 ? '#EF4444' : '#10B981') + '18' },
+                  {
+                    backgroundColor: (critCount > 0 ? '#EF4444' : '#10B981') + '18',
+                    borderColor: (critCount > 0 ? '#EF4444' : '#10B981') + '50',
+                  },
                 ]}
               >
                 <AlertTriangle
@@ -757,7 +863,8 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
                       styles.filterChip,
                       {
                         backgroundColor: active ? '#FF7A00' : colors.surface,
-                        borderColor: active ? '#FF7A00' : colors.border,
+                        borderColor: active ? '#FF7A00' : dashedBorder,
+                        borderStyle: active ? 'solid' : 'dashed',
                       },
                     ]}
                   >
@@ -780,18 +887,23 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
             <Animated.View
               entering={ZoomIn.duration(300)}
               style={[
-                styles.emptyBox,
-                { backgroundColor: isDark ? 'rgba(16,185,129,0.09)' : '#ECFDF5' },
+                styles.emptyDashedBox,
+                {
+                  backgroundColor: isDark ? 'rgba(16,185,129,0.08)' : '#ECFDF5',
+                  borderColor: '#10B98165',
+                },
               ]}
             >
-              <View style={[styles.emptyIconCircle, { backgroundColor: '#10B98120' }]}>
-                <CheckCircle2 color="#10B981" size={26} />
-              </View>
-              <Text style={[styles.subName, { color: '#10B981', marginTop: 8 }]}>
+              <Animated.View
+                style={[styles.emptyIconCircle, { backgroundColor: '#10B98122' }, floatGaugeStyle]}
+              >
+                <CheckCircle2 color="#10B981" size={28} />
+              </Animated.View>
+              <Text style={[styles.subName, { color: '#10B981', marginTop: 10, fontSize: 14 }]}>
                 Zero Glitches Detected
               </Text>
-              <Text style={[styles.mutedText, { color: colors.textSecondary, textAlign: 'center' }]}>
-                All monitored routes and modules are operating without errors.
+              <Text style={[styles.mutedText, { color: colors.textSecondary, textAlign: 'center', marginTop: 2 }]}>
+                All monitored routes and modules are operating smoothly with 0 anomalies.
               </Text>
             </Animated.View>
           ) : (
@@ -807,12 +919,12 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
                   }}
                   style={[
                     styles.glitchItem,
-                    { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: c },
+                    { backgroundColor: colors.surface, borderColor: c + '60', borderLeftColor: c },
                   ]}
                 >
                   <View style={styles.rowBetween}>
                     <View style={styles.rowGap}>
-                      <View style={[styles.statusPill, { backgroundColor: c + '22' }]}>
+                      <View style={[styles.statusPill, { backgroundColor: c + '22', borderColor: c + '50' }]}>
                         <Text style={[styles.statusPillText, { color: c }]}>{g.statusCode}</Text>
                       </View>
                       <Text style={[styles.glitchLoc, { color: c }]}>{g.location}</Text>
@@ -853,70 +965,91 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
         </Animated.View>
       )}
 
-      {/* 5. Module Performance & Probe Timeline */}
+      {/* 5. Module Performance & Sparkline Timeline */}
       {showSection('timeline') && (
         <>
           {modules.length > 0 ? (
             <Animated.View
               entering={FadeInDown.delay(190).duration(360).springify()}
-              style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+              style={[styles.card, { backgroundColor: colors.card, borderColor: dashedBorder }]}
             >
               <View style={[styles.rowGap, { marginBottom: 12 }]}>
-                <View style={[styles.cardIconBadge, { backgroundColor: '#6366F118' }]}>
+                <View style={[styles.cardIconBadge, { backgroundColor: '#6366F118', borderColor: '#6366F150' }]}>
                   <Cpu color="#6366F1" size={16} />
                 </View>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                  Module Performance
-                </Text>
+                <View>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                    Module Performance
+                  </Text>
+                  <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
+                    Per-route traffic, average speed & error rate
+                  </Text>
+                </View>
               </View>
-              {modules.map((m, idx) => (
-                <View
-                  key={m.name}
-                  style={[
-                    styles.modRow,
-                    { borderBottomColor: colors.border },
-                    idx === modules.length - 1 && { borderBottomWidth: 0 },
-                  ]}
-                >
-                  <Text style={[styles.subName, { color: colors.text, flex: 1 }]}>{m.name}</Text>
-                  <View style={styles.rowGap}>
-                    <View style={[styles.miniPill, { backgroundColor: colors.surface }]}>
-                      <Text style={[styles.mutedText, { color: colors.text }]}>{m.total} req</Text>
-                    </View>
-                    <View style={[styles.miniPill, { backgroundColor: colors.surface }]}>
-                      <Text style={[styles.mutedText, { color: getLatencyColor(m.avgMs) }]}>
-                        {m.avgMs}ms
-                      </Text>
-                    </View>
-                    <View
+              <View style={{ gap: 8 }}>
+                {modules.map((m, idx) => {
+                  const ModIcon = getModuleIcon(m.name);
+                  const speedCol = getLatencyColor(m.avgMs);
+                  return (
+                    <Animated.View
+                      key={m.name}
+                      entering={FadeInRight.delay(idx * 40).duration(260)}
                       style={[
-                        styles.miniPill,
-                        { backgroundColor: (m.errors5xx > 0 ? '#EF4444' : '#10B981') + '18' },
+                        styles.modCardRow,
+                        { backgroundColor: colors.surface, borderColor: dashedBorder },
                       ]}
                     >
-                      <Text
-                        style={{
-                          fontFamily: 'Poppins_600SemiBold',
-                          fontSize: 10.5,
-                          color: m.errors5xx > 0 ? '#EF4444' : '#10B981',
-                        }}
-                      >
-                        {m.errors5xx} err
+                      <View style={[styles.modIconCircle, { backgroundColor: '#6366F114' }]}>
+                        <ModIcon color="#6366F1" size={14} />
+                      </View>
+                      <Text style={[styles.subName, { color: colors.text, flex: 1 }]} numberOfLines={1}>
+                        {m.name}
                       </Text>
-                    </View>
-                  </View>
-                </View>
-              ))}
+                      <View style={styles.rowGap}>
+                        <View style={[styles.miniPill, { backgroundColor: colors.card, borderColor: dashedBorder }]}>
+                          <Text style={[styles.mutedText, { color: colors.text, fontSize: 10.5 }]}>
+                            {m.total} req
+                          </Text>
+                        </View>
+                        <View style={[styles.miniPill, { backgroundColor: speedCol + '14', borderColor: speedCol + '45' }]}>
+                          <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 10.5, color: speedCol }}>
+                            {m.avgMs}ms
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.miniPill,
+                            {
+                              backgroundColor: (m.errors5xx > 0 ? '#EF4444' : '#10B981') + '16',
+                              borderColor: (m.errors5xx > 0 ? '#EF4444' : '#10B981') + '45',
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={{
+                              fontFamily: 'Poppins_600SemiBold',
+                              fontSize: 10.5,
+                              color: m.errors5xx > 0 ? '#EF4444' : '#10B981',
+                            }}
+                          >
+                            {m.errors5xx} err
+                          </Text>
+                        </View>
+                      </View>
+                    </Animated.View>
+                  );
+                })}
+              </View>
             </Animated.View>
           ) : null}
 
           <Animated.View
             entering={FadeInDown.delay(230).duration(360).springify()}
-            style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[styles.card, { backgroundColor: colors.card, borderColor: dashedBorder }]}
           >
             <View style={[styles.rowBetween, { marginBottom: 12 }]}>
               <View style={styles.rowGap}>
-                <View style={[styles.cardIconBadge, { backgroundColor: '#10B98118' }]}>
+                <View style={[styles.cardIconBadge, { backgroundColor: '#10B98118', borderColor: '#10B98150' }]}>
                   <Activity color="#10B981" size={16} />
                 </View>
                 <View>
@@ -924,27 +1057,65 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
                     5/10m Probe Timeline ({probes.length})
                   </Text>
                   <Text style={[styles.mutedText, { color: colors.textSecondary }]}>
-                    Historical synthetic checks
+                    Tap any bar to inspect probe latency & code
                   </Text>
                 </View>
               </View>
             </View>
 
-            {probes.length > 0 ? (
-              <View style={[styles.sparkRow, { backgroundColor: colors.surface }]}>
-                {probes
-                  .slice(0, 18)
-                  .reverse()
-                  .map((p) => {
+            {sparkProbes.length > 0 ? (
+              <View
+                style={[
+                  styles.sparkContainer,
+                  { backgroundColor: colors.surface, borderColor: dashedBorder },
+                ]}
+              >
+                {/* Dashed baseline inside chart */}
+                <View style={[styles.sparkDashedMid, { borderColor: dashedBorder }]} />
+                <View style={styles.sparkRow}>
+                  {sparkProbes.map((p, idx) => {
                     const c =
                       p.status === 'critical'
                         ? '#EF4444'
                         : p.status === 'degraded'
                           ? '#F59E0B'
                           : '#10B981';
-                    const h = Math.max(10, Math.round((Number(p.healthScore || 100) / 100) * 38));
-                    return <View key={p.id} style={[styles.sparkBar, { height: h, backgroundColor: c }]} />;
+                    const lat = Number(p.latencyMs || 50);
+                    const h = Math.max(14, Math.min(46, Math.round((lat / maxProbeLatency) * 44) + 10));
+                    const isSel = selectedProbeIdx === idx;
+                    return (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => {
+                          Haptics.selectionAsync().catch(() => {});
+                          setSelectedProbeIdx(isSel ? null : idx);
+                        }}
+                        style={[
+                          styles.sparkBar,
+                          {
+                            height: h,
+                            backgroundColor: c,
+                            opacity: selectedProbeIdx === null || isSel ? 1 : 0.45,
+                            borderWidth: isSel ? 2 : 0,
+                            borderColor: '#FFFFFF',
+                          },
+                        ]}
+                      />
+                    );
                   })}
+                </View>
+                {selectedProbeIdx !== null && sparkProbes[selectedProbeIdx] ? (
+                  <Animated.View entering={FadeInDown.duration(160)} style={styles.sparkSelectedTip}>
+                    <Text style={[styles.mutedText, { color: colors.text }]}>
+                      HTTP {sparkProbes[selectedProbeIdx].statusCode} •{' '}
+                      <Text style={{ fontFamily: 'Poppins_700Bold', color: '#10B981' }}>
+                        {sparkProbes[selectedProbeIdx].latencyMs} ms
+                      </Text>{' '}
+                      • {formatTime(sparkProbes[selectedProbeIdx].timestamp)} (
+                      {sparkProbes[selectedProbeIdx].trigger})
+                    </Text>
+                  </Animated.View>
+                ) : null}
               </View>
             ) : null}
 
@@ -956,7 +1127,7 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
                   key={p.id}
                   style={[
                     styles.modRow,
-                    { borderBottomColor: colors.border },
+                    { borderBottomColor: dashedBorder },
                     idx === Math.min(7, probes.length - 1) && { borderBottomWidth: 0 },
                   ]}
                 >
@@ -965,7 +1136,7 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
                       <Text style={[styles.subName, { color: colors.text }]}>
                         HTTP {p.statusCode} • {p.healthScore}%
                       </Text>
-                      <View style={[styles.triggerChip, { backgroundColor: colors.surface }]}>
+                      <View style={[styles.triggerChip, { backgroundColor: colors.surface, borderColor: dashedBorder }]}>
                         <Text style={[styles.mutedText, { color: colors.textSecondary, fontSize: 10 }]}>
                           {String(p.trigger).toUpperCase()}
                         </Text>
@@ -992,8 +1163,14 @@ export default function AdminMonitoringSection({ colors, isDark, onAuthError }: 
 }
 
 const styles = StyleSheet.create({
+  heroOuterFrame: {
+    borderRadius: 26,
+    padding: 3,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+  },
   heroCard: {
-    borderRadius: 24,
+    borderRadius: 22,
     padding: 18,
     overflow: 'hidden',
     shadowColor: '#0F172A',
@@ -1004,16 +1181,16 @@ const styles = StyleSheet.create({
   },
   ambientOrbTop: {
     position: 'absolute',
-    top: -40,
-    right: -30,
+    top: -36,
+    right: -28,
     width: 150,
     height: 150,
     borderRadius: 999,
   },
   ambientOrbBottom: {
     position: 'absolute',
-    bottom: -55,
-    left: -30,
+    bottom: -50,
+    left: -25,
     width: 140,
     height: 140,
     borderRadius: 999,
@@ -1054,6 +1231,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 999,
     borderWidth: 1,
+    borderStyle: 'dashed',
   },
   heroStatusText: {
     fontFamily: 'Poppins_700Bold',
@@ -1063,13 +1241,20 @@ const styles = StyleSheet.create({
   heroGaugeSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 14,
     marginTop: 18,
     marginBottom: 16,
   },
   svgGaugeWrap: {
-    width: 104,
-    height: 104,
+    width: 118,
+    height: 118,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  outerRadarWrap: {
+    position: 'absolute',
+    width: 118,
+    height: 118,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1080,8 +1265,9 @@ const styles = StyleSheet.create({
   },
   gaugePercent: {
     fontFamily: 'Poppins_800ExtraBold',
-    fontSize: 23,
-    lineHeight: 27,
+    fontSize: 22,
+    lineHeight: 26,
+    color: '#FFFFFF',
   },
   gaugeLabel: {
     fontFamily: 'Poppins_700Bold',
@@ -1093,14 +1279,15 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 7,
   },
-  glassPill: {
+  glassDashedPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 11,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(148,163,184,0.32)',
+    borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 6.5,
   },
@@ -1121,7 +1308,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.12)',
+    borderStyle: 'dashed',
+    borderTopColor: 'rgba(255,255,255,0.18)',
   },
   intervalGroup: {
     flexDirection: 'row',
@@ -1137,6 +1325,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 10,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.16)',
     padding: 3,
     gap: 3,
   },
@@ -1174,24 +1365,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 7,
     borderRadius: 999,
-    borderWidth: 1,
+    borderWidth: 1.2,
   },
   card: {
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: 1.3,
+    borderStyle: 'dashed',
     padding: 16,
   },
   centerCard: {
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: 1.5,
     padding: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardIconBadge: {
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     borderRadius: 11,
+    borderWidth: 1,
+    borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1220,8 +1414,9 @@ const styles = StyleSheet.create({
   },
   kpiTile: {
     flex: 1,
-    borderRadius: 14,
-    borderWidth: 1,
+    borderRadius: 15,
+    borderWidth: 1.3,
+    borderStyle: 'dashed',
     padding: 12,
     gap: 4,
   },
@@ -1254,8 +1449,9 @@ const styles = StyleSheet.create({
   },
   statusLegendCard: {
     width: '48.5%',
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 13,
+    borderWidth: 1.2,
+    borderStyle: 'dashed',
     paddingHorizontal: 11,
     paddingVertical: 9,
     gap: 4,
@@ -1277,14 +1473,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
+    borderRadius: 15,
+    borderWidth: 1.2,
+    borderStyle: 'dashed',
     gap: 11,
   },
   subIconBox: {
     width: 38,
     height: 38,
     borderRadius: 11,
+    borderWidth: 1,
+    borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1296,6 +1495,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 3,
     borderRadius: 999,
+    borderWidth: 1,
+    borderStyle: 'dashed',
   },
   statusPillText: {
     fontFamily: 'Poppins_700Bold',
@@ -1320,28 +1521,34 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 999,
     backgroundColor: '#EF444414',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#EF444455',
   },
   filterChip: {
     paddingHorizontal: 11,
     paddingVertical: 5,
     borderRadius: 999,
-    borderWidth: 1,
+    borderWidth: 1.2,
   },
-  emptyBox: {
+  emptyDashedBox: {
     borderRadius: 16,
-    padding: 22,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    padding: 24,
     alignItems: 'center',
   },
   emptyIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
   },
   glitchItem: {
-    borderRadius: 13,
-    borderWidth: 1,
+    borderRadius: 14,
+    borderWidth: 1.2,
+    borderStyle: 'dashed',
     borderLeftWidth: 4,
     padding: 12,
     marginBottom: 9,
@@ -1359,8 +1566,26 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingTop: 6,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(148,163,184,0.2)',
+    borderStyle: 'dashed',
+    borderTopColor: 'rgba(148,163,184,0.28)',
     gap: 3,
+  },
+  modCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 11,
+    paddingVertical: 10,
+    borderRadius: 13,
+    borderWidth: 1.2,
+    borderStyle: 'dashed',
+    gap: 8,
+  },
+  modIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modRow: {
     flexDirection: 'row',
@@ -1368,31 +1593,57 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 9,
     borderBottomWidth: 1,
+    borderStyle: 'dashed',
     gap: 8,
   },
   miniPill: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: 'dashed',
   },
   triggerChip: {
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+  },
+  sparkContainer: {
+    borderRadius: 15,
+    borderWidth: 1.2,
+    borderStyle: 'dashed',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  sparkDashedMid: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    top: '50%',
+    borderTopWidth: 1,
+    borderStyle: 'dashed',
+    opacity: 0.45,
   },
   sparkRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    height: 52,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    height: 50,
     gap: 5,
-    marginBottom: 12,
   },
   sparkBar: {
     flex: 1,
-    borderRadius: 4,
+    borderRadius: 5,
     minWidth: 6,
+  },
+  sparkSelectedTip: {
+    marginTop: 8,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderStyle: 'dashed',
+    borderTopColor: 'rgba(148,163,184,0.25)',
+    alignItems: 'center',
   },
 });
