@@ -56,11 +56,26 @@ exports.updateProfile = async (req, res) => {
       return res.status(400).json({ error: 'No valid profile fields provided to update' });
     }
 
+    let oldPhoto = null;
+    if (updates.profilePhoto !== undefined) {
+      const existing = await User.findById(req.userId).select('profilePhoto').lean();
+      oldPhoto = existing?.profilePhoto;
+    }
+
     const updated = await User.findByIdAndUpdate(
       req.userId,
       { $set: updates },
       { returnDocument: 'after' }
     ).select('-password');
+
+    if (oldPhoto && updates.profilePhoto !== undefined && oldPhoto !== updates.profilePhoto) {
+      if (oldPhoto.includes('/uploads/')) {
+        const photoPath = path.join(UPLOAD_DIR, path.basename(oldPhoto));
+        fs.unlink(photoPath, () => {});
+      } else if (oldPhoto.includes('res.cloudinary.com')) {
+        deleteFromCloudinary(oldPhoto, 'image').catch(() => {});
+      }
+    }
 
     if (!updated) return res.status(404).json({ error: 'User not found' });
     res.json(updated);

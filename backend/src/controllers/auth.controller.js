@@ -1081,6 +1081,7 @@ exports.syncUser = async (req, res) => {
 
     if (
       typeof profilePhoto === 'string' &&
+      profilePhoto.trim() &&
       !profilePhoto.trim().toLowerCase().startsWith('javascript:')
     ) {
       user.profilePhoto = profilePhoto.trim().slice(0, 500);

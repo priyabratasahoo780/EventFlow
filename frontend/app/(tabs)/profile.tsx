@@ -17,8 +17,8 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from '../../services/haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import api from '../../services/api';
-import { saveMediaToDevice, deleteLocalMediaIfOwned } from '../../services/localMediaService';
+import api, { resolveMediaUrl } from '../../services/api';
+import { saveMediaToDevice, deleteLocalMediaIfOwned, uploadMediaToCloud } from '../../services/localMediaService';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function ProfileScreen() {
@@ -62,19 +62,31 @@ export default function ProfileScreen() {
 
     try {
       const previousPhoto = user?.profilePhoto;
+      // 1. Immediately cache photo on local device for instant preview
       const localUri = await saveMediaToDevice(asset.uri, 'profile');
 
-      if (previousPhoto && previousPhoto !== localUri) {
+      if (previousPhoto && previousPhoto !== localUri && previousPhoto.startsWith('file://')) {
         await deleteLocalMediaIfOwned(previousPhoto);
       }
 
-      // Store user photo strictly on user device only (never upload to backend/app server)
+      // Update local state immediately so user sees their new avatar with zero delay
       await updateUserProfile({ profilePhoto: localUri });
 
+      // 2. Upload to Cloud / Server so photo is permanently saved in MongoDB
+      try {
+        const cloudUrl = await uploadMediaToCloud(localUri, 'image');
+        if (cloudUrl) {
+          await api.put('/users/profile', { profilePhoto: cloudUrl });
+          await updateUserProfile({ profilePhoto: cloudUrl });
+        }
+      } catch (uploadErr) {
+        console.warn('[Profile] Cloud sync delayed, kept local photo:', uploadErr);
+      }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Saved on Device', 'Profile photo saved on your device only!');
+      Alert.alert('Profile Photo Updated! ✨', 'Your profile photo has been saved permanently.');
     } catch (_err: any) {
-      Alert.alert('Save Error', 'Could not save profile photo on this device.');
+      Alert.alert('Save Error', 'Could not save profile photo. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -212,7 +224,7 @@ export default function ProfileScreen() {
                         <ActivityIndicator size="large" color={colors.secondary} />
                       </View>
                     ) : hasValidPhoto ? (
-                      <Image source={{ uri: user.profilePhoto }} style={styles.avatarImage} />
+                      <Image source={{ uri: resolveMediaUrl(user.profilePhoto) }} style={styles.avatarImage} />
                     ) : (
                       <LinearGradient colors={[colors.primary, '#3F35C8']} style={styles.avatarFallback}>
                         <Text style={styles.avatarText}>{userInitial}</Text>

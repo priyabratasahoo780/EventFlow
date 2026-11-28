@@ -12,6 +12,7 @@ import {
 } from '../services/secureStorage';
 import { saveAdminVaultSession } from '../services/biometricAuth';
 import { socketService } from '../services/socketService';
+import { uploadMediaToCloud } from '../services/localMediaService';
 
 export interface UserProfile {
   _id: string;
@@ -58,14 +59,44 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     markAuthenticatedNow();
 
     await setAuthToken(token);
-    await AsyncStorage.setItem('user', JSON.stringify(user)).catch(() => {});
 
-    if (user.role === 'admin') {
-      await saveAdminVaultSession(token, user).catch(() => {});
+    // Retrieve locally saved profile photo if available on this device
+    const localPhotoKey = `local_profile_photo_${user._id || user.email}`;
+    const savedLocalPhoto = await AsyncStorage.getItem(localPhotoKey).catch(() => null);
+
+    // Prefer server's photo if present; fallback to saved local photo
+    const effectivePhoto = user.profilePhoto || savedLocalPhoto || '';
+    const userToSave: UserProfile = { ...user, profilePhoto: effectivePhoto };
+
+    await AsyncStorage.setItem('user', JSON.stringify(userToSave)).catch(() => {});
+
+    if (userToSave.role === 'admin') {
+      await saveAdminVaultSession(token, userToSave).catch(() => {});
     }
 
-    set({ token, user, isLoading: false });
+    set({ token, user: userToSave, isLoading: false });
     socketService.connect().catch(() => {});
+
+    // If server had no photo but local device had a photo, sync it up to server in background
+    if (!user.profilePhoto && savedLocalPhoto) {
+      Promise.resolve().then(async () => {
+        try {
+          let cloudUrl = savedLocalPhoto;
+          if (savedLocalPhoto.startsWith('file://')) {
+            cloudUrl = await uploadMediaToCloud(savedLocalPhoto, 'image');
+          }
+          if (cloudUrl && !cloudUrl.startsWith('file://')) {
+            await api.put('/users/profile', { profilePhoto: cloudUrl });
+            await api.post('/auth/sync', { profilePhoto: cloudUrl });
+            const healedUser = { ...get().user, profilePhoto: cloudUrl } as UserProfile;
+            await AsyncStorage.setItem('user', JSON.stringify(healedUser)).catch(() => {});
+            set({ user: healedUser });
+          }
+        } catch {
+          // Best effort sync
+        }
+      });
+    }
 
     // Non-blocking push token registration ONLY for regular users (admins don't use /users/push-token).
     // Never invalidate or clear the active session if push registration is unavailable.
@@ -102,7 +133,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const currentUser = get().user || prevUser;
     if (currentUser && Object.prototype.hasOwnProperty.call(updatedFields, 'profilePhoto')) {
       const localPhotoKey = `local_profile_photo_${currentUser._id || currentUser.email}`;
-      if (updatedFields.profilePhoto && updatedFields.profilePhoto.startsWith('file://')) {
+      if (updatedFields.profilePhoto) {
         await AsyncStorage.setItem(localPhotoKey, updatedFields.profilePhoto).catch(() => {});
       } else if (updatedFields.profilePhoto === '') {
         await AsyncStorage.removeItem(localPhotoKey).catch(() => {});
@@ -111,13 +142,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       if (currentUser) {
-        const serverPhoto =
-          currentUser.profilePhoto?.startsWith('file://') ? '' : currentUser.profilePhoto;
-        await api.post('/auth/sync', {
+        const syncPayload: Record<string, any> = {
           uniqueId: currentUser.uniqueId,
           name: currentUser.name,
-          profilePhoto: serverPhoto,
-        });
+        };
+        // ONLY sync profilePhoto if it's a valid remote URL or explicitly cleared ('')
+        if (typeof updatedFields.profilePhoto === 'string') {
+          if (!updatedFields.profilePhoto.startsWith('file://')) {
+            syncPayload.profilePhoto = updatedFields.profilePhoto;
+          }
+        }
+        await api.post('/auth/sync', syncPayload);
       }
     } catch {
       // Deferred sync
@@ -149,20 +184,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ token, user: parsedUser, isLoading: false });
 
         try {
-          const res = await api.post('/auth/sync', {
+          const syncPayload: Record<string, any> = {
             uniqueId: parsedUser.uniqueId,
             name: parsedUser.name,
-            profilePhoto: parsedUser.profilePhoto?.startsWith('file://') ? '' : parsedUser.profilePhoto,
-          });
+          };
+          if (parsedUser.profilePhoto && !parsedUser.profilePhoto.startsWith('file://')) {
+            syncPayload.profilePhoto = parsedUser.profilePhoto;
+          }
+
+          const res = await api.post('/auth/sync', syncPayload);
 
           if (res.data?.user && get().token === token) {
             const localPhotoKey = `local_profile_photo_${parsedUser._id || parsedUser.email}`;
             const savedLocalPhoto = await AsyncStorage.getItem(localPhotoKey).catch(() => null);
+            // Server's cloud photo takes precedence; otherwise fallback to local photo
             const mergedPhoto =
+              res.data.user.profilePhoto ||
               savedLocalPhoto ||
               (parsedUser.profilePhoto?.startsWith('file://')
                 ? parsedUser.profilePhoto
-                : res.data.user.profilePhoto);
+                : '');
             const syncedUser = { ...parsedUser, ...res.data.user, profilePhoto: mergedPhoto };
             await AsyncStorage.setItem('user', JSON.stringify(syncedUser)).catch(() => {});
             const finalToken = res.data.token || token;

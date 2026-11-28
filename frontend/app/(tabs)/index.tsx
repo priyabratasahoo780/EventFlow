@@ -686,7 +686,7 @@ export default function HomeScreen() {
           >
             <View style={s.avatarWrapper}>
               {hasValidPhoto ? (
-                <Image source={{ uri: user!.profilePhoto }} style={s.avatarImg} />
+                <Image source={{ uri: resolveMediaUrl(user!.profilePhoto) }} style={s.avatarImg} />
               ) : (
                 <LinearGradient colors={[colors.secondary, colors.secondary]} style={s.avatarFallback}>
                   <Text style={s.avatarFallbackText}>{userInitial}</Text>
@@ -1544,7 +1544,7 @@ export default function HomeScreen() {
           <View style={s.sideNavHeader}>
              <View style={s.sideNavAvatar}>
                 {hasValidPhoto ? (
-                  <Image source={{ uri: user?.profilePhoto }} style={s.sideNavAvatarImg} />
+                  <Image source={{ uri: resolveMediaUrl(user?.profilePhoto) }} style={s.sideNavAvatarImg} />
                 ) : (
                   <Text style={s.sideNavAvatarText}>{userInitial}</Text>
                 )}
