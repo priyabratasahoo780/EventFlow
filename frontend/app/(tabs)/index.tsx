@@ -18,6 +18,7 @@ import AlarmModal from '../../components/AlarmModal';
 import LocationArrivalModal from '../../components/LocationArrivalModal';
 import BuddyAlertModal from '../../components/BuddyAlertModal';
 import AllCaughtUpCard from '../../components/AllCaughtUpCard';
+import AnimatedDashedChip from '../../components/AnimatedDashedChip';
 import * as Notifications from '../../mock-expo-notifications';
 import {
   Search, Filter, CheckCircle2, Clock, X,
@@ -961,17 +962,18 @@ export default function HomeScreen() {
           contentContainerStyle={s.categoryScroll}
         >
           {CATEGORIES.map((cat) => {
-            const isActive =
+            const isActive = Boolean(
               (cat.id === 'all' && (!filters.category || filters.category === 'all')) ||
-              (filters.category && filters.category.toLowerCase() === cat.id.toLowerCase());
+              (filters.category && filters.category.toLowerCase() === cat.id.toLowerCase())
+            );
             return (
-              <Pressable
+              <AnimatedDashedChip
                 key={cat.id}
-                style={({ pressed }) => [
-                  s.catDashedTag,
-                  isActive && s.catDashedTagActive,
-                  pressed && { opacity: 0.8, transform: [{ scale: 0.96 }] },
-                ]}
+                isActive={isActive}
+                activeBorderColor={colors.secondary}
+                inactiveBorderColor={colors.border}
+                activeBackgroundColor={colors.secondaryLight}
+                inactiveBackgroundColor={colors.card}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setFilters({ category: cat.id === 'all' ? 'all' : cat.label });
@@ -986,7 +988,7 @@ export default function HomeScreen() {
                     <X color={colors.secondary} size={10} strokeWidth={2.6} />
                   </View>
                 )}
-              </Pressable>
+              </AnimatedDashedChip>
             );
           })}
         </ScrollView>
