@@ -1172,7 +1172,7 @@ export default function AdminPortalScreen() {
       </ScrollView>
 
       {/* Search & Sentiment Filter Bar */}
-      {activeTab !== 'overview' && activeTab !== 'festival' && activeTab !== 'profile' && (
+      {(activeTab === 'community' || activeTab === 'users') && (
         <Animated.View entering={FadeIn.duration(220)}>
           <View style={s.searchWrap}>
             <Search color={colors.textSecondary} size={17} />
