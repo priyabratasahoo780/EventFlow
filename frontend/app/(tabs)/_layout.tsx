@@ -3,7 +3,7 @@ import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Home, Calendar, PieChart, Settings, User, Plus } from 'lucide-react-native';
 import { StyleSheet, View, Pressable, Animated, ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import { useThemeStore } from '../../store/useThemeStore';
 import { ColorTheme } from '../../constants/theme';
 import { useRef, useEffect } from 'react';

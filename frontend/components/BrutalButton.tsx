@@ -2,7 +2,7 @@ import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
 import React from 'react';
 import { Pressable, Text, StyleSheet, View, StyleProp, ViewStyle } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 
 interface BrutalButtonProps {
   title?: string;

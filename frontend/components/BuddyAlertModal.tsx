@@ -9,7 +9,7 @@ import { BuddyAlertPayload, useEventStore } from '../store/useEventStore';
 import {
   MapPin, ShoppingCart, Plus, Check, X, Send,
 } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import api from '../services/api';
 
 interface Props {

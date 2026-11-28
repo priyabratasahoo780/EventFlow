@@ -1,7 +1,7 @@
 import { Pressable, Text, StyleSheet, View, ActivityIndicator } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import { useThemeStore } from '../store/useThemeStore';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);

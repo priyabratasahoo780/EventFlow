@@ -7,7 +7,7 @@ import { useThemeStore } from '../../store/useThemeStore';
 import { useEventStore } from '../../store/useEventStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useResponsive } from '../../constants/responsive';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import api from '../../services/api';
 import { reschedulingService, FreeSlot } from '../../services/reschedulingService';
 import { Event } from '../../models/Event';

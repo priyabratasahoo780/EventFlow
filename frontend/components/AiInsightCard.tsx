@@ -30,7 +30,7 @@ import {
   ShieldCheck,
   Flame,
 } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import { ColorTheme } from '../constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');

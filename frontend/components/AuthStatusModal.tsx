@@ -17,7 +17,7 @@ import {
   ShieldAlert,
   X,
 } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import { useThemeStore } from '../store/useThemeStore';
 
 export type AuthModalType =

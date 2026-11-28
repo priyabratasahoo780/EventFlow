@@ -15,7 +15,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Linking from 'expo-linking';
 import * as Notifications from '../../mock-expo-notifications';
 import { Event } from '../../models/Event';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import { useRouter } from 'expo-router';
 import AlarmModal from '../../components/AlarmModal';
 

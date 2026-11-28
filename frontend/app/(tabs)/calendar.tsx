@@ -17,7 +17,7 @@ import {
   ChevronRight,
   Check
 } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 
 export default function CalendarScreen() {
   const router = useRouter();

@@ -37,7 +37,7 @@ import api, { extractApiError, warmUpBackend } from '../../services/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Eye, EyeOff, Mail, Lock, ShieldCheck, ArrowRight, AlertCircle } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import { useGoogleAuth } from '../../services/clerkAuth';
 import { useFormik } from 'formik';
 import * as yup from 'yup';

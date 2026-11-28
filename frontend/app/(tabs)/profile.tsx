@@ -14,7 +14,7 @@ import {
   Edit3, Check, Trash2, X, RefreshCw 
 } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import api from '../../services/api';

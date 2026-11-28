@@ -12,7 +12,7 @@ import { useResponsive } from '../../constants/responsive';
 import BrutalButton from '../../components/BrutalButton';
 import BrutalCard from '../../components/BrutalCard';
 import api, { resolveMediaUrl } from '../../services/api';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { 

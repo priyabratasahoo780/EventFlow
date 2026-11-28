@@ -14,7 +14,7 @@ import {
   Alert,
 } from 'react-native';
 import * as Location from 'expo-location';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import {
   MapPin,
   Clock,

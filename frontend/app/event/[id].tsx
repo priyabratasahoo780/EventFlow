@@ -12,7 +12,7 @@ import { format } from 'date-fns';
 import { Calendar, Clock, MapPin, Tag, Bell, Share, Trash2, Edit2, CheckSquare, ChevronLeft, Check, User, Phone, Video as VideoIcon, Play, CheckCircle2, Navigation, X } from 'lucide-react-native';
 import BrutalCard from '../../components/BrutalCard';
 import BrutalButton from '../../components/BrutalButton';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import { ReminderConfig } from '../../models/Event';
 import { Theme } from '../../constants/theme';
 import { Colors } from '../../constants/Colors';

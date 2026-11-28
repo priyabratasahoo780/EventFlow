@@ -10,7 +10,7 @@ import LoadingScreen from '../../components/LoadingScreen';
 import BrutalCard from '../../components/BrutalCard';
 import api, { resolveMediaUrl } from '../../services/api';
 import { socketService } from '../../services/socketService';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Check, X, UserPlus, Inbox, MapPin, RefreshCw } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';

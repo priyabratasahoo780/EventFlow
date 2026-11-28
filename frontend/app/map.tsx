@@ -9,7 +9,7 @@ import { ArrowLeft, MapPin, Search, Compass, ChevronRight, LocateFixed } from 'l
 import { useEventStore } from '../store/useEventStore';
 import { useLocation } from '../hooks/useLocation';
 import { priorityService } from '../services/priorityService';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker, Circle, MapViewRef } from '../components/maps';
 

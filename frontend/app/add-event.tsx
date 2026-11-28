@@ -19,7 +19,7 @@ import {
   AlignLeft, Bell, ChevronLeft, Type,
   X, Check, Plus, Globe, Lock, Users, User
 } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import api from '../services/api';
 import { useEffect } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';

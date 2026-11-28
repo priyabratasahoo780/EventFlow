@@ -15,7 +15,7 @@ import {
   Award, BarChart2, Flame, ChevronRight,
 } from 'lucide-react-native';
 import { PieChart, BarChart } from 'react-native-gifted-charts';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import { behaviorService } from '../../services/behaviorService';
 import AiInsightSection from '../../components/AiInsightSection';
 import { useResponsive } from '../../constants/responsive';

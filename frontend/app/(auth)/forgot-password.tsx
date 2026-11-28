@@ -43,7 +43,7 @@ import {
   ArrowRight,
   AlertCircle,
 } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
 import { useOtpCooldown } from '../../hooks/useOtpCooldown';

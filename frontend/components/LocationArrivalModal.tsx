@@ -7,7 +7,7 @@ import { Event } from '../models/Event';
 import { useThemeStore } from '../store/useThemeStore';
 import { useEventStore } from '../store/useEventStore';
 import { ColorTheme } from '../constants/theme';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 
 
 interface Props {

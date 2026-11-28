@@ -11,7 +11,7 @@ import { ColorTheme } from '../../constants/theme';
 import { useResponsive } from '../../constants/responsive';
 import api, { resolveMediaUrl } from '../../services/api';
 import { socketService } from '../../services/socketService';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import { useRouter } from 'expo-router';
 import { 
   ArrowLeft, Search, UserPlus, Users, Sparkles, 

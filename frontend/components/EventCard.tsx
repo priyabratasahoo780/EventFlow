@@ -6,7 +6,7 @@ import { Event } from '../models/Event';
 import {
   Clock, Calendar, CheckCircle, MapPin, Zap,
 } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 
 interface EventCardProps {
   event: Event;

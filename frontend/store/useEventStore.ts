@@ -8,7 +8,7 @@ import { notificationService } from '../services/notificationService';
 import { priorityService } from '../services/priorityService';
 import { Alert, Platform } from 'react-native';
 import * as Notifications from '../mock-expo-notifications';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import api from '../services/api';
 import { socketService } from '../services/socketService';
 import { geofencingService } from '../services/geofencingService';

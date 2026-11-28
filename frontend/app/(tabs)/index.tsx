@@ -33,7 +33,7 @@ import { priorityService } from '../../services/priorityService';
 import api, { resolveMediaUrl } from '../../services/api';
 import { socketService } from '../../services/socketService';
 import { useAuthStore } from '../../store/useAuthStore';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ZenModePermissionModal from '../../components/ZenModePermissionModal';
 import { zenModeService } from '../../services/zenModeService';

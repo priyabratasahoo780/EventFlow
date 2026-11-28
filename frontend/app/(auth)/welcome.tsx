@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { CalendarCheck, Target, TrendingUp, ArrowRight, Sparkles } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 import Animated, { FadeInDown, FadeIn, ZoomIn, useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing, withSequence, withDelay } from 'react-native-reanimated';
 
 export default function WelcomeScreen() {

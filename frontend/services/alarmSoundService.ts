@@ -1,5 +1,5 @@
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from './haptics';
 
 const ALARM_SOUND_URL = 'https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg';
 

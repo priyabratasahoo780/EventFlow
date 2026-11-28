@@ -41,7 +41,7 @@ import { alarmSoundService } from '../services/alarmSoundService';
 import { alarmService } from '../services/alarmService';
 import { useThemeStore } from '../store/useThemeStore';
 import { useResponsive } from '../constants/responsive';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 
 interface Props {
   visible: boolean;

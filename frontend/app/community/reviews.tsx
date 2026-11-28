@@ -11,7 +11,7 @@ import LoadingScreen from '../../components/LoadingScreen';
 import { ArrowLeft, Star, MessageCircle, Send, X, Heart, Quote, CheckCircle2, Sparkles, Trash2 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../services/haptics';
 
 export default function CommunityReviewsScreen() {
   const router = useRouter();

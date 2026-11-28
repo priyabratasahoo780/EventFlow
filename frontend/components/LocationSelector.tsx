@@ -28,7 +28,7 @@ import {
   CheckCircle2,
 } from 'lucide-react-native';
 import { LocationDetails } from '../models/Event';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import MapViewWrapper from './MapViewWrapper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';

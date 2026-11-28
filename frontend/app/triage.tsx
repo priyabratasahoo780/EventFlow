@@ -12,7 +12,7 @@ import {
 import { useThemeStore } from '../store/useThemeStore';
 import { ColorTheme } from '../constants/theme';
 import { useResponsive } from '../constants/responsive';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { reschedulingService, RescheduleSuggestion } from '../services/reschedulingService';
 import { resolveMediaUrl } from '../services/api';

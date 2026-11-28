@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, Image, Pressable, ScrollView } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Home } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { useResponsive } from '../constants/responsive';
 
